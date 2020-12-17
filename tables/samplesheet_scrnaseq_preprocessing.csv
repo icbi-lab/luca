@@ -1,0 +1,10 @@
+id,input_adata,min_counts,max_counts,min_genes,max_pct_mito
+Adams_Kaminski_2020_COPD,data/10_public_datasets/Adams_Kaminski_2020_COPD/h5ad_raw/adams_kaminski_2020_copd.h5ad,1000,30000,500,20 
+Goveia_Carmeliet_2020_NSCLC,data/10_public_datasets/Goveia_Carmeliet_2020_NSCLC/h5ad_raw/goveia_carmeliet_2020_nsclc.h5ad,1000,30000,500,20 
+Guo_Zhang_2018_NSCLC,data/10_public_datasets/Guo_Zhang_2018_NSCLC/h5ad_raw/guo_zhang_2018_nsclc.h5ad,20000,2000000,1000,20 
+Lambrechts_2018_LUAD_6149,data/10_public_datasets/Lambrechts_2018_LUAD/E-MTAB-6149-v2/h5ad_raw/lambrechts_2018_luad_6149-v2.h5ad,1000,30000,500,20 
+Lambrechts_2018_LUAD_6653,data/10_public_datasets/Lambrechts_2018_LUAD/E-MTAB-6653/h5ad_raw/lambrechts_2018_luad_6653.h5ad,1000,30000,500,20 
+Laughney_Massague_2020_NSCLC,data/10_public_datasets/Laughney_Massague_2020_NSCLC/h5ad_raw/laughney_massague_2020_nsclc.h5ad,1800,40000,500,20 
+Maier_Merad_2020_NSCLC,data/10_public_datasets/Maier_Merad_2020_NSCLC/h5ad_raw/maier_merad_2020_nsclc.h5ad,1000,30000,500,15 
+Maynard_Bivona_2020_NSCLC,data/10_public_datasets/Maynard_Bivona_2020_NSCLC/h5ad_raw/maynard2020.h5ad,20000,5000000,1000,20
+batch1_3patients,data/11_own_datasets/batch1_3patients/h5ad_raw/batch1_3patients.h5ad,1000,120000,400,40 
