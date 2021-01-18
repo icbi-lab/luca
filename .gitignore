@@ -2,3 +2,5 @@
 .ipynb_checkpoints
 work
 .nextflow*
+.vscode
+*.code-workspace
