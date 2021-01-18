@@ -4,3 +4,9 @@ work
 .nextflow*
 .vscode
 *.code-workspace
+rik*.json
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
