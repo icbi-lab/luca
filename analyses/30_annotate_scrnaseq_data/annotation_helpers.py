@@ -90,6 +90,7 @@ class AnnotationHelper:
         for ct, clusters in cell_type_map.items():
             clusters = [str(x) for x in clusters]
             adata.obs.loc[adata.obs["leiden"].isin(clusters), "cell_type"] = ct
+        sc.pl.umap(adata, color="cell_type")
 
     @staticmethod
     def integrate_back(adata, adata_subset):
@@ -99,3 +100,4 @@ class AnnotationHelper:
         adata.obs.loc[adata_subset.obs.index, "cell_type"] = adata_subset.obs[
             "cell_type"
         ].astype("str")
+        sc.pl.umap(adata, color="cell_type")
