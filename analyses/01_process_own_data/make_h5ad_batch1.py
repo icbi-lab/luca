@@ -57,6 +57,16 @@ adata.obs = adata.obs.reset_index().merge(meta, on=["patient"], how="left").set_
 
 adata
 
+adata.obs.drop_duplicates()
+
+adata.obs["condition"] = "NSCLC"
+adata.obs["origin"] = ["tumor_primary" if c == "Tumor" else "normal_adjacent" for c in adata.obs["tissue"]]
+adata.obs["sample"] = [f"{patient}_{origin}" for patient, origin in zip(adata.obs["patient"], adata.obs["origin"])]
+adata.obs["sex"] = [{"m": "male", "f": "female"}[s] for s in adata.obs["sex"]]
+adata.obs["tissue"] = "lung"
+
+adata.obs.drop_duplicates()
+
 # !mkdir -p "../../data/11_own_datasets/batch1_3patients/h5ad_raw"
 
 adata.write_h5ad("../../data/11_own_datasets/batch1_3patients/h5ad_raw/batch1_3patients.h5ad", compression="lzf")
