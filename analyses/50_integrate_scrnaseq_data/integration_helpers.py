@@ -2,6 +2,9 @@ import pandas as pd
 import scanpy as sc
 import numpy as np
 import scipy.sparse
+import mygene
+import itertools
+import warnings
 
 """Definitions for metadata consistency checks"""
 MANDATORY_COLS = [
@@ -38,15 +41,28 @@ def sanitize_adata(adata):
         f"{dataset}_{sample}"
         for dataset, sample in zip(adata.obs["dataset"], adata.obs["sample"])
     ]
+
     # X should be in CSR format
     adata.X = adata.X.tocsr()
     adata._sanitize()
+
+
+def drop_duplicated_genes(adata):
+    duplicated = adata.var_names.duplicated()
+    if np.sum(duplicated):
+        warnings.warn(f"Removing {np.sum(duplicated)} genes. ")
+        return adata[:, ~duplicated].copy()
+    else:
+        return adata
 
 
 def validate_adata(adata):
     _validate_obs(adata)
 
     assert isinstance(adata.X, scipy.sparse.csr_matrix)
+
+    assert adata.obs_names.is_unique, "Obs names not unique"
+    assert adata.var_names.is_unique, "var names not unique"
 
     # X should be all integers
     assert np.all(np.modf(adata.X.data)[0] == 0), "X does not contain all integers"
@@ -140,3 +156,26 @@ def add_doublet_annotation(adata, doublet_file, plot_title):
     sc.tl.umap(adata_vis)
     sc.pl.umap(adata_vis, color=["sample", "is_doublet"], title=plot_title)
     return adata_vis
+
+
+def remap_gene_symbols(adata):
+    mg = mygene.MyGeneInfo()
+    query_result = mg.querymany(
+        adata.var_names.values,
+        scopes="symbol,name,alias",
+        fields="symbol",
+        species="human",
+    )
+    query_result = sorted(
+        query_result, key=lambda r: (r["query"], r.get("_score", float("inf")))
+    )
+
+    # Take the result with the highest score when multiple hits are found.
+    # Take the query if no matching symbol was found
+    gene_dict = {
+        query: next(results).get("symbol", query)
+        for query, results in itertools.groupby(query_result, key=lambda r: r["query"])
+    }
+
+    adata.var["original_gene_symbol"] = adata.var_names
+    adata.var_names = [gene_dict[g] for g in adata.var_names.values]
