@@ -2,6 +2,7 @@ import pandas as pd
 import scanpy as sc
 import numpy as np
 import scipy.sparse
+import scipy.stats
 import mygene
 import itertools
 import warnings
@@ -167,7 +168,7 @@ def remap_gene_symbols(adata):
         species="human",
     )
     query_result = sorted(
-        query_result, key=lambda r: (r["query"], r.get("_score", float("inf")))
+        query_result, key=lambda r: (r["query"], -r.get("_score", float("inf")))
     )
 
     # Take the result with the highest score when multiple hits are found.
@@ -179,3 +180,26 @@ def remap_gene_symbols(adata):
 
     adata.var["original_gene_symbol"] = adata.var_names
     adata.var_names = [gene_dict[g] for g in adata.var_names.values]
+
+
+def aggregate_duplicate_gene_symbols(adata):
+    """Aggregate duuplicate gene symbols.
+
+    Use the max per default, it has these benefits:
+        * Can be applied multiple times without issues
+        * If one dataset only contains one of the duplicate symbols, the other
+          has probably been filtered out due to low expression. In that case,
+          it makes sense to retain the one with the higher expression.
+    """
+    retain_symbols = ~adata.var_names.duplicated(keep=False)
+    duplicated_symbols = adata.var_names[adata.var_names.duplicated()].unique()
+    for sym in duplicated_symbols:
+        mask = adata.var_names == sym
+        sym_max = np.sum(adata.X[:, mask], axis=0)
+        ranks = scipy.stats.rankdata(-sym_max, method="ordinal")
+        # Of the True entries in the mask, only set the one entry to True, that
+        # has the lowest rank, i.e. the highest expressed row.
+        mask[mask] = ranks == 1
+        retain_symbols |= mask
+
+    return adata[:, retain_symbols].copy()
