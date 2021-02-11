@@ -13,7 +13,7 @@ process SCANVI {
         path input_adata
 
     output:
-        path("*.integrated.h5ad")
+        path("integrated*.h5ad")
 
     script:
     """
@@ -21,12 +21,12 @@ process SCANVI {
     export OPENBLAS_NUM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus}  \\
         MKL_NUM_THREADS=${task.cpus} OMP_NUM_cpus=${task.cpus}  \\
         MKL_NUM_cpus=${task.cpus} OPENBLAS_NUM_cpus=${task.cpus}
-    integrate_scanvi.py ${input_adata} ${input_adata.baseName}.integrated.h5ad 
+    integrate_scanvi.py ${input_adata} integrated_${input_adata.baseName}.h5ad
     """
 }
 
 workflow {
     SCANVI(
-        file("../../data/50_integrate_scrnaseq_data/merged*.h5ad"),
+        Channel.fromPath("../../data/50_integrate_scrnaseq_data/merged*.h5ad"),
     )
 }

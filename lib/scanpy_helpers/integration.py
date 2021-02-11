@@ -1,3 +1,5 @@
+from typing import Sequence, Union
+from collections import Counter
 import pandas as pd
 import scanpy as sc
 import numpy as np
@@ -6,6 +8,8 @@ import scipy.stats
 import mygene
 import itertools
 import warnings
+from tqdm import tqdm
+import anndata
 
 """Definitions for metadata consistency checks"""
 MANDATORY_COLS = [
@@ -160,6 +164,7 @@ def add_doublet_annotation(adata, doublet_file, plot_title):
 
 
 def remap_gene_symbols(adata):
+    """Remap gene symbols to canonical symbol using the MyGene API"""
     mg = mygene.MyGeneInfo()
     query_result = mg.querymany(
         adata.var_names.values,
@@ -181,6 +186,8 @@ def remap_gene_symbols(adata):
     adata.var["original_gene_symbol"] = adata.var_names
     adata.var_names = [gene_dict[g] for g in adata.var_names.values]
 
+    return adata
+
 
 def aggregate_duplicate_gene_symbols(adata):
     """Aggregate duuplicate gene symbols.
@@ -193,13 +200,76 @@ def aggregate_duplicate_gene_symbols(adata):
     """
     retain_symbols = ~adata.var_names.duplicated(keep=False)
     duplicated_symbols = adata.var_names[adata.var_names.duplicated()].unique()
-    for sym in duplicated_symbols:
-        mask = adata.var_names == sym
-        sym_max = np.sum(adata.X[:, mask], axis=0)
-        ranks = scipy.stats.rankdata(-sym_max, method="ordinal")
-        # Of the True entries in the mask, only set the one entry to True, that
-        # has the lowest rank, i.e. the highest expressed row.
-        mask[mask] = ranks == 1
-        retain_symbols |= mask
+    if len(duplicated_symbols):
+        tmp_x = adata.X.tocsc()
+        for sym in tqdm(duplicated_symbols):
+            mask = adata.var_names == sym
+            sym_max = np.sum(tmp_x[:, mask], axis=0)
+            ranks = scipy.stats.rankdata(-sym_max, method="ordinal")
+            # Of the True entries in the mask, only set the one entry to True, that
+            # has the lowest rank, i.e. the highest expressed row.
+            mask[mask] = ranks == 1
+            retain_symbols |= mask
 
-    return adata[:, retain_symbols].copy()
+        adata_dedup = adata[:, retain_symbols].copy()
+        return adata_dedup
+    else:
+        return adata
+
+
+def merge_datasets(
+    datasets: Sequence[sc.AnnData],
+    symbol_in_n_datasets: Union[int, None] = None,
+    min_batch_size=25,
+) -> sc.AnnData:
+    """
+    Concatenate the anndata objects in `datasets`. Keeps symbols that are at
+    least in `symbol_in_n_datasets` datasets. If `symbol_in_n_datasets` is None,
+    it only keeps symbols that are in all datasets.
+
+    Only keeps X, obs, var of all datasets.
+
+    Adds log-norm transformed values to adata.raw.
+    """
+    if symbol_in_n_datasets is None:
+        symbol_in_n_datasets = len(datasets)
+    gene_ids = [set(adata.var_names.values) for adata in datasets]
+    symbol_count = Counter(itertools.chain.from_iterable(gene_ids))
+    keep_symbols = set(
+        [sym for sym, c in symbol_count.items() if c >= symbol_in_n_datasets]
+    )
+
+    datasets_subset = list()
+    for dataset in datasets:
+        tmp_sym = sorted(list(set(dataset.var_names.values) & keep_symbols))
+        tmp_adata = dataset[:, tmp_sym]
+        tmp_obs = tmp_adata.obs.loc[:, MANDATORY_COLS + ["cell_type"]]
+        # get rid of everything except X, obs, var
+        datasets_subset.append(
+            sc.AnnData(X=tmp_adata.X, obs=tmp_obs, var=tmp_adata.var)
+        )
+
+    for dataset in datasets:
+        validate_adata(dataset)
+
+    adata_merged = anndata.concat(datasets_subset, index_unique="-", join="outer")
+
+    # add log-norm values to `.raw`
+    adata_merged_raw = adata_merged.copy()
+    sc.pp.normalize_total(adata_merged_raw)
+    sc.pp.log1p(adata_merged_raw)
+    adata_merged.raw = adata_merged_raw
+
+    # Exclude too small batches.
+    adata_merged.obs["batch"] = [
+        f"{dataset}_{sample}"
+        for dataset, sample in zip(
+            adata_merged.obs["dataset"], adata_merged.obs["sample"]
+        )
+    ]
+
+    batch_size = adata_merged.obs.groupby("batch").size()
+    keep_batchs = batch_size[batch_size > 25].keys().values
+    adata_merged = adata_merged[adata_merged.obs["batch"].isin(keep_batchs), :].copy()
+
+    return adata_merged

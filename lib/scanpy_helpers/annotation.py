@@ -74,12 +74,28 @@ class AnnotationHelper:
         sc.tl.leiden(adata)
 
     @staticmethod
-    def reprocess_adata_subset_scvi(adata, *, n_neighbors=10, leiden_res=1):
+    def reprocess_adata_subset_scvi(
+        adata,
+        *,
+        n_neighbors=10,
+        leiden_res=1,
+        use_rep="X_scVI",
+    ):
         """Recompute UMAP and leiden on a adata subset when scVI is used (no additional
         batch correction)"""
-        sc.pp.neighbors(adata, use_rep="X_scVI", n_neighbors=n_neighbors)
+        sc.pp.neighbors(adata, use_rep=use_rep, n_neighbors=n_neighbors)
         sc.tl.umap(adata)
         sc.tl.leiden(adata, resolution=leiden_res)
+
+    @staticmethod
+    def reprocess_adata_subset_cnv(adata):
+        """Recomput UMAP and leiden on a data subset with infercnvpy. """
+        import infercnvpy as cnv
+
+        cnv.tl.pca(adata)
+        cnv.pp.neighbors(adata)
+        cnv.tl.leiden(adata)
+        cnv.tl.umap(adata)
 
     @staticmethod
     def annotate_cell_types(
