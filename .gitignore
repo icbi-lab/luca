@@ -1,4 +1,4 @@
-*.ipynb
+_*.ipynb
 .ipynb_checkpoints
 work
 .nextflow*
