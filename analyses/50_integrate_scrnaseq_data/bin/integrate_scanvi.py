@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Run scANVI integration on prepared anndata object. 
 
-Usage ./integrate_scanpy.py adata.h5ad output_adata.h5ad
+Usage ./integrate_scanpy.py adata.h5ad output_adata.h5ad model_out_dir
 """
 
 import scanpy as sc
@@ -35,6 +35,7 @@ scanvi_epochs = 200
 
 adata_in = sys.argv[1]
 adata_out = sys.argv[2]
+model_out = sys.argv[3]
 
 adata = sc.read_h5ad(adata_in)
 
@@ -65,6 +66,7 @@ lvae.train(
         early_stopping_kwargs=early_stopping_kwargs_scanvi,
     ),
 )
+lvae.save(model_out)
 
 adata.obs["cell_type_predicted"] = lvae.predict(adata)
 adata.obsm["X_scANVI"] = lvae.get_latent_representation(adata)
