@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Run scANVI integration on prepared anndata object. 
+"""Run scANVI integration on prepared anndata object.
 
 Usage ./integrate_scanpy.py adata.h5ad output_adata.h5ad model_out_dir
 """
@@ -36,12 +36,14 @@ scanvi_epochs = 200
 adata_in = sys.argv[1]
 adata_out = sys.argv[2]
 model_out = sys.argv[3]
+use_highly_variable = bool(int(sys.argv[4]))
 
 adata = sc.read_h5ad(adata_in)
 
-sc.pp.highly_variable_genes(
-    adata, flavor="seurat_v3", n_top_genes=6000, batch_key="dataset", subset=True
-)
+if use_highly_variable:
+  sc.pp.highly_variable_genes(
+      adata, flavor="seurat_v3", n_top_genes=6000, batch_key="dataset", subset=True
+  )
 
 adata.obs["batch"] = [
     f"{dataset}_{sample}"
