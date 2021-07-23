@@ -151,6 +151,9 @@ datasets["Reyfman_Misharin_2018_pulmonary-fibrosis"] = datasets[
 datasets["Travaglini_Krasnow_2020_Lung_SS2"] = datasets[
     "Travaglini_Krasnow_2020_Lung_SS2"
 ][datasets["Travaglini_Krasnow_2020_Lung_SS2"].obs["tissue"] == "lung", :]
+datasets["Travaglini_Krasnow_2020_Lung_SS2"] = normalize_by_gene_length(
+    datasets["Travaglini_Krasnow_2020_Lung_SS2"]
+)
 
 # %%
 datasets["Zilionis_Klein_2019_NSCLC"] = datasets["Zilionis_Klein_2019_NSCLC"][
@@ -216,69 +219,73 @@ for dataset in datasets.values():
 obs_all = pd.concat([x.obs for x in datasets.values()]).reset_index(drop=True)
 
 # %%
-obs_all = obs_all.loc[
-    :,
-    MANDATORY_COLS
-    + [
-        "accession",
-        "sampleType",
-        "platform",
-        "age",
-        "tobacco",
-        "ethnicity",
-        "processing_site",
-        "Tissue origins",
-        "histology",
-        "smoking",
-        "pathology",
-        "EGFR",
-        "tumor_stage",
-        "geo_accession",
-        "tissue_orig",
-        "replicate",
-        "race",
-        "smoking_status",
-        "driver_gene",
-        "driver_mutation",
-        "secondary_mutation",
-        "Notes",
-        "stage_at_diagnosis",
-        "pathlogy_review",
-        "biopsy_date",
-        "sort_date",
-        "biopsy_type",
-        "biopsy_time_status",
-        "early_treatment_status",
-        "best_response_status",
-        "biopsy_timing",
-        "analysis",
-        "treatment_history",
-        "treatment_history_detail",
-        "line_of_therapy",
-        "treatment_type",
-        "treatment",
-        "percent_PFS_ref_values",
-        "percent.PFS.reference.values",
-        "infections",
-        "early_bx_day",
-        "treatment_start_date",
-        "pfs_over_under",
-        "pfs_day",
-        "pfs_month",
-        "date_of_death",
-        "stageIII.IV_ca_dx_date",
-        "ca_dx_OS",
-        "region",
-        "location",
-        "label",
-        "tumor_id",
-        "tumor_type",
-        "GEO_Sample",
-        "biopsy_segment",
-        "gsm",
-        "characteristics_ch1.7.treatment received prior to surgery (1= treated; 0=untreated)",
-    ],
-].drop_duplicates().set_index("sample")
+obs_all = (
+    obs_all.loc[
+        :,
+        MANDATORY_COLS
+        + [
+            "accession",
+            "sampleType",
+            "platform",
+            "age",
+            "tobacco",
+            "ethnicity",
+            "processing_site",
+            "Tissue origins",
+            "histology",
+            "smoking",
+            "pathology",
+            "EGFR",
+            "tumor_stage",
+            "geo_accession",
+            "tissue_orig",
+            "replicate",
+            "race",
+            "smoking_status",
+            "driver_gene",
+            "driver_mutation",
+            "secondary_mutation",
+            "Notes",
+            "stage_at_diagnosis",
+            "pathlogy_review",
+            "biopsy_date",
+            "sort_date",
+            "biopsy_type",
+            "biopsy_time_status",
+            "early_treatment_status",
+            "best_response_status",
+            "biopsy_timing",
+            "analysis",
+            "treatment_history",
+            "treatment_history_detail",
+            "line_of_therapy",
+            "treatment_type",
+            "treatment",
+            "percent_PFS_ref_values",
+            "percent.PFS.reference.values",
+            "infections",
+            "early_bx_day",
+            "treatment_start_date",
+            "pfs_over_under",
+            "pfs_day",
+            "pfs_month",
+            "date_of_death",
+            "stageIII.IV_ca_dx_date",
+            "ca_dx_OS",
+            "region",
+            "location",
+            "label",
+            "tumor_id",
+            "tumor_type",
+            "GEO_Sample",
+            "biopsy_segment",
+            "gsm",
+            "characteristics_ch1.7.treatment received prior to surgery (1= treated; 0=untreated)",
+        ],
+    ]
+    .drop_duplicates()
+    .set_index("sample")
+)
 
 # %%
 obs_all.to_excel("../../data/50_integrate_scrnaseq_data/51_merge_all/obs_all.xlsx")

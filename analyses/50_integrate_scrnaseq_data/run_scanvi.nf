@@ -18,7 +18,7 @@ process SCANVI {
         path("scvi_model*")
 
     script:
-    def suffix = use_highly_variable == "0" ? "all_genes" : "hvg"
+    def suffix = use_highly_variable == 0 ? "all_genes" : "hvg"
     """
     export CUDA_VISIBLE_DEVICES=\$((0 + \$RANDOM % 2))
     export OPENBLAS_NUM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus}  \\
