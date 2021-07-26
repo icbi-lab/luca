@@ -2,7 +2,7 @@
 
 nextflow.enable.dsl = 2
 
-process SCANVI {
+process SCVI {
     publishDir "../../data/50_integrate_scrnaseq_data/52_run_scanvi", mode: "copy"
 
     cpus 4
@@ -14,8 +14,8 @@ process SCANVI {
         each use_highly_variable
 
     output:
-        path("integrated*.h5ad")
-        path("scvi_model*")
+        path("integrated*.h5ad"), emit: adata
+        path("scvi_model*"), emit: scvi_model
 
     script:
     def suffix = use_highly_variable == 0 ? "all_genes" : "hvg"
@@ -32,8 +32,3 @@ process SCANVI {
     """
 }
 
-workflow {
-    SCANVI(
-        Channel.fromPath("../../data/50_integrate_scrnaseq_data/51_merge_all/merged*.h5ad"), Channel.from(0, 1)
-    )
-}

@@ -38,14 +38,6 @@ lvae = scvi.model.SCVI(adata)
 
 lvae.train(
     use_gpu=True,
-    #     n_epochs_unsupervised=vae_epochs,
-    #     n_epochs_semisupervised=scanvi_epochs,
-    #     lr=0.0001,
-    #     unsupervised_trainer_kwargs=dict(early_stopping_kwargs=early_stopping_kwargs),
-    #     semisupervised_trainer_kwargs=dict(
-    #         metrics_to_monitor=["elbo", "accuracy"],
-    #         early_stopping_kwargs=early_stopping_kwargs_scanvi,
-    #     ),
 )
 lvae.save(model_out)
 

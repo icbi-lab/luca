@@ -45,7 +45,7 @@ import anndata
 import re
 
 # %%
-out_dir = nxfvars.get("outdir", "/tmp")
+out_dir = nxfvars.get("artifact_dir", "/tmp")
 
 # %%
 threadpool_limits(int(nxfvars.get("cpus", "8")))
@@ -306,5 +306,5 @@ merged_all.obs.drop_duplicates().reset_index(drop=True)
 
 # %%
 merged_all.write_h5ad(
-    "{out_dir}/merged_all.h5ad"
+    f"{out_dir}/merged_all.h5ad"
 )
