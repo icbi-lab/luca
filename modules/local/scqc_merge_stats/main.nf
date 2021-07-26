@@ -1,4 +1,4 @@
-process MERGE_STATS {
+process SCQC_MERGE_STATS {
     publishDir {params.outdir}, mode:params.publish_dir_mode
     input:
         path(stats_tsv)
@@ -13,6 +13,6 @@ process MERGE_STATS {
     for f in *.tsv; do
         tail -n+2 \$f >> out/qc_stats_all.tsv
     done
-    mv out/qc_stats_all.tsv . 
+    mv out/qc_stats_all.tsv .
     """
 }

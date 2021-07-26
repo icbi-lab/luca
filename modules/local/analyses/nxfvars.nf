@@ -52,6 +52,8 @@ def nxfvars(task) {
     def tmp_inputs = task.binding.findAll {
         it.key != '$' && it.key != 'task'
     }
+    println tmp_task
+    return "echo ."
     def tmp_task = task.binding.task.each { it }
     // workflow and nextflow contain object ids or timestamps and break caching.
     def tmp_vars = this.binding.variables.findAll {

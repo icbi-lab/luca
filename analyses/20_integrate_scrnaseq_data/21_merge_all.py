@@ -16,6 +16,7 @@
 # %load_ext autoreload
 # %autoreload 2
 
+from nxfvars import nxfvars
 import scanpy as sc
 import numpy as np
 import itertools
@@ -44,21 +45,25 @@ import anndata
 import re
 
 # %%
-threadpool_limits(8)
+out_dir = nxfvars.get("outdir", "/tmp")
+
+# %%
+threadpool_limits(int(nxfvars.get("cpus", "8")))
 
 # %%
 sc.set_figure_params(figsize=(5, 5))
 
 # %%
-dataset_table = pd.read_csv("../../tables/samplesheet_scrnaseq_preprocessing.csv")
+dataset_table = pd.read_csv(nxfvars.get("samplesheet", "../../tables/samplesheet_scrnaseq_preprocessing.csv"))
 
 # %%
 dataset_table
 
 # %%
+dataset_path = nxfvars.get("dataset_path", "../../data/20_qc_norm_scrnaseq/01_qc_and_filtering")
 datasets = {
     dataset_id: sc.read_h5ad(
-        f"../../data/20_qc_norm_scrnaseq/01_qc_and_filtering/{dataset_id}/{dataset_id}.qc.h5ad"
+        f"{dataset_id}.qc.h5ad" if dataset_path == "." else f"{dataset_path}/{dataset_id}/{dataset_id}.qc.h5ad"
     )
     for dataset_id in tqdm(dataset_table["id"])
 }
@@ -288,7 +293,7 @@ obs_all = (
 )
 
 # %%
-obs_all.to_excel("../../data/50_integrate_scrnaseq_data/51_merge_all/obs_all.xlsx")
+obs_all.to_excel(f"{out_dir}/obs_all.xlsx")
 
 # %%
 merged_all = merge_datasets(datasets.values(), symbol_in_n_datasets=17)
@@ -301,32 +306,5 @@ merged_all.obs.drop_duplicates().reset_index(drop=True)
 
 # %%
 merged_all.write_h5ad(
-    "../../data/50_integrate_scrnaseq_data/51_merge_all/merged_all.h5ad"
+    "{out_dir}/merged_all.h5ad"
 )
-
-# %% [markdown]
-# ## Export for NSCLC heterogeneity
-#  * only tumor samples (no controls, no metastases)
-#  * all NSCLC subtypes
-
-# %%
-# datasets_nsclc_heterogeneity = dict()
-# for dataset_id, dataset in datasets.items():
-#     if "tumor_primary" in dataset.obs["origin"].values:
-#         datasets_nsclc_heterogeneity[dataset_id] = dataset[
-#             dataset.obs["origin"] == "tumor_primary", :
-#         ].copy()
-# del datasets_nsclc_heterogeneity["Pircher_batch1_NSCLC"]
-
-# %%
-# merged_nsclc_heterogeneity = merge_datasets(
-#     datasets_nsclc_heterogeneity.values(), symbol_in_n_datasets=5
-# )
-
-# %%
-# merged_nsclc_heterogeneity.shape
-
-# %%
-# merged_nsclc_heterogeneity.write_h5ad(
-#     "../../data/50_integrate_scrnaseq_data/51_merge_all/merged_nsclc_heterogeneity.h5ad"
-# )

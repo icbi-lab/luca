@@ -1,6 +1,3 @@
-[submodule "single-cell-analysis-nf"]
-	path = single-cell-analysis-nf
-	url = git@gitlab.i-med.ac.at:icbi-lab/single-cell-analysis-nf.git
 [submodule "lib/scanpy_helper_submodule"]
 	path = lib/scanpy_helper_submodule
 	url = git@gitlab.i-med.ac.at:icbi-lab/tools/scanpy_helpers.git
