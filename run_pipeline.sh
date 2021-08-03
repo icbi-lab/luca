@@ -1,7 +1,6 @@
 #!/usr/bin/bash
 
-nextflow run integrate_single_cell.nf \
+nextflow run main.nf \
     -resume \
-    -profile icbi \
+    -profile icbi_long \
     -w /data/scratch/sturm/projects/2020/pircher-scrnaseq-lung \
-    -c integrate_single_cell.config

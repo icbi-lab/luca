@@ -23,11 +23,6 @@ if use_highly_variable:
         adata, flavor="seurat_v3", n_top_genes=6000, batch_key="dataset", subset=True
     )
 
-adata.obs["batch"] = [
-    f"{dataset}_{sample}"
-    for dataset, sample in zip(adata.obs["dataset"], adata.obs["sample"])
-]
-
 scvi.data.setup_anndata(
     adata,
     batch_key="batch",

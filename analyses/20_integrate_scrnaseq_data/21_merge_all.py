@@ -43,9 +43,10 @@ from functools import reduce
 import pandas as pd
 import anndata
 import re
+import os
 
 # %%
-out_dir = nxfvars.get("artifact_dir", "/tmp")
+out_dir = nxfvars.get("artifact_dir", "/local/scratch/sturm/")
 
 # %%
 threadpool_limits(int(nxfvars.get("cpus", "8")))
@@ -54,16 +55,22 @@ threadpool_limits(int(nxfvars.get("cpus", "8")))
 sc.set_figure_params(figsize=(5, 5))
 
 # %%
-dataset_table = pd.read_csv(nxfvars.get("samplesheet", "../../tables/samplesheet_scrnaseq_preprocessing.csv"))
+dataset_table = pd.read_csv(
+    nxfvars.get("samplesheet", "../../tables/samplesheet_scrnaseq_preprocessing.csv")
+)
 
 # %%
 dataset_table
 
 # %%
-dataset_path = nxfvars.get("dataset_path", "../../data/20_qc_norm_scrnaseq/01_qc_and_filtering")
+dataset_path = nxfvars.get(
+    "dataset_path", "../../data/20_integrate_scrnaseq_data/20_qc_and_filtering"
+)
 datasets = {
     dataset_id: sc.read_h5ad(
-        f"{dataset_id}.qc.h5ad" if dataset_path == "." else f"{dataset_path}/{dataset_id}/{dataset_id}.qc.h5ad"
+        f"{dataset_id}.qc.h5ad"
+        if dataset_path == "."
+        else f"{dataset_path}/{dataset_id}/{dataset_id}.qc.h5ad"
     )
     for dataset_id in tqdm(dataset_table["id"])
 }
@@ -221,9 +228,7 @@ for dataset in datasets.values():
 # ## Export all
 
 # %%
-obs_all = pd.concat([x.obs for x in datasets.values()]).reset_index(drop=True)
-
-# %%
+obs_all = pd.concat([x.obs for x in datasets.values()], ignore_index=True).reset_index(drop=True)
 obs_all = (
     obs_all.loc[
         :,
@@ -288,12 +293,17 @@ obs_all = (
             "characteristics_ch1.7.treatment received prior to surgery (1= treated; 0=untreated)",
         ],
     ]
-    .drop_duplicates()
+    .join(dataset_table.set_index("id"), on="dataset")
+    .drop_duplicates(ignore_index=False)
     .set_index("sample")
 )
+# Duplicated doesn't filter out two duplicated rows, don't ask why. 
+obs_all = obs_all.loc[~obs_all.index.duplicated(), :]
 
 # %%
-obs_all.to_excel(f"{out_dir}/obs_all.xlsx")
+assert (
+    obs_all.index.drop_duplicates().size == obs_all.shape[0]
+), "The number of unique samples equals the number of rows"
 
 # %%
 merged_all = merge_datasets(datasets.values(), symbol_in_n_datasets=17)
@@ -305,6 +315,8 @@ merged_all.shape
 merged_all.obs.drop_duplicates().reset_index(drop=True)
 
 # %%
-merged_all.write_h5ad(
-    f"{out_dir}/merged_all.h5ad"
-)
+merged_all.write_h5ad(f"{out_dir}/merged_all.h5ad")
+
+# %%
+# Some samples drop out due to the min cells threshold. Keep only the remaining samplese in the obs table. 
+obs_all.loc[merged_all.obs["sample"].unique(), :].to_csv(f"{out_dir}/obs_all.csv")

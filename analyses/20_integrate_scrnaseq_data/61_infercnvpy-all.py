@@ -20,6 +20,7 @@ import scanpy as sc
 from scanpy_helpers.annotation import AnnotationHelper
 import scvi
 import warnings
+import numpy as np
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -27,19 +28,24 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 ah = AnnotationHelper()
 
 # %%
+scvi.__version__
+
+# %%
 sc.set_figure_params(figsize=(5, 5))
 
 # %%
+# %%time
 adata = sc.read_h5ad(
-    "../../data/50_integrate_scrnaseq_data/52_run_scanvi/integrated_merged_all_all_genes.h5ad"
+    "../../data/20_integrate_scrnaseq_data/21_merge_all/integrated_merged_all_all_genes.h5ad", backed=True
 )
 
 # %%
 adata.shape
 
 # %%
+# %%time
 scvi_model = scvi.model.SCVI.load(
-    "../../data/50_integrate_scrnaseq_data/52_run_scanvi/scvi_model_merged_all_all_genes//",
+    "../../data/20_integrate_scrnaseq_data/21_merge_all/scvi_model_merged_all_all_genes/",
     adata=adata,
 )
 
@@ -48,7 +54,18 @@ adata.obs["batch"][0]
 
 # %%
 # %%time
-solo = scvi.external.SOLO.from_scvi_model(scvi_model, restrict_to_batch="Adams_Kaminski_2020_COPD_Adams_Kaminski_2020_COPD_001C")
+solo = scvi.external.SOLO.from_scvi_model(scvi_model, restrict_to_batch="Adams_Kaminski_2020_COPD_Adams_Kaminski_2020_COPD_002C")
+
+# %%
+# %%time
+solo.train()
+
+# %%
+# %%time
+solo.predict(False)
+
+# %%
+np.sum(solo.predict(False) == "doublet")
 
 # %%
 adata_infercnv = sc.AnnData(
