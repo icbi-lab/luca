@@ -52,11 +52,11 @@ scvi_model = scvi.model.SCVI.load(
 # %%
 adata.obs["batch"][0]
 
-# %%
+# %% jupyter={"outputs_hidden": true} tags=[]
 # %%time
 solo = scvi.external.SOLO.from_scvi_model(scvi_model, restrict_to_batch="Adams_Kaminski_2020_COPD_Adams_Kaminski_2020_COPD_002C")
 
-# %%
+# %% jupyter={"outputs_hidden": true} tags=[]
 # %%time
 solo.train()
 
