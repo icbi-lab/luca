@@ -6,6 +6,7 @@ import static com.xlson.groovycsv.CsvParser.parseCsv
 nextflow.enable.dsl = 2
 
 def modules = params.modules.clone()
+def subworkflows = params.subworkflows.clone()
 assert params.input: "Input samplesheet not specified!"
 
 include { check_samplesheet }  from './modules/local/check_samplesheet' params(params)
@@ -24,6 +25,9 @@ include { SCVI } from "./modules/local/scvi/main.nf" addParams(
 )
 include { SOLO } from "./modules/local/solo/main.nf" addParams(
     options: modules["SOLO"]
+)
+include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_DOUBLET } from "./subworkflows/neighbors_leiden_umap/main.nf" addParams(
+    options: subworkflows["NEIGHBORS_LEIDEN_UMAP_DOUBLET"]
 )
 
 
@@ -54,6 +58,12 @@ workflow {
         Channel.from(0, 1)
     )
 
+    NEIGHBORS_LEIDEN_UMAP_DOUBLET(
+        SCVI.out.adata.filter{ it -> !it.baseName.contains("hvg") },
+        "X_scVI",
+        1.0
+    )
+
     SOLO(
         SCVI.out.adata.filter{ it -> !it.baseName.contains("hvg") },
         SCVI.out.scvi_model.filter{ it -> !it.baseName.contains("hvg") },
@@ -63,5 +73,6 @@ workflow {
             it -> it["run_solo"] == "True"
         }.map{ it -> it["sample"] }
     )
+
 }
 
