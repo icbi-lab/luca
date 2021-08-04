@@ -32,6 +32,12 @@ include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_DOUBLET } from "./subwo
 include { JUPYTERNOTEBOOK as MERGE_SOLO }  from "./modules/local/jupyternotebook/main.nf" addParams (
     options: modules["MERGE_SOLO"]
 )
+include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_COARSE }  from "./modules/local/jupyternotebook/main.nf" addParams (
+    options: modules["ANNOTATE_CELL_TYPES_COARSE"]
+)
+include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_CELL_TYPES } from "./subworkflows/neighbors_leiden_umap/main.nf" addParams(
+    options: subworkflows["NEIGHBORS_LEIDEN_UMAP_CELL_TYPES"]
+)
 
 
 workflow {
@@ -86,6 +92,21 @@ workflow {
             "adata_path": "integrated_merged_all_all_genes.umap_leiden.h5ad"
         ],
         NEIGHBORS_LEIDEN_UMAP_DOUBLET.out.adata.mix(SOLO.out.doublets).flatten().collect()
+    )
+
+    ANNOTATE_CELL_TYPES_COARSE(
+        Channel.value([
+            [id: "26_annotate_cell_types"],
+            file("analyses/20_integrate_scrnaseq_data/26_annotate_cell_types_coarse.py")
+        ]),
+        [:],
+        MERGE_SOLO.out.artifacts
+    )
+
+    NEIGHBORS_LEIDEN_UMAP_CELL_TYPES(
+        ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten(),
+        "X_scVI",
+        1.0
     )
 
 }

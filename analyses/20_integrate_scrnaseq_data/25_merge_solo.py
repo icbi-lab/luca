@@ -59,21 +59,21 @@ adata.obs["doublet_status"].value_counts(dropna=False)
 pd.set_option("display.max_rows", 1000)
 adata.obs.groupby("sample").apply(
     lambda df: pd.DataFrame().assign(
-        doublet_frac=[np.sum(df["label"] == "doublet") / df.shape[0]], n=[df.shape[0]]
+        doublet_frac=[np.sum(df["doublet_status"] == "doublet") / df.shape[0]], n=[df.shape[0]]
     )
 ).sort_values("doublet_frac")
 
 # %%
-sc.pl.umap(adata, color="label", size=5)
+sc.pl.umap(adata, color="doublet_status", size=5)
 
 # %% [markdown]
 # ## Exclude doublets
 
 # %%
-adata_nodoublet = adata[adata.obs["label"] != "doublet", :]
+adata_nodoublet = adata[adata.obs["doublet_status"] != "doublet", :]
 
 # %%
-sc.pl.umap(adata_nodoublet, color="label", size=5)
+sc.pl.umap(adata_nodoublet, color="doublet_status", size=5)
 
 # %% [markdown]
 # ## Write output file
