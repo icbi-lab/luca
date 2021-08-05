@@ -11,9 +11,10 @@ process NEIGHBORS {
     val use_rep
 
     output:
-    path "*.h5ad", emit: adata
+    tuple val(id), path("*.h5ad"), emit: adata
 
     script:
+    def id = adata.baseName
     """
     #!/usr/bin/env python
 
@@ -25,7 +26,7 @@ process NEIGHBORS {
 
     adata = sc.read_h5ad("${adata}")
     sc.pp.neighbors(adata, use_rep="${use_rep}")
-    adata.write_h5ad("${adata.baseName}.neighbors.h5ad")
+    adata.write_h5ad("${id}.neighbors.h5ad")
     """
 }
 
@@ -34,10 +35,10 @@ process UMAP {
     cpus 8
 
     input:
-    path adata
+    tuple val(id), path(adata)
 
     output:
-    path "*.h5ad", emit: adata
+    tuple val(id), path("*.h5ad"), emit: adata
 
     script:
     """
@@ -51,7 +52,7 @@ process UMAP {
 
     adata = sc.read_h5ad("${adata}")
     sc.tl.umap(adata)
-    adata.write_h5ad("${adata.simpleName}.umap.h5ad")
+    adata.write_h5ad("${id}.umap.h5ad")
     """
 }
 
@@ -60,11 +61,11 @@ process LEIDEN {
     cpus 1
 
     input:
-    path adata
+    tuple val(id), path(adata)
     val resolution
 
     output:
-    path "*.h5ad", emit: adata
+    tuple val(id), val(resolution), path("*.h5ad"), emit: adata
 
     script:
     """
@@ -78,7 +79,7 @@ process LEIDEN {
 
     adata = sc.read_h5ad("${adata}")
     sc.tl.leiden(adata, resolution=${resolution})
-    adata.write_h5ad("${adata.simpleName}.leiden.h5ad")
+    adata.write_h5ad("${id}.res_${resolution}.leiden.h5ad")
     """
 }
 
@@ -91,8 +92,7 @@ process MERGE_UMAP_LEIDEN {
     cpus 1
 
     input:
-    path adata_umap
-    path adata_leiden
+    tuple val(id), path(adata_umap), val(leiden_resolutions), path(adata_leiden)
 
     output:
     path "*.h5ad", emit: adata
@@ -110,7 +110,7 @@ process MERGE_UMAP_LEIDEN {
     adata_umap = sc.read_h5ad("${adata_umap}")
     adata_leiden = sc.read_h5ad("${adata_leiden}")
     adata_umap.obs["leiden"] = adata_leiden.obs["leiden"]
-    adata_umap.write_h5ad("${adata_umap.simpleName}.umap_leiden.h5ad")
+    adata_umap.write_h5ad("${id}.umap_leiden.h5ad")
     """
 }
 
@@ -125,8 +125,9 @@ workflow NEIGHBORS_LEIDEN_UMAP {
     main:
     NEIGHBORS(adata, neihbors_rep)
     UMAP(NEIGHBORS.out.adata)
-    LEIDEN(NEIGHBORS.out.adata, leiden_res)
-    MERGE_UMAP_LEIDEN(UMAP.out.adata, LEIDEN.out.adata)
+    LEIDEN(NEIGHBORS.out.adata.collect(), leiden_res)
+
+    MERGE_UMAP_LEIDEN(UMAP.out.adata.join(LEIDEN.out.groupTuple()).view())
 
     emit:
     adata = MERGE_UMAP_LEIDEN.out.adata

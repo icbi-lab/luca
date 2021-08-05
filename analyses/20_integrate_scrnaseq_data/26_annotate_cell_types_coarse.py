@@ -33,7 +33,7 @@ sc.set_figure_params(figsize=(5, 5))
 ah = AnnotationHelper()
 
 # %%
-input_dir = nxfvars.get("input_dir", "/home/sturm/Downloads")
+input_dir = nxfvars.get("input_dir", "../../data/20_integrate_scrnaseq_data/25_merge_solo/artifacts")
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
 # %%
@@ -49,28 +49,28 @@ ah.plot_umap(adata, cmap="inferno", size=2)
 ah.plot_dotplot(adata)
 
 # %%
-# adata.var["mito"] = adata.var_names.str.lower().str.startswith("mt-")
-# sc.pp.calculate_qc_metrics(
-#     adata, qc_vars=("mito",), log1p=False, inplace=True, percent_top=None
-# )
+adata.var["mito"] = adata.var_names.str.lower().str.startswith("mt-")
+sc.pp.calculate_qc_metrics(
+    adata, qc_vars=("mito",), log1p=False, inplace=True, percent_top=None
+)
 
 # %%
 sc.pl.umap(adata, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
 ct_map = {
-    "B cell": [7],
-    "Ciliated": [19],
+    "B cell": [7,34],
+    "Ciliated": [20],
     "Endothelial cell": [8],
-    "Endothelial cell lymphatic": [30],
-    "Epithelial cell": [2, 9, 13, 36, 31, 28, 29, 27, 32, 21, 35, 25, 37],
+    "Endothelial cell lymphatic": [28],
+    "Epithelial cell": [10, 30, 33, 17, 29, 23, 4, 12, 16, 36, 32, 27, 21],
     "Neutrophil": [24],
     "Mast cell": [18],
-    "Myeloid": [1, 16, 33, 6, 5, 12, 10, 17, 38, 26],
-    "Stromal": [14],
-    "Plasma cell": [15],
-    "T cell": [4, 3, 0, 11, 23, 22, 20],
-    "pDC": [34],
+    "Myeloid": [1, 11, 0, 26, 35, 9, 14],
+    "Stromal": [15],
+    "Plasma cell": [13],
+    "T cell": [19, 25, 3, 2, 6, 22, 5],
+    "pDC": [31],
 }
 
 # %%
@@ -89,4 +89,13 @@ sc.pl.umap(adata, color="dataset", size=1)
 # %%
 for ct in adata.obs["cell_type"].unique():
     ct_filename = ct.replace(" ", "_").lower()
-    adata[adata.obs["cell_type"] == ct, :].write_h5ad(f"{artifact_dir}/adata_{ct_filename}.h5ad")
+    tmp_adata = adata[adata.obs["cell_type"] == ct, :].copy()
+    tmp_adata.write_h5ad(
+        f"{artifact_dir}/adata_{ct_filename}.h5ad"
+    )
+
+# %% [markdown]
+# ### Write full adata
+
+# %%
+adata.write_h5ad(f"{artifact_dir}/adata_cell_type_coarse.h5ad")

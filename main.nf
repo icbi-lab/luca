@@ -41,7 +41,7 @@ include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_CELL_TYPES } from "./su
 
 
 workflow {
-    ch_samples = Channel.from(check_samplesheet(params.input))
+    ch_samples = Channel.from(check_samplesheet(params.input, baseDir))
 
     SCQC(ch_samples)
     SCQC_MERGE_STATS(SCQC.out.qc_stats.collect())
@@ -49,14 +49,14 @@ workflow {
     MERGE_ALL(
         Channel.value([
             [id: "21_merge_all"],
-            file("analyses/20_integrate_scrnaseq_data/21_merge_all.py")
+            file("${baseDir}/analyses/20_integrate_scrnaseq_data/21_merge_all.py")
         ]),
         [
             samplesheet: "samplesheet_scrnaseq_preprocessing.csv",
             dataset_path: "."
         ],
         SCQC.out.adata.flatMap{ meta, adata -> adata }.mix(
-            Channel.fromPath("tables/samplesheet_scrnaseq_preprocessing.csv")
+            Channel.fromPath("${baseDir}/tables/samplesheet_scrnaseq_preprocessing.csv")
         ).collect()
     )
 
@@ -86,7 +86,7 @@ workflow {
     MERGE_SOLO(
         Channel.value([
             [id: "25_merge_solo"],
-            file("analyses/20_integrate_scrnaseq_data/25_merge_solo.py")
+            file("${baseDir}/analyses/20_integrate_scrnaseq_data/25_merge_solo.py")
         ]),
         [
             "adata_path": "integrated_merged_all_all_genes.umap_leiden.h5ad"
@@ -97,16 +97,16 @@ workflow {
     ANNOTATE_CELL_TYPES_COARSE(
         Channel.value([
             [id: "26_annotate_cell_types"],
-            file("analyses/20_integrate_scrnaseq_data/26_annotate_cell_types_coarse.py")
+            file("${baseDir}/analyses/20_integrate_scrnaseq_data/26_annotate_cell_types_coarse.py")
         ]),
         [:],
         MERGE_SOLO.out.artifacts
     )
 
     NEIGHBORS_LEIDEN_UMAP_CELL_TYPES(
-        ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten(),
+        ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten().filter( it -> !it.baseName.contains("cell_type_coarse")),
         "X_scVI",
-        1.0
+        Channel.from(0.5, 1.0)
     )
 
 }

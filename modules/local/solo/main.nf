@@ -25,6 +25,7 @@ process SOLO {
     #!/usr/bin/env python
     import scanpy as sc
     import scvi
+    scvi.settings.seed = 0
 
     adata = sc.read_h5ad("${adata}")
     scvi_model = scvi.model.SCVI.load("${scvi_model}", adata=adata)
