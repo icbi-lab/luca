@@ -11,10 +11,10 @@ process NEIGHBORS {
     val use_rep
 
     output:
-    tuple val(id), path("*.h5ad"), emit: adata
+    tuple val(adata_id), path("*.h5ad"), emit: adata
 
     script:
-    def id = adata.baseName
+    adata_id = adata.baseName
     """
     #!/usr/bin/env python
 
@@ -26,7 +26,7 @@ process NEIGHBORS {
 
     adata = sc.read_h5ad("${adata}")
     sc.pp.neighbors(adata, use_rep="${use_rep}")
-    adata.write_h5ad("${id}.neighbors.h5ad")
+    adata.write_h5ad("${adata_id}.neighbors.h5ad")
     """
 }
 
@@ -62,7 +62,7 @@ process LEIDEN {
 
     input:
     tuple val(id), path(adata)
-    val resolution
+    each resolution
 
     output:
     tuple val(id), val(resolution), path("*.h5ad"), emit: adata
@@ -107,9 +107,15 @@ process MERGE_UMAP_LEIDEN {
     threadpool_limits(${task.cpus})
     sc.settings.n_jobs = ${task.cpus}
 
+    resolutions = ${leiden_resolutions}
+    if not isinstance(resolutions, list):
+        resolutions = [resolutions]
+    leiden_adatas = "${adata_leiden}".split(" ")
+
     adata_umap = sc.read_h5ad("${adata_umap}")
-    adata_leiden = sc.read_h5ad("${adata_leiden}")
-    adata_umap.obs["leiden"] = adata_leiden.obs["leiden"]
+    for res, adata_path in zip(resolutions, leiden_adatas):
+        tmp_adata = sc.read_h5ad(adata_path)
+        adata_umap.obs[f"leiden_{res:.2f}"] = tmp_adata.obs["leiden"]
     adata_umap.write_h5ad("${id}.umap_leiden.h5ad")
     """
 }
@@ -125,7 +131,7 @@ workflow NEIGHBORS_LEIDEN_UMAP {
     main:
     NEIGHBORS(adata, neihbors_rep)
     UMAP(NEIGHBORS.out.adata)
-    LEIDEN(NEIGHBORS.out.adata.collect(), leiden_res)
+    LEIDEN(NEIGHBORS.out.adata, leiden_res)
 
     MERGE_UMAP_LEIDEN(UMAP.out.adata.join(LEIDEN.out.groupTuple()).view())
 
