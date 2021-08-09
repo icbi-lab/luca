@@ -25,7 +25,22 @@ process SOLO {
     #!/usr/bin/env python
     import scanpy as sc
     import scvi
-    scvi.settings.seed = 0
+
+    def set_all_seeds(seed=0):
+        import os
+
+        scvi.settings.seed = seed
+        os.environ["PYTHONHASHSEED"] = str(seed)  # Python general
+        np.random.seed(seed)  # Numpy random
+        random.seed(seed)  # Python random
+
+        torch.manual_seed(seed)
+        torch.use_deterministic_algorithms(True)
+        if num_gpus > 0:
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)  # For multiGPU
+
+    set_all_seeds()
 
     adata = sc.read_h5ad("${adata}")
     scvi_model = scvi.model.SCVI.load("${scvi_model}", adata=adata)
