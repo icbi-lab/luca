@@ -53,10 +53,12 @@ workflow {
         ]),
         [
             samplesheet: "samplesheet_scrnaseq_preprocessing.csv",
-            dataset_path: "."
+            dataset_path: ".",
+            gene_symbol_table: "gene_symbol_dict.csv"
         ],
         SCQC.out.adata.flatMap{ meta, adata -> adata }.mix(
-            Channel.fromPath("${baseDir}/tables/samplesheet_scrnaseq_preprocessing.csv")
+            Channel.fromPath("${baseDir}/tables/samplesheet_scrnaseq_preprocessing.csv"),
+            Channel.fromPath("${baseDir}/tables/gene_symbol_dict.csv")
         ).collect()
     )
 
@@ -106,7 +108,7 @@ workflow {
     NEIGHBORS_LEIDEN_UMAP_CELL_TYPES(
         ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten().filter( it -> !it.baseName.contains("cell_type_coarse")),
         "X_scVI",
-        Channel.from(0.5, 1.0)
+        Channel.from(0.5, 0.75, 1.0, 1.5)
     )
 
 }

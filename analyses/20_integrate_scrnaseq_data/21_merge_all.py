@@ -201,16 +201,34 @@ for dataset_id, adata in datasets.items():
 
 # %% [markdown]
 # ## Gene identifier remapping
+#
+# Use precompiled, static table for gene symbol remapping, since querying MyGene.info requires
+# internet connection and is not guaranteed to be reproducible. 
 
 # %%
-datasets_remapped = process_map(remap_gene_symbols, datasets.values(), max_workers=32)
-for dataset_id, dataset in zip(datasets.keys(), datasets_remapped):
-    datasets[dataset_id] = dataset
+# datasets_remapped = process_map(remap_gene_symbols, datasets.values(), max_workers=32)
+# for dataset_id, dataset in zip(datasets.keys(), datasets_remapped):
+#     datasets[dataset_id] = dataset
+
+# %%
+# gene_symbol_dict = pd.concat(
+#     x.var["original_gene_symbol"]
+#     .reset_index()
+#     .rename(columns={"index": "gene_symbol", "original_gene_symbol": "alias"})
+#     for x in datasets_remapped
+# ).drop_duplicates().dropna()
+# gene_symbol_dict.to_csv("../../tables/gene_symbol_dict.csv")
+
+# %%
+gene_symbol_df = pd.read_csv(nxfvars.get("gene_symbol_table", "../../tables/gene_symbol_dict.csv"), index_col=False)
+gene_symbol_dict = {alias: symbol for alias, symbol in zip(gene_symbol_df["alias"], gene_symbol_df["gene_symbol"])}
+
+# %%
+for dataset_id, tmp_dataset in datasets.items():
+    tmp_dataset.var_names = [gene_symbol_dict.get(x, x) for x in tmp_dataset.var_names]
 
 # %% [markdown]
 # ### aggregate duplicate gene symbols
-#
-# TODO: take care of duplicate genes that were made unique with "var_names_make_unique"
 
 # %%
 for dataset_id, dataset in datasets.items():
@@ -228,7 +246,9 @@ for dataset in datasets.values():
 # ## Export all
 
 # %%
-obs_all = pd.concat([x.obs for x in datasets.values()], ignore_index=True).reset_index(drop=True)
+obs_all = pd.concat([x.obs for x in datasets.values()], ignore_index=True).reset_index(
+    drop=True
+)
 obs_all = (
     obs_all.loc[
         :,
@@ -297,7 +317,7 @@ obs_all = (
     .drop_duplicates(ignore_index=False)
     .set_index("sample")
 )
-# Duplicated doesn't filter out two duplicated rows, don't ask why. 
+# Duplicated doesn't filter out two duplicated rows, don't ask why.
 obs_all = obs_all.loc[~obs_all.index.duplicated(), :]
 
 # %%
@@ -318,5 +338,5 @@ merged_all.obs.drop_duplicates().reset_index(drop=True)
 merged_all.write_h5ad(f"{out_dir}/merged_all.h5ad")
 
 # %%
-# Some samples drop out due to the min cells threshold. Keep only the remaining samplese in the obs table. 
+# Some samples drop out due to the min cells threshold. Keep only the remaining samplese in the obs table.
 obs_all.loc[merged_all.obs["sample"].unique(), :].to_csv(f"{out_dir}/obs_all.csv")
