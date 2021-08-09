@@ -12,15 +12,19 @@ import sys
 
 def set_all_seeds(seed=0):
     import os
+    import random
+    import numpy as np
+    import torch
 
     scvi.settings.seed = seed
     os.environ["PYTHONHASHSEED"] = str(seed)  # Python general
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
     np.random.seed(seed)  # Numpy random
     random.seed(seed)  # Python random
 
     torch.manual_seed(seed)
     torch.use_deterministic_algorithms(True)
-    if num_gpus > 0:
+    if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)  # For multiGPU
 
