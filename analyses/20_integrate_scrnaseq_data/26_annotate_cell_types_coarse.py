@@ -40,6 +40,9 @@ artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 adata = sc.read_h5ad(f"{input_dir}/adata.doublet_filtered.h5ad")
 
 # %%
+adata.obs["leiden"] = adata.obs["leiden_1.00"]
+
+# %%
 sc.pl.umap(adata, color="leiden")
 
 # %%
@@ -59,18 +62,18 @@ sc.pl.umap(adata, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
 ct_map = {
-    "B cell": [7,34],
-    "Ciliated": [20],
-    "Endothelial cell": [8],
-    "Endothelial cell lymphatic": [28],
-    "Epithelial cell": [10, 30, 33, 17, 29, 23, 4, 12, 16, 36, 32, 27, 21],
-    "Neutrophil": [24],
+    "B cell": [7,31],
+    "Ciliated": [19],
+    "Endothelial cell": [10, 33],
+    "Endothelial cell lymphatic": [27],
+    "Epithelial cell": [8, 29, 26, 28, 3, 20, 30, 12, 35, 24],
+    "Neutrophil": [23],
     "Mast cell": [18],
-    "Myeloid": [1, 11, 0, 26, 35, 9, 14],
+    "Myeloid": [1, 0, 22, 14, 34, 37, 17, 9, 11],
     "Stromal": [15],
-    "Plasma cell": [13],
-    "T cell": [19, 25, 3, 2, 6, 22, 5],
-    "pDC": [31],
+    "Plasma cell": [13, 36],
+    "T cell": [6, 4, 2, 16, 5, 25, 21],
+    "pDC": [32],
 }
 
 # %%
