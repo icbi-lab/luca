@@ -15,6 +15,7 @@ process SCVI {
     input:
         path input_adata
         each use_highly_variable
+        val batch_key
 
     output:
         path("integrated*.h5ad"), emit: adata
@@ -29,9 +30,10 @@ process SCVI {
         MKL_NUM_cpus=${task.cpus} OPENBLAS_NUM_cpus=${task.cpus}
     integrate_scanvi.py \\
         ${input_adata} \\
-        integrated_${input_adata.baseName}_${suffix}.h5ad \\
-        scvi_model_${input_adata.baseName}_${suffix} \\
-        ${use_highly_variable}
+        --adata_out integrated_${input_adata.baseName}_${suffix}.h5ad \\
+        --model_out scvi_model_${input_adata.baseName}_${suffix} \\
+        --use_hvg ${use_highly_variable} \\
+        --batch_key ${batch_key}
     """
 }
 
