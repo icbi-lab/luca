@@ -46,7 +46,13 @@ adata.obs["leiden"] = adata.obs["leiden_1.00"]
 sc.pl.umap(adata, color="leiden")
 
 # %%
-ah.plot_umap(adata, cmap="inferno", size=2)
+sc.pl.umap(adata, color="dataset")
+
+# %%
+sc.pl.umap(adata, color="dataset", groups=["Maynard_Bivona_2020_NSCLC"], size=8)
+
+# %%
+# ah.plot_umap(adata, cmap="inferno", size=2)
 
 # %%
 ah.plot_dotplot(adata)
@@ -72,7 +78,7 @@ ct_map = {
     "Myeloid": [1, 0, 22, 14, 34, 37, 17, 9, 11],
     "Stromal": [15],
     "Plasma cell": [13, 36],
-    "T cell": [6, 4, 2, 16, 5, 25, 21],
+    "T cell": [3, 5, 4, 6, 15, 21, 29, 24],
     "pDC": [32],
 }
 

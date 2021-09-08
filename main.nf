@@ -40,6 +40,8 @@ include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_CELL_TYPES } from "./su
 )
 
 
+
+// TODO: Enable "seed annotation" and use SCANVI (SCVI fails to integrate smartseq2 data)
 workflow {
     ch_samples = Channel.from(check_samplesheet(params.input, baseDir))
 
@@ -70,14 +72,14 @@ workflow {
     )
 
     NEIGHBORS_LEIDEN_UMAP_DOUBLET(
-        SCVI.out.adata.filter{ it -> !it.baseName.contains("hvg") },
+        SCVI.out.adata.filter{ it -> it.baseName.contains("hvg") },
         "X_scVI",
         1.0
     )
 
     SOLO(
-        SCVI.out.adata.filter{ it -> !it.baseName.contains("hvg") },
-        SCVI.out.scvi_model.filter{ it -> !it.baseName.contains("hvg") },
+        SCVI.out.adata.filter{ it -> it.baseName.contains("hvg") },
+        SCVI.out.scvi_model.filter{ it -> it.baseName.contains("hvg") },
         MERGE_ALL.out.artifacts.flatten().filter{
             it -> it.getName() == "obs_all.csv"
         }.splitCsv(header : true).filter{
@@ -91,7 +93,7 @@ workflow {
             file("${baseDir}/analyses/20_integrate_scrnaseq_data/25_merge_solo.py")
         ]),
         [
-            "adata_path": "integrated_merged_all_all_genes.umap_leiden.h5ad"
+            "adata_path": "integrated_merged_all_hvg.umap_leiden.h5ad"
         ],
         NEIGHBORS_LEIDEN_UMAP_DOUBLET.out.adata.mix(SOLO.out.doublets).flatten().collect()
     )
