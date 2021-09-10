@@ -174,7 +174,7 @@ sc.pl.umap(adata_s, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
 ct_map = {
-    "Mesothelial": [10]
+    "Mesothelial": [10],
     "Pericyte": [0],
     "Smooth muscle cell": [6],
     "Fibroblast": [1, 3, 8, 4, 7, 9, 5, 2],
