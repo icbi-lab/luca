@@ -63,7 +63,7 @@ workflow {
     // in order to use the scANVI algorithm for the integration which has been shown
     // to outperform scVI)
     SCVI_SEED(
-        SCQC.out.adata.map{ meta, adata -> [meta.id, adata] }.filter{
+        SCQC.out.adata.filter{
             id, adata -> {
                 id.equals("Maynard_Bivona_2020_NSCLC") || id.equals("Lambrechts_2018_LUAD_6653")
             }
@@ -81,8 +81,8 @@ workflow {
             adata_qc: "${id}.qc.h5ad",
             adata_scvi: adata.name
         ]},
-        SCVI_SEED.out.adata.mix(NEIGHBORS_LEIDEN_UMAP_SEED.out.adata).groupTuple().map{
-             id, files -> files
+        SCQC.out.adata.join(NEIGHBORS_LEIDEN_UMAP_SEED.out.adata).map{
+             id, adata1, adata2 -> [adata1, adata2]
         }
     )
 

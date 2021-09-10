@@ -18,7 +18,7 @@ process SCQC {
     tuple val(meta), path(input_adata)
 
     output:
-    tuple val(meta), path(output_adata), emit: adata
+    tuple val(meta.id), path(output_adata), emit: adata
     path(output_stats), emit: qc_stats
     path("*.html"), emit: notebook
 
@@ -36,5 +36,5 @@ process SCQC {
 
     export PYTHONPATH="${moduleDir}"
     nxfvars execute ${moduleDir}/scqc-notebook.py ${dataset_id}_qc_report.html
-    """    
+    """
 }
