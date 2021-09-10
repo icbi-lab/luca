@@ -17,17 +17,20 @@ include { SCQC } from "./modules/local/scqc/main" addParams(
 include { SCQC_MERGE_STATS } from "./modules/local/scqc_merge_stats/main.nf" addParams(
     options: modules['SCQC_MERGE_STATS']
 )
-include { JUPYTERNOTEBOOK as MERGE_ALL } from "./modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["MERGE_ALL"]
-)
 include { SCVI as SCVI_SEED } from "./modules/local/scvi/main.nf" addParams(
     options: modules["SCVI_SEED"]
 )
 include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_SEED } from "./subworkflows/neighbors_leiden_umap/main.nf" addParams(
     options: subworkflows["NEIGHBORS_LEIDEN_UMAP_SEED"]
 )
+include { JUPYTERNOTEBOOK as ANNOTATE_SEED } from "./modules/local/jupyternotebook/main.nf" addParams (
+    options: modules["ANNOTATE_SEED"]
+)
 
 
+include { JUPYTERNOTEBOOK as MERGE_ALL } from "./modules/local/jupyternotebook/main.nf" addParams (
+    options: modules["MERGE_ALL"]
+)
 include { SCVI } from "./modules/local/scvi/main.nf" addParams(
     options: modules["SCVI"]
 )
@@ -60,18 +63,30 @@ workflow {
     // in order to use the scANVI algorithm for the integration which has been shown
     // to outperform scVI)
     SCVI_SEED(
-        SCQC.out.adata.flatMap{ meta, adata -> adata }.filter{
-            it -> (
-                it.baseName.contains("Maynard_Bivona_2020_NSCLC") || it.baseName.contains("Lambrechts_2018_LUAD_6653")
-            )
+        SCQC.out.adata.map{ meta, adata -> [meta.id, adata] }.filter{
+            id, adata -> {
+                id.equals("Maynard_Bivona_2020_NSCLC") || id.equals("Lambrechts_2018_LUAD_6653")
+            }
        },
        1,
        "sample"
     )
-
     NEIGHBORS_LEIDEN_UMAP_SEED(SCVI_SEED.out.adata, "X_scVI", 1.0)
+    ANNOTATE_SEED(
+        SCVI_SEED.out.adata.map{ id, adata -> [
+            ["id": id],
+            file("${baseDir}/analyses/10_seed_annotations/annotate_${id.toLowerCase()}.py")
+        ]},
+        NEIGHBORS_LEIDEN_UMAP_SEED.out.adata.map{ id, adata -> [
+            adata_qc: "${id}.qc.h5ad",
+            adata_scvi: adata.name
+        ]},
+        SCVI_SEED.out.adata.mix(NEIGHBORS_LEIDEN_UMAP_SEED.out.adata).groupTuple().map{
+             id, files -> files
+        }
+    )
 
-
+    // MERGE and INTEGRATE all datasets
 
 
 

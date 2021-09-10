@@ -7,14 +7,13 @@ process NEIGHBORS {
     cpus 8
 
     input:
-    path adata
+    tuple val(id), path(adata)
     val use_rep
 
     output:
-    tuple val(adata_id), path("*.h5ad"), emit: adata
+    tuple val(id), path("*.h5ad"), emit: adata
 
     script:
-    adata_id = adata.baseName
     """
     #!/usr/bin/env python
 
@@ -26,7 +25,7 @@ process NEIGHBORS {
 
     adata = sc.read_h5ad("${adata}")
     sc.pp.neighbors(adata, use_rep="${use_rep}")
-    adata.write_h5ad("${adata_id}.neighbors.h5ad")
+    adata.write_h5ad("${id}.neighbors.h5ad")
     """
 }
 
@@ -95,7 +94,7 @@ process MERGE_UMAP_LEIDEN {
     tuple val(id), path(adata_umap), val(leiden_resolutions), path(adata_leiden)
 
     output:
-    path "*.h5ad", emit: adata
+    tuple val(id), path("*.h5ad"), emit: adata
 
     script:
     """
@@ -133,7 +132,7 @@ workflow NEIGHBORS_LEIDEN_UMAP {
     UMAP(NEIGHBORS.out.adata)
     LEIDEN(NEIGHBORS.out.adata, leiden_res)
 
-    MERGE_UMAP_LEIDEN(UMAP.out.adata.join(LEIDEN.out.groupTuple()).view())
+    MERGE_UMAP_LEIDEN(UMAP.out.adata.join(LEIDEN.out.groupTuple()))
 
     emit:
     adata = MERGE_UMAP_LEIDEN.out.adata

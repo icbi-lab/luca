@@ -13,13 +13,13 @@ process SCVI {
     clusterOptions '-V -S /bin/bash -q all.q@apollo-15'
 
     input:
-        path input_adata
+        tuple val(id), path(input_adata)
         each use_highly_variable
         val batch_key
 
     output:
-        path("integrated*.h5ad"), emit: adata
-        path("scvi_model*"), emit: scvi_model
+        tuple val(id), path("integrated*.h5ad"), emit: adata
+        tuple val(id), path("scvi_model*"), emit: scvi_model
 
     script:
     def suffix = use_highly_variable == 0 ? "all_genes" : "hvg"
