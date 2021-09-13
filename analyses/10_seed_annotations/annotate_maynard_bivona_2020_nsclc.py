@@ -47,6 +47,7 @@ adata.obsm = adata_scvi.obsm
 adata.obs["leiden"] = adata_scvi.obs["leiden_1.00"]
 
 # %%
+adata.layers["counts"] = adata.X
 adata.X = adata.layers["tpm"]
 sc.pp.log1p(adata)
 

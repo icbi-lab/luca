@@ -58,14 +58,21 @@ sc.set_figure_params(figsize=(5, 5))
 dataset_table = pd.read_csv(
     nxfvars.get("samplesheet", "../../tables/samplesheet_scrnaseq_preprocessing.csv")
 )
+dataset_path_annotated = nxfvars.get(
+    "dataset_path_annotated",
+    "../../data/20_integrate_scrnaseq_data/11_seed_annotations/artifacts/",
+)
+dataset_path = nxfvars.get(
+    "dataset_path", "../../data/20_integrate_scrnaseq_data/02_qc_and_filtering/"
+)
 
 # %%
 dataset_table
 
 # %%
-dataset_path = nxfvars.get(
-    "dataset_path", "../../data/20_integrate_scrnaseq_data/20_qc_and_filtering"
-)
+datasets_annotated = ["Maynard_Bivona_2020_NSCLC", "Lambrechts_2018_LUAD_6653"]
+
+# %%
 datasets = {
     dataset_id: sc.read_h5ad(
         f"{dataset_id}.qc.h5ad"
@@ -74,6 +81,18 @@ datasets = {
     )
     for dataset_id in tqdm(dataset_table["id"])
 }
+
+# %%
+# Set cell-types of unannotated datasets to "unknown" for scVI
+for dataset_id in datasets:
+    datasets[dataset_id].obs["cell_type"] = "unknown"
+
+# %%
+for dataset_id in datasets_annotated:
+    tmp_adata = sc.read_h5ad(
+        f"{dataset_path_annotated}/{dataset_id}_annotated.h5ad"
+    )
+    datasets[dataset_id].obs["cell_type"] = tmp_adata.obs["cell_type"]
 
 # %% [markdown]
 # ### Dataset-specific filtering and metadata fixes
@@ -194,6 +213,9 @@ for dataset_id, adata in datasets.items():
 # ### Validate data
 
 # %%
+datasets["Lambrechts_2018_LUAD_6653"].X.data
+
+# %%
 for dataset_id, adata in datasets.items():
     print(f"Validating {dataset_id}")
     sanitize_adata(adata)
@@ -220,8 +242,14 @@ for dataset_id, adata in datasets.items():
 # gene_symbol_dict.to_csv("../../tables/gene_symbol_dict.csv")
 
 # %%
-gene_symbol_df = pd.read_csv(nxfvars.get("gene_symbol_table", "../../tables/gene_symbol_dict.csv"), index_col=False)
-gene_symbol_dict = {alias: symbol for alias, symbol in zip(gene_symbol_df["alias"], gene_symbol_df["gene_symbol"])}
+gene_symbol_df = pd.read_csv(
+    nxfvars.get("gene_symbol_table", "../../tables/gene_symbol_dict.csv"),
+    index_col=False,
+)
+gene_symbol_dict = {
+    alias: symbol
+    for alias, symbol in zip(gene_symbol_df["alias"], gene_symbol_df["gene_symbol"])
+}
 
 # %%
 for dataset_id, tmp_dataset in datasets.items():
@@ -234,13 +262,6 @@ for dataset_id, tmp_dataset in datasets.items():
 for dataset_id, dataset in datasets.items():
     print(dataset_id)
     datasets[dataset_id] = aggregate_duplicate_gene_symbols(dataset)
-
-# %% [markdown]
-# ## add cell type annotation
-
-# %%
-for dataset in datasets.values():
-    dataset.obs["cell_type"] = "unknown"
 
 # %% [markdown]
 # ## Export all

@@ -34,7 +34,7 @@ adata = sc.read_h5ad(
 adata_scvi = sc.read_h5ad(
     nxfvars.get(
         "adata_scvi",
-        "../../data/20_integrate_scrnaseq_data/11_seed_annotations_leiden_umap/integrated_Lambrechts_2018_LUAD_6653.qc_hvg.umap_leiden.h5ad",
+        "../../data/20_integrate_scrnaseq_data/11_seed_annotations_leiden_umap/Lambrechts_2018_LUAD_6653.umap_leiden.h5ad",
     )
 )
 artifact_dir = nxfvars.get("artifact_dir", "/local/scratch/sturm/")
@@ -44,6 +44,9 @@ adata.obsm = adata_scvi.obsm
 
 # %%
 adata.obs["leiden"] = adata_scvi.obs["leiden_1.00"]
+
+# %%
+adata.layers["counts"] = adata.X
 
 # %%
 sc.pp.normalize_total(adata, target_sum=10000)

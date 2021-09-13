@@ -34,6 +34,9 @@ include { JUPYTERNOTEBOOK as MERGE_ALL } from "./modules/local/jupyternotebook/m
 include { SCVI } from "./modules/local/scvi/main.nf" addParams(
     options: modules["SCVI"]
 )
+include { SCANVI } from "./modules/local/scvi/main.nf" addParams(
+    options: modules["SCANVI"]
+)
 include { SOLO } from "./modules/local/solo/main.nf" addParams(
     options: modules["SOLO"]
 )
@@ -66,7 +69,7 @@ workflow {
     SCVI_SEED(
        ch_seed_ids.join(SCQC.out.adata),
        1,
-       "sample"
+       ["sample", "sample"]
     )
     NEIGHBORS_LEIDEN_UMAP_SEED(SCVI_SEED.out.adata, "X_scVI", 1.0)
     ch_seed_scvi = SCQC.out.adata.join(NEIGHBORS_LEIDEN_UMAP_SEED.out.adata)
@@ -85,31 +88,32 @@ workflow {
     )
 
     // MERGE and INTEGRATE all datasets
+    MERGE_ALL(
+        channel.value([
+            [id: "21_merge_all"],
+            file("${baseDir}/analyses/20_integrate_scrnaseq_data/21_merge_all.py")
+        ]),
+        [
+            samplesheet: "samplesheet_scrnaseq_preprocessing.csv",
+            dataset_path: ".",
+            dataset_path_annotated: ".",
+            gene_symbol_table: "gene_symbol_dict.csv"
+        ],
+        SCQC.out.adata.flatMap{ id, adata -> adata }.mix(
+            ANNOTATE_SEED.out.artifacts
+        ).mix(
+            Channel.fromPath("${baseDir}/tables/samplesheet_scrnaseq_preprocessing.csv"),
+            Channel.fromPath("${baseDir}/tables/gene_symbol_dict.csv")
+        ).collect()
+    )
 
-
-
-    // MERGE_ALL(
-    //     Channel.value([
-    //         [id: "21_merge_all"],
-    //         file("${baseDir}/analyses/20_integrate_scrnaseq_data/21_merge_all.py")
-    //     ]),
-    //     [
-    //         samplesheet: "samplesheet_scrnaseq_preprocessing.csv",
-    //         dataset_path: ".",
-    //         gene_symbol_table: "gene_symbol_dict.csv"
-    //     ],
-    //     SCQC.out.adata.flatMap{ meta, adata -> adata }.mix(
-    //         Channel.fromPath("${baseDir}/tables/samplesheet_scrnaseq_preprocessing.csv"),
-    //         Channel.fromPath("${baseDir}/tables/gene_symbol_dict.csv")
-    //     ).collect()
-    // )
-
-    // SCVI(
-    //     MERGE_ALL.out.artifacts.collect().map{
-    //         out -> out.findAll{ it -> it.getExtension() == "h5ad" }
-    //     },
-    //     Channel.from(0, 1)
-    // )
+    SCVI(
+        MERGE_ALL.out.artifacts.collect().map{
+            out -> ["all", out.findAll{ it -> it.getExtension() == "h5ad" }]
+        },
+        Channel.from(0, 1),
+        ["batch", "dataset"]
+    )
 
     // NEIGHBORS_LEIDEN_UMAP_DOUBLET(
     //     SCVI.out.adata.filter{ it -> it.baseName.contains("hvg") },
