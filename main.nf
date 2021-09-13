@@ -62,27 +62,25 @@ workflow {
     // SEED annotation (manually annotate two datasets (One 10x and one Smartseq)
     // in order to use the scANVI algorithm for the integration which has been shown
     // to outperform scVI)
+    ch_seed_ids = Channel.from("Maynard_Bivona_2020_NSCLC", "Lambrechts_2018_LUAD_6653")
     SCVI_SEED(
-        SCQC.out.adata.filter{
-            id, adata -> {
-                id.equals("Maynard_Bivona_2020_NSCLC") || id.equals("Lambrechts_2018_LUAD_6653")
-            }
-       },
+       ch_seed_ids.join(SCQC.out.adata),
        1,
        "sample"
     )
     NEIGHBORS_LEIDEN_UMAP_SEED(SCVI_SEED.out.adata, "X_scVI", 1.0)
+    ch_seed_scvi = SCQC.out.adata.join(NEIGHBORS_LEIDEN_UMAP_SEED.out.adata)
     ANNOTATE_SEED(
-        SCVI_SEED.out.adata.map{ id, adata -> [
+        ch_seed_scvi.map{id, adata1, adata2 -> [
             ["id": id],
             file("${baseDir}/analyses/10_seed_annotations/annotate_${id.toLowerCase()}.py")
         ]},
-        NEIGHBORS_LEIDEN_UMAP_SEED.out.adata.map{ id, adata -> [
-            adata_qc: "${id}.qc.h5ad",
-            adata_scvi: adata.name
+        ch_seed_scvi.map{ id, adata_qc, adata_scvi -> [
+            adata_qc: adata_qc.name,
+            adata_scvi: adata_scvi.name
         ]},
-        SCQC.out.adata.join(NEIGHBORS_LEIDEN_UMAP_SEED.out.adata).map{
-             id, adata1, adata2 -> [adata1, adata2]
+        ch_seed_scvi.map{
+             id, adata_qc, adata_scvi -> [adata_qc, adata_scvi]
         }
     )
 

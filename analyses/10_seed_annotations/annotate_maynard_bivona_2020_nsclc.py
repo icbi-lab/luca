@@ -34,7 +34,7 @@ adata = sc.read_h5ad(
 adata_scvi = sc.read_h5ad(
     nxfvars.get(
         "adata_scvi",
-        "../../data/20_integrate_scrnaseq_data/11_seed_annotations_leiden_umap/integrated_Maynard_Bivona_2020_NSCLC.qc_hvg.umap_leiden.h5ad",
+        "../../data/20_integrate_scrnaseq_data/11_seed_annotations_leiden_umap/Maynard_Bivona_2020_NSCLC.umap_leiden.h5ad",
     )
 )
 artifact_dir = nxfvars.get("artifact_dir", "/local/scratch/sturm/")
@@ -125,7 +125,7 @@ ct_map = {
     "T cell regulatory": [0],
     "T cell CD4": [1, 8, 5],
     "T cell other": [9, 10],
-    "NK cell": [6]
+    "NK cell": [6],
 }
 
 # %%
@@ -224,7 +224,7 @@ sc.pl.umap(adata_epi, color="leiden", legend_loc="on data", legend_fontoutline=2
 ct_map = {
     "Alevolar cell type 1": [5, 9],
     "Alevolar cell type 2": [3, 12],
-    "Epithelial cell malignant": [14, 13, 0, 2, 11, 8, 4, 6, 1, 7, 10]
+    "Epithelial cell malignant": [14, 13, 0, 2, 11, 8, 4, 6, 1, 7, 10],
 }
 
 # %%
