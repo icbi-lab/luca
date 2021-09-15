@@ -157,20 +157,20 @@ workflow {
         ).flatten().collect()
     )
 
-    // ANNOTATE_CELL_TYPES_COARSE(
-    //     Channel.value([
-    //         [id: "26_annotate_cell_types"],
-    //         file("${baseDir}/analyses/20_integrate_scrnaseq_data/26_annotate_cell_types_coarse.py")
-    //     ]),
-    //     [:],
-    //     MERGE_SOLO.out.artifacts
-    // )
+    ANNOTATE_CELL_TYPES_COARSE(
+        Channel.value([
+            [id: "26_annotate_cell_types"],
+            file("${baseDir}/analyses/20_integrate_scrnaseq_data/26_annotate_cell_types_coarse.py")
+        ]),
+        [:],
+        MERGE_SOLO.out.artifacts
+    )
 
-    // NEIGHBORS_LEIDEN_UMAP_CELL_TYPES(
-    //     ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten().filter( it -> !it.baseName.contains("cell_type_coarse")),
-    //     "X_scVI",
-    //     Channel.from(0.5, 0.75, 1.0, 1.5)
-    // )
+    NEIGHBORS_LEIDEN_UMAP_CELL_TYPES(
+        ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten().filter( it -> !it.baseName.contains("cell_type_coarse")),
+        "X_scANVI",
+        Channel.from(0.5, 0.75, 1.0, 1.5)
+    )
 
 }
 
