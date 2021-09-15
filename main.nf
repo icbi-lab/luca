@@ -167,7 +167,9 @@ workflow {
     )
 
     NEIGHBORS_LEIDEN_UMAP_CELL_TYPES(
-        ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten().filter( it -> !it.baseName.contains("cell_type_coarse")),
+        ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten().filter(
+             it -> !it.baseName.contains("cell_type_coarse")
+        ).map{ adata -> [adata.baseName, adata] },
         "X_scANVI",
         Channel.from(0.5, 0.75, 1.0, 1.5)
     )
