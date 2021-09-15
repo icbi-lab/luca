@@ -112,7 +112,7 @@ workflow {
             out -> ["all", out.findAll{ it -> it.getExtension() == "h5ad" }]
         },
         Channel.from(0, 1),
-        ["batch", "dataset", "cell_type"]
+        ["batch", "dataset", null]
     )
 
     SCANVI(
@@ -134,26 +134,28 @@ workflow {
         1.0
     )
 
-    // SOLO(
-    //     ch_scvi_hvg,
-    //     ch_scvi_hvg_model,
-    //     MERGE_ALL.out.artifacts.flatten().filter{
-    //         it -> it.getName() == "obs_all.csv"
-    //     }.splitCsv(header : true).filter{
-    //         it -> it["run_solo"] == "True"
-    //     }.map{ it -> it["sample"] }
-    // )
+    SOLO(
+        ch_scvi_hvg,
+        ch_scvi_hvg_model,
+        MERGE_ALL.out.artifacts.flatten().filter{
+            it -> it.getName() == "obs_all.csv"
+        }.splitCsv(header : true).filter{
+            it -> it["run_solo"] == "True"
+        }.map{ it -> it["sample"] }
+    )
 
-    // MERGE_SOLO(
-    //     Channel.value([
-    //         [id: "25_merge_solo"],
-    //         file("${baseDir}/analyses/20_integrate_scrnaseq_data/25_merge_solo.py")
-    //     ]),
-    //     [
-    //         "adata_path": "integrated_merged_all_hvg.umap_leiden.h5ad"
-    //     ],
-    //     NEIGHBORS_LEIDEN_UMAP_DOUBLET.out.adata.mix(SOLO.out.doublets).flatten().collect()
-    // )
+    MERGE_SOLO(
+        Channel.value([
+            [id: "25_merge_solo"],
+            file("${baseDir}/analyses/20_integrate_scrnaseq_data/25_merge_solo.py")
+        ]),
+        [
+            "adata_path": "all.umap_leiden.h5ad"
+        ],
+        NEIGHBORS_LEIDEN_UMAP_DOUBLET.out.adata.map{ id, adata -> adata}.mix(
+            SOLO.out.doublets
+        ).flatten().collect()
+    )
 
     // ANNOTATE_CELL_TYPES_COARSE(
     //     Channel.value([

@@ -58,8 +58,8 @@ def main(
 
     adata = sc.read_h5ad(adata_in)
 
-    scvi.data.setup_anndata(adata, batch_key=batch_key, labels_key=labels_key)
     vae = scvi.model.SCVI.load(model_in, adata, use_gpu=False)
+    scvi.data.setup_anndata(adata, batch_key="batch", labels_key=labels_key)
     lvae = scvi.model.SCANVI.from_scvi_model(vae, "unknown", adata=adata)
 
     lvae.train(use_gpu=False)
