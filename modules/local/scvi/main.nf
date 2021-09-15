@@ -15,7 +15,7 @@ process SCVI {
     input:
         tuple val(id), path(input_adata)
         each use_highly_variable
-        tuple val(batch_key), val(hvg_batch_key)
+        tuple val(batch_key), val(hvg_batch_key), val(labels_key)
 
     output:
         tuple val(id), path("*_integrated_scvi.h5ad"), emit: adata
@@ -23,6 +23,7 @@ process SCVI {
 
     script:
     def suffix = use_highly_variable == 0 ? "all_genes" : "hvg"
+    def labels_key_arg = labels_key ? "--labels_key ${labels_key}" : ""
     """
     export CUDA_VISIBLE_DEVICES=\$((0 + \$RANDOM % 2))
     export OPENBLAS_NUM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus}  \\
@@ -30,11 +31,12 @@ process SCVI {
         MKL_NUM_cpus=${task.cpus} OPENBLAS_NUM_cpus=${task.cpus}
     integrate_scvi.py \\
         ${input_adata} \\
-        --adata_out ${input_adata.baseName}_${suffix}_integrated_scvi.h5ad \\
-        --model_out ${input_adata.baseName}_${suffix}_scvi_model \\
+        --adata_out ${id}_${suffix}_integrated_scvi.h5ad \\
+        --model_out ${id}_${suffix}_scvi_model \\
         --use_hvg ${use_highly_variable} \\
         --hvg_batch_key ${hvg_batch_key} \\
-        --batch_key ${batch_key}
+        --batch_key ${batch_key} \\
+        ${labels_key_arg}
     """
 }
 
@@ -43,13 +45,14 @@ process SCANVI {
         mode: params.publish_dir_mode,
         saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
 
-    cpus 4
-    conda "/data/scratch/sturm/conda/envs/pircher-sc-integrate2"
-    clusterOptions '-V -S /bin/bash -q all.q@apollo-15'
+    // don't run on GPU due to pytorch internal runtime error
+    // runs in reasonable time (20min-ish) without a GPU on a
+    // full compute node
+    cpus 44
+    conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
 
     input:
-        tuple val(id), path(adata_integrated)
-        tuple val(id), path(scvi_model)
+        tuple val(id), path(input_adata), path(input_model)
         val batch_key
         val labels_key
 
@@ -65,9 +68,9 @@ process SCANVI {
         MKL_NUM_cpus=${task.cpus} OPENBLAS_NUM_cpus=${task.cpus}
     integrate_scanvi.py \\
         ${input_adata} \\
-        ${input_model}
-        --adata_out ${input_adata.baseName}_${suffix}_integrated_scanvi.h5ad \\
-        --model_out ${input_adata.baseName}_${suffix}_scanvi_model \\
+        ${input_model} \\
+        --adata_out ${input_adata.baseName}_integrated_scanvi.h5ad \\
+        --model_out ${input_adata.baseName}_scanvi_model \\
         --batch_key ${batch_key} \\
         --labels_key ${labels_key}
     """

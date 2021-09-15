@@ -54,15 +54,15 @@ def main(
     """
     set_all_seeds()
 
+    print(f"batch_key={batch_key}, labels_key={labels_key}")
+
     adata = sc.read_h5ad(adata_in)
 
     scvi.data.setup_anndata(adata, batch_key=batch_key, labels_key=labels_key)
-    vae = scvi.model.SCVI.load(model_in, adata, use_gpu=True)
-    lvae = scvi.model.SCANVI.from_scvi_model(vae, "unknown")
+    vae = scvi.model.SCVI.load(model_in, adata, use_gpu=False)
+    lvae = scvi.model.SCANVI.from_scvi_model(vae, "unknown", adata=adata)
 
-    lvae.train(
-        use_gpu=True,
-    )
+    lvae.train(use_gpu=False)
     lvae.save(model_out)
 
     adata.obsm[f"X_scANVI"] = lvae.get_latent_representation(adata)

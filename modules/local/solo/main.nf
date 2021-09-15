@@ -13,8 +13,8 @@ process SOLO {
     cpus 4
 
     input:
-        path adata
-        path scvi_model
+        tuple val(id), path(adata)
+        tuple val(id), path(scvi_model)
         each batch
 
     output:
@@ -47,7 +47,9 @@ process SOLO {
     set_all_seeds()
 
     adata = sc.read_h5ad("${adata}")
-    scvi_model = scvi.model.SCVI.load("${scvi_model}", adata=adata)
+
+    scvi.data.setup_anndata(adata, batch_key="batch")
+    scvi_model = scvi.model.SCANVI.load("${scvi_model}", adata=adata)
     solo = scvi.external.SOLO.from_scvi_model(scvi_model, restrict_to_batch="${batch}")
     solo.train()
     res = solo.predict()

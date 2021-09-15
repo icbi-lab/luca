@@ -34,6 +34,7 @@ def main(
     use_highly_variable: bool,
     batch_key,
     hvg_batch_key=None,
+    labels_key=None,
 ):
     """
     Run scvi tools integration
@@ -57,6 +58,9 @@ def main(
         highly variable genes. May be different from batch_key, as highly_variable_genes
         might have trouble to work with small batches (e.g. choose dataset instead
         of sample).
+    labels_key
+        Key in adata.obs containing cell-type labels for semi-supervised training
+        and later SCANVI inference
     """
     set_all_seeds()
 
@@ -73,7 +77,11 @@ def main(
             subset=True,
         )
 
-    scvi.data.setup_anndata(adata, batch_key=batch_key)
+    if labels_key is not None:
+        scvi.data.setup_anndata(adata, batch_key=batch_key, labels_key=labels_key)
+    else:
+        scvi.data.setup_anndata(adata, batch_key=batch_key)
+
     vae = scvi.model.SCVI(adata)
 
     vae.train(
@@ -127,6 +135,13 @@ if __name__ == "__main__":
         help="Key in adata.obs that contains the batch annotation used for highly variable genes",
         default="batch",
     )
+    parser.add_argument(
+        "--labels_key",
+        dest="labels_key",
+        type=str,
+        help="Key in adata.obs that contains the cell-type labels (optional)",
+        default=None,
+    )
     args = parser.parse_args()
     main(
         args.adata_in,
@@ -135,4 +150,5 @@ if __name__ == "__main__":
         use_highly_variable=args.use_hvg,
         batch_key=args.batch_key,
         hvg_batch_key=args.hvg_batch_key,
+        labels_key=args.labels_key,
     )

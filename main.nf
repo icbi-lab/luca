@@ -69,7 +69,7 @@ workflow {
     SCVI_SEED(
        ch_seed_ids.join(SCQC.out.adata),
        1,
-       ["sample", "sample"]
+       ["sample", "sample", null]
     )
     NEIGHBORS_LEIDEN_UMAP_SEED(SCVI_SEED.out.adata, "X_scVI", 1.0)
     ch_seed_scvi = SCQC.out.adata.join(NEIGHBORS_LEIDEN_UMAP_SEED.out.adata)
@@ -112,18 +112,31 @@ workflow {
             out -> ["all", out.findAll{ it -> it.getExtension() == "h5ad" }]
         },
         Channel.from(0, 1),
-        ["batch", "dataset"]
+        ["batch", "dataset", "cell_type"]
     )
 
-    // NEIGHBORS_LEIDEN_UMAP_DOUBLET(
-    //     SCVI.out.adata.filter{ it -> it.baseName.contains("hvg") },
-    //     "X_scVI",
-    //     1.0
-    // )
+    SCANVI(
+        SCVI.out.adata.join(SCVI.out.scvi_model),
+        "batch",
+        "cell_type"
+    )
+
+    // use HVG version for downstream analysis. We just keep the version with
+    // all genes in case we need to run DE analysis with scVI.
+    ch_scvi_hvg = SCVI.out.adata.filter{ id, adata -> adata.baseName.contains("hvg") }
+    ch_scvi_hvg_model = SCVI.out.scvi_model.filter{ id, adata -> adata.baseName.contains("hvg") }
+    ch_scanvi_hvg = SCANVI.out.adata.filter{ id, adata -> adata.baseName.contains("hvg") }
+    ch_scanvi_hvg_model = SCANVI.out.scvi_model.filter{ id, adata -> adata.baseName.contains("hvg") }
+
+    NEIGHBORS_LEIDEN_UMAP_DOUBLET(
+        ch_scanvi_hvg,
+        "X_scANVI",
+        1.0
+    )
 
     // SOLO(
-    //     SCVI.out.adata.filter{ it -> it.baseName.contains("hvg") },
-    //     SCVI.out.scvi_model.filter{ it -> it.baseName.contains("hvg") },
+    //     ch_scvi_hvg,
+    //     ch_scvi_hvg_model,
     //     MERGE_ALL.out.artifacts.flatten().filter{
     //         it -> it.getName() == "obs_all.csv"
     //     }.splitCsv(header : true).filter{
