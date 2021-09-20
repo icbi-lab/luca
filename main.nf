@@ -169,12 +169,15 @@ workflow {
         MERGE_SOLO.out.artifacts
     )
 
-    ch_adata_annotated = ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten().filter(
+    ch_adata_annotated_by_cell_type = ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten().filter(
         it -> !it.baseName.contains("cell_type_coarse")
+    )
+    ch_adata_annotated = ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten().filter(
+        it -> it.baseName.contains("cell_type_coarse")
     )
 
     NEIGHBORS_LEIDEN_UMAP_CELL_TYPES(
-        ch_adata_annotated.map{ adata -> [adata.baseName, adata] },
+        ch_adata_annotated_by_cell_type.map{ adata -> [adata.baseName, adata] },
         "X_scANVI",
         Channel.from(0.5, 0.75, 1.0, 1.5)
     )
@@ -188,7 +191,9 @@ workflow {
             "input_dir": '.',
             "main_adata": 'adata_cell_type_coarse.h5ad'
         ],
-        NEIGHBORS_LEIDEN_UMAP_CELL_TYPES.out.adata.mix(ch_adata_annotated).collect()
+        NEIGHBORS_LEIDEN_UMAP_CELL_TYPES.out.adata.map{ id, adata -> adata }.mix(
+            ch_adata_annotated
+        ).collect()
     )
 
 }
