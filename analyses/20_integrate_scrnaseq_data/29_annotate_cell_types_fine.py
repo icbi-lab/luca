@@ -23,6 +23,7 @@ import scvi
 import warnings
 import numpy as np
 from nxfvars import nxfvars
+import infercnvpy as cnv
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -185,7 +186,16 @@ ah.plot_umap(
 )
 
 # %%
-adata_epi.obs["leiden"] = adata_epi.obs["leiden_0.50"]
+sc.pl.umap(adata_epi, color=["CEACAM5", "KRT6A", "KRT19"], cmap="inferno", size=2)
+
+# %%
+adata_epi.obs["leiden"] = adata_epi.obs["leiden_0.75"]
+
+# %%
+sc.pl.umap(adata_epi, color="leiden")
+
+# %%
+sc.pl.umap(adata_epi, color=["origin", "condition", "dataset"], wspace=.4, ncols=2)
 
 # %%
 sc.pl.umap(adata_epi, color="leiden", legend_loc="on data", legend_fontoutline=2)
@@ -195,12 +205,12 @@ ah.plot_dotplot(adata_epi, groupby="leiden")
 
 # %%
 ct_map = {
-    "Mesothelial": [8],
-    "Pericyte": [3],
-    "Smooth muscle cell": [6],
-    "Fibroblast adventitial": [1],
-    "Fibroblast alevolar": [2],
-    "Fibroblast": [0, 9, 4, 5, 7],
+    "Alevolar cell type 1": [9],
+    "Alevolar cell type 2": [2, 19, 20, 7, 11],
+    "Tumor cells": [21, 3, 4, 5, 18, 17, 6, 13, 10, 16, 14, 0, 15], 
+    "Goblet": [8],
+    "Unknown C22":[22],
+    "Club": [1,12], 
 }
 
 # %%
@@ -208,5 +218,8 @@ ah.annotate_cell_types(adata_epi, ct_map)
 
 # %%
 ah.integrate_back(adata, adata_epi)
+
+# %%
+adata.write_h5ad(f"{artifact_dir}/adata_annotated_fine.h5ad")
 
 # %%

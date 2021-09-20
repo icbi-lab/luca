@@ -52,6 +52,9 @@ include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_COARSE }  from "./modules/local
 include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_CELL_TYPES } from "./subworkflows/neighbors_leiden_umap/main.nf" addParams(
     options: subworkflows["NEIGHBORS_LEIDEN_UMAP_CELL_TYPES"]
 )
+include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_FINE }  from "./modules/local/jupyternotebook/main.nf" addParams (
+    options: modules["ANNOTATE_CELL_TYPES_FINE"]
+)
 
 
 
@@ -159,19 +162,33 @@ workflow {
 
     ANNOTATE_CELL_TYPES_COARSE(
         Channel.value([
-            [id: "26_annotate_cell_types"],
-            file("${baseDir}/analyses/20_integrate_scrnaseq_data/26_annotate_cell_types_coarse.py")
+            [id: "27_annotate_cell_types"],
+            file("${baseDir}/analyses/20_integrate_scrnaseq_data/27_annotate_cell_types_coarse.py")
         ]),
         [:],
         MERGE_SOLO.out.artifacts
     )
 
+    ch_adata_annotated = ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten().filter(
+        it -> !it.baseName.contains("cell_type_coarse")
+    )
+
     NEIGHBORS_LEIDEN_UMAP_CELL_TYPES(
-        ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten().filter(
-             it -> !it.baseName.contains("cell_type_coarse")
-        ).map{ adata -> [adata.baseName, adata] },
+        ch_adata_annotated.map{ adata -> [adata.baseName, adata] },
         "X_scANVI",
         Channel.from(0.5, 0.75, 1.0, 1.5)
+    )
+
+    ANNOTATE_CELL_TYPES_FINE(
+        Channel.value([
+            [id: "29_annotate_cell_types_fine"],
+            file("${baseDir}/analyses/20_integrate_scrnaseq_data/29_annotate_cell_types_fine.py")
+        ]),
+        [
+            "input_dir": '.',
+            "main_adata": 'adata_cell_type_coarse.h5ad'
+        ],
+        NEIGHBORS_LEIDEN_UMAP_CELL_TYPES.out.adata.mix(ch_adata_annotated).collect()
     )
 
 }
