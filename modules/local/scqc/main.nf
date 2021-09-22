@@ -12,7 +12,8 @@ process SCQC {
         mode: params.publish_dir_mode,
         saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }
 
-    conda "/home/sturm/.conda/envs/single-cell-analysis-nf"
+    // conda "/home/sturm/.conda/envs/single-cell-analysis-nf"
+    container "containers/scqc.sif"
 
     input:
     tuple val(meta), path(input_adata)

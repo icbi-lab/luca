@@ -50,6 +50,9 @@ adata = sc.read_h5ad(main_adata)
 # %%
 sc.pl.umap(adata, color="cell_type")
 
+# %%
+adata.obs["cell_type_coarse"] = adata.obs["cell_type"]
+
 # %% [markdown]
 # ## T cell subclustering
 

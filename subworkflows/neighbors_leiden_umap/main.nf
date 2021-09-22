@@ -4,6 +4,7 @@ include { initOptions; saveFiles; getSoftwareName } from './functions'
 
 process NEIGHBORS {
     conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
+    // container "containers/sc-integrate2.sif"
     cpus 8
 
     input:
@@ -31,6 +32,7 @@ process NEIGHBORS {
 
 process UMAP {
     conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
+    // container "containers/sc-integrate2.sif"
     cpus 8
 
     input:
@@ -57,6 +59,7 @@ process UMAP {
 
 process LEIDEN {
     conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
+    // container "containers/sc-integrate2.sif"
     cpus 1
 
     input:
@@ -88,6 +91,7 @@ process MERGE_UMAP_LEIDEN {
         saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
 
     conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
+    // container "containers/sc-integrate2.sif"
     cpus 1
 
     input:

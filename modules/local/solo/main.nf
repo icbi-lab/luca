@@ -9,6 +9,7 @@ process SOLO {
         saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
 
     conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
+    // container "containers/sc-integrate2.sif"
 
     cpus 4
 
@@ -24,6 +25,9 @@ process SOLO {
     """
     #!/usr/bin/env python
     import scanpy as sc
+    # from threadpoolctl import threadpool_limits
+    # threadpool_limits(${task.cpus})
+
     import scvi
 
     def set_all_seeds(seed=0):

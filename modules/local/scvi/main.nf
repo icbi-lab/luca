@@ -10,6 +10,9 @@ process SCVI {
 
     cpus 4
     conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
+    // container "containers/sc-integrate2.sif"
+    // // support for nvidia https://lucacozzuto.medium.com/using-gpu-within-nextflow-19cd185d5e69
+    // containerOptions = "--nv"
     clusterOptions '-V -S /bin/bash -q all.q@apollo-15'
 
     input:
@@ -49,6 +52,7 @@ process SCANVI {
     // runs in reasonable time (20min-ish) without a GPU on a
     // full compute node
     cpus 44
+    // container "containers/sc-integrate2.sif"
     conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
 
     input:

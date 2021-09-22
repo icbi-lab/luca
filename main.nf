@@ -55,6 +55,9 @@ include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_CELL_TYPES } from "./su
 include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_FINE }  from "./modules/local/jupyternotebook/main.nf" addParams (
     options: modules["ANNOTATE_CELL_TYPES_FINE"]
 )
+include { JUPYTERNOTEBOOK as PREPARE_CELLXGENE }  from "./modules/local/jupyternotebook/main.nf" addParams (
+    options: modules["PREPARE_CELLXGENE"]
+)
 
 
 
@@ -194,6 +197,15 @@ workflow {
         NEIGHBORS_LEIDEN_UMAP_CELL_TYPES.out.adata.map{ id, adata -> adata }.mix(
             ch_adata_annotated
         ).collect()
+    )
+
+    PREPARE_CELLXGENE(
+        Channel.value([
+            [id: "zz_prepare_cellxgene"],
+            file("${baseDir}/analyses/zz_cellxgene/stats_and_cellxgene.py")
+        ]),
+        ["adata_in": "adata_annotated_fine.h5ad"],
+        ANNOTATE_CELL_TYPES_FINE.out.artifacts
     )
 
 }

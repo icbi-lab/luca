@@ -5,6 +5,7 @@ work
 .vscode
 *.code-workspace
 rik*.json
+containers
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
