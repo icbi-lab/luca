@@ -58,6 +58,12 @@ include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_FINE }  from "./modules/local/j
 include { JUPYTERNOTEBOOK as PREPARE_CELLXGENE }  from "./modules/local/jupyternotebook/main.nf" addParams (
     options: modules["PREPARE_CELLXGENE"]
 )
+include { H5AD_TO_SEURAT }  from "./modules/local/scconversion/main.nf" addParams(
+    options: ["publish_dir": "test-conversion"]
+)
+include { SEURAT_TO_SCE }  from "./modules/local/scconversion/main.nf" addParams(
+    options: ["publish_dir": "test-conversion"]
+)
 
 
 
@@ -207,6 +213,11 @@ workflow {
         ["adata_in": "adata_annotated_fine.h5ad"],
         ANNOTATE_CELL_TYPES_FINE.out.artifacts
     )
+
+    H5AD_TO_SEURAT(
+        Channel.value(['organoids', file('/data/projects/2017/Organoids-ICBI/zenodo/scrnaseq/03_scvi/adata_integrated.h5ad')])
+    )
+    SEURAT_TO_SCE(H5AD_TO_SEURAT.out.h5seurat)
 
 }
 
