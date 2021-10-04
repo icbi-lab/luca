@@ -46,7 +46,8 @@ process SEURAT_TO_SCE {
     #!/usr/bin/env Rscript
 
     library(Seurat)
-    seurat_obj = SeuratDisk::LoadH5Seurat("${input_seurat}")
+    # misc == adata.uns; Excluding it because it triggered an error when converting to SCE
+    seurat_obj = SeuratDisk::LoadH5Seurat("${input_seurat}", misc=FALSE)
     sce_obj = as.SingleCellExperiment(seurat_obj)
     saveRDS(sce_obj, file="${id}.rds", compress=FALSE)
     """
