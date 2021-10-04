@@ -59,9 +59,18 @@ include { JUPYTERNOTEBOOK as PREPARE_CELLXGENE }  from "./modules/local/jupytern
     options: modules["PREPARE_CELLXGENE"]
 )
 include { H5AD_TO_SEURAT }  from "./modules/local/scconversion/main.nf" addParams(
+    options: modules["H5AD_TO_SEURAT"]
+)
+// include { SEURAT_TO_SCE }  from "./modules/local/scconversion/main.nf" addParams(
+//     options: modules["H5AD_TO_SEURAT"]
+// )
+include { SPLIT_ANNDATA }  from "./modules/local/scconversion/main.nf" addParams(
+    options: modules["SPLIT_ANNDATA"]
+)
+include { H5AD_TO_SEURAT as H5AD_TO_SEURAT_TEST }  from "./modules/local/scconversion/main.nf" addParams(
     options: ["publish_dir": "test-conversion"]
 )
-include { SEURAT_TO_SCE }  from "./modules/local/scconversion/main.nf" addParams(
+include { SEURAT_TO_SCE as SEURAT_TO_SCE_TEST }  from "./modules/local/scconversion/main.nf" addParams(
     options: ["publish_dir": "test-conversion"]
 )
 
@@ -214,10 +223,22 @@ workflow {
         ANNOTATE_CELL_TYPES_FINE.out.artifacts
     )
 
-    H5AD_TO_SEURAT(
+    ch_adata_annotated_fine = ANNOTATE_CELL_TYPES_FINE.out.artifacts.flatten().filter(
+        it -> it.name.contains("h5ad")
+    ).map{ it -> [it.baseName, it]}
+
+    SPLIT_ANNDATA(ch_adata_annotated_fine, "dataset")
+    H5AD_TO_SEURAT(ch_adata_annotated_fine)
+    // SEURAT_TO_SCE(H5AD_TO_SEURAT.out.h5seurat)
+
+
+
+
+    // TEST DE analysis
+    H5AD_TO_SEURAT_TEST(
         Channel.value(['organoids', file('/data/projects/2017/Organoids-ICBI/zenodo/scrnaseq/03_scvi/adata_integrated.h5ad')])
     )
-    SEURAT_TO_SCE(H5AD_TO_SEURAT.out.h5seurat)
+    SEURAT_TO_SCE_TEST(H5AD_TO_SEURAT_TEST.out.h5seurat)
 
 }
 
