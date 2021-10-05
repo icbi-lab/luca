@@ -74,6 +74,12 @@ include { SEURAT_TO_SCE as SEURAT_TO_SCE_TEST }  from "./modules/local/scconvers
     options: ["publish_dir": "test-conversion"]
 )
 
+include { H5AD_TO_SCE }  from "./modules/local/scconversion/main.nf" addParams(
+    options: ["publish_dir": "test-conversion"]
+)
+include { PREPARE_ANNDATA }  from "./modules/local/scde/main.nf" addParams(
+    options: ["publish_dir": "test-de"]
+)
 
 
 // TODO: Enable "seed annotation" and use SCANVI (SCVI fails to integrate smartseq2 data)
@@ -239,6 +245,17 @@ workflow {
         Channel.value(['organoids', file('/data/projects/2017/Organoids-ICBI/zenodo/scrnaseq/03_scvi/adata_integrated.h5ad')])
     )
     SEURAT_TO_SCE_TEST(H5AD_TO_SEURAT_TEST.out.h5seurat)
+
+    H5AD_TO_SCE(
+        Channel.value(['organoids-direct-sce', file('/data/projects/2017/Organoids-ICBI/zenodo/scrnaseq/03_scvi/adata_integrated.h5ad')])
+    )
+
+    PREPARE_ANNDATA(
+        Channel.value(['organoids', file('/data/projects/2017/Organoids-ICBI/zenodo/scrnaseq/03_scvi/adata_integrated.h5ad')]),
+        "X",
+        "leiden",
+        [["2", "3"], "rest"]
+    )
 
 }
 
