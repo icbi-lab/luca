@@ -80,6 +80,9 @@ include { H5AD_TO_SCE }  from "./modules/local/scconversion/main.nf" addParams(
 include { PREPARE_ANNDATA }  from "./modules/local/scde/main.nf" addParams(
     options: ["publish_dir": "test-de"]
 )
+include { MAKE_PSEUDOBULK }  from "./modules/local/scde/main.nf" addParams(
+    options: ["publish_dir": "test-de"]
+)
 
 
 // TODO: Enable "seed annotation" and use SCANVI (SCVI fails to integrate smartseq2 data)
@@ -255,6 +258,11 @@ workflow {
         "X",
         "leiden",
         [["2", "3"], "rest"]
+    )
+    MAKE_PSEUDOBULK(
+        PREPARE_ANNDATA.out.adata,
+        "organoid",
+        "leiden"
     )
 
 }

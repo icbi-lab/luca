@@ -26,7 +26,7 @@ process PREPARE_ANNDATA {
 
     output:
     // the output anndata contains only X (filled with raw counts), var and obs.
-    tuple val(id), path("*.h5ad")
+    tuple val(id), path("*.h5ad"), emit: adata
 
 
     script:
@@ -71,11 +71,18 @@ process PREPARE_ANNDATA {
 
 
 process MAKE_PSEUDOBULK {
+    publishDir "${params.outdir}",
+        mode: params.publish_dir_mode,
+        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
+
+    cpus 1
+    conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
 
     input:
     tuple val(id), path(input_adata)
     // the column containing the biological replicate variable
-    val(replicate_column)
+    val(replicate_col)
+    val(condition_col)
 
     output:
     path("${id}_counts.csv"), emit: counts
@@ -83,9 +90,48 @@ process MAKE_PSEUDOBULK {
 
     script:
     """
+    #!/usr/bin/env python
+
+    import scanpy as sc
+    import pandas as pd
+    import numpy as np
+
+    adata = sc.read_h5ad("${input_adata}")
+    replicate_col = "${replicate_col}"
+    condition_col = "${condition_col}"
+
     # aggregate counts by sample
+    bulk_samples = {}
+    rep_cond = adata.obs.loc[:, [replicate_col, condition_col]].drop_duplicates()
+    for _, replicate, condition in rep_cond.itertuples():
+        bulk_samples[f"{replicate}_{condition}"] = pd.Series(
+            np.sum(
+                adata[
+                    (adata.obs[replicate_col] == replicate) &
+                    (adata.obs[condition_col] == condition),
+                    :
+                ].X,
+                axis=0,
+            ).A1,
+            index=adata.var_names,
+        )
+
+    bulk_df = pd.DataFrame(bulk_samples)
 
     # Create samplesheet with all variables in obs that are unique per group.
+    keep_cols = np.all(
+        adata.obs.groupby([replicate_col, condition_col]).apply(lambda x: x.nunique()) == 1, axis=0
+    )
+    samplesheet = adata.obs.loc[:, keep_cols].drop_duplicates()
+    samplesheet.index = [
+        f"{replicate}_{condition}"
+        for replicate, condition in
+        zip(samplesheet[replicate_col], samplesheet[condition_col])
+    ]
+
+    # Export as CSV
+    bulk_df.to_csv("${id}_counts.csv")
+    samplesheet.to_csv("${id}_samplesheet.csv")
     """
 
 }
