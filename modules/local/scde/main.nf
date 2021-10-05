@@ -85,8 +85,7 @@ process MAKE_PSEUDOBULK {
     val(condition_col)
 
     output:
-    path("${id}_counts.csv"), emit: counts
-    path("${id}_samplesheet.csv"), emit: samplesheet
+    tuple val(id), path("${id}_counts.csv"), path("${id}_samplesheet.csv"), emit: pseudobulk
 
     script:
     """
@@ -117,6 +116,7 @@ process MAKE_PSEUDOBULK {
         )
 
     bulk_df = pd.DataFrame(bulk_samples)
+    bulk_df.index.name = "gene_id"
 
     # Create samplesheet with all variables in obs that are unique per group.
     keep_cols = np.all(
@@ -128,6 +128,7 @@ process MAKE_PSEUDOBULK {
         for replicate, condition in
         zip(samplesheet[replicate_col], samplesheet[condition_col])
     ]
+    samplesheet.index.name = "sample"
 
     # Export as CSV
     bulk_df.to_csv("${id}_counts.csv")
@@ -141,48 +142,89 @@ process DE_EDGER {
     /**
      * For a standard pseudobulk analysis
      */
+    publishDir "${params.outdir}",
+        mode: params.publish_dir_mode,
+        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
+
+    cpus 1
+    conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
+
     input:
     tuple val(id), path(counts), path(samplesheet)
     val(condition_col)
     val(covariate_formula)
 
-
     output:
-    path("de_res.csv"), emit: de_res
+    path("*.tsv"), emit: de_res
 
     script:
     """
+    #!/usr/bin/env Rscript
+
+    options(mc.cores=${task.cpus})
+    RhpcBLASctl::blas_set_num_threads(1)
+
+    library(readr)
+    library(edgeR)
+    library(tibble)
+
+    counts = read_csv("${counts}")
+    samplesheet = read_csv("${samplesheet}")
+
     # Run edgeR QLF test or LRT Test as descirbed in their vignette
+    design = model.matrix(~ ${condition_col} + ${covariate_formula}, data=samplesheet)
+    dge = DGEList(
+        counts = column_to_rownames(counts, "gene_id"),
+        samples = column_to_rownames(samplesheet, "sample")
+    )
+
+    dge = calcNormFactors(dge, design = design)
+    dge = estimateDisp(dge, design = design)
+    fit = glmQLFit(dge, design = design)
+
+    qlf = glmQLFTest(fit)
+    de_res = as_tibble(
+        topTags(qlf, n=Inf, adjust.method="BH")\$table,
+        rownames="gene_id"
+    )
+
+    write_tsv(de_res, "${id}_de_res_${condition_col}_edger.tsv")
     """
 }
 
 
-process DE_DREAM {
-    /**
-     * For a pseodubulk analysis with mixed effects
-     * See https://bioconductor.org/packages/release/bioc/vignettes/variancePartition/inst/doc/dream.html
+// process DE_DREAM {
+//     /**
+//      * For a pseodubulk analysis with mixed effects
+//      * See https://bioconductor.org/packages/release/bioc/vignettes/variancePartition/inst/doc/dream.html
 
-     * This is useful if there is a batch effect that is not controlled for
-     * by the experimental design
-     */
+//      * This is useful if there is a batch effect that is not controlled for
+//      * by the experimental design
+//      */
 
-    input:
-    tuple val(id), path(counts), path(samplesheet)
-    val(condition_col)
-    val(covariate_formula)
+//     input:
+//     tuple val(id), path(counts), path(samplesheet)
+//     val(condition_col)
+//     val(covariate_formula)
 
-    output:
-    path("de_res.csv"), emit: de_res
+//     output:
+//     path("de_res.csv"), emit: de_res
 
-    script:
-    """
-    # Run limma/dream as descirbed in their vignette
-    """
+//     script:
+//     """
+//     # Run limma/dream as descirbed in their vignette
+//     """
 
-}
+// }
 
 
 process DE_MAST_MIXED_EFFECTS {
+    publishDir "${params.outdir}",
+        mode: params.publish_dir_mode,
+        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
+
+    cpus 40
+    conda "/data/scratch/sturm/conda/envs/2020-pircher-mast"
     /**
      * Mixed effects model with MAST as described by Zimmermann et al.
      */
@@ -190,8 +232,7 @@ process DE_MAST_MIXED_EFFECTS {
     input:
     tuple val(id), path(sce)
     val(condition_col)
-    val(formula)
-
+    val(covariate_formula)
 
     script:
     """
@@ -202,12 +243,15 @@ process DE_MAST_MIXED_EFFECTS {
     library(MAST)
     library(readr)
 
-    sce = readRDS(${sce})
+    sce = readRDS("${sce}")
+    # expect counts in adata.X
+    assays(sce)\$counts = assays(sce)\$X
+    sce = scater::logNormCounts(sce)
     sca = MAST::SceToSingleCellAssay(sce, check_sanity = TRUE)
 
     res_zlm = zlm(
         # ~ leiden + n_genes_by_counts + (1 | organoid),
-        ${formula},
+        ~ ${condition_col} + ${covariate_formula},
         sca,
         method="glmer",
         ebayes=FALSE,
@@ -216,7 +260,7 @@ process DE_MAST_MIXED_EFFECTS {
     )
 
     contrast = ${condition_col}control
-    zlm_summary = MAST::summary(res_zlm, doLRT="")
+    zlm_summary = MAST::summary(res_zlm, doLRT=contrast)
 
     summary_dt <- zlm_summary\$datatable
     de_res <- merge(summary_dt[summary_dt\$contrast==contrast
@@ -225,7 +269,7 @@ process DE_MAST_MIXED_EFFECTS {
                                   & summary_dt\$component=='H', c(1,4)],
                         by = 'primerid')
 
-    write_tsv(de_res, "${id}_de_res.tsv")
+    write_tsv(de_res, "${id}_de_res_${condition_col}_mast.tsv")
     """
 }
 

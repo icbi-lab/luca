@@ -2,5 +2,5 @@
 
 nextflow run main.nf \
     -resume \
-    -profile icbi_long \
+    -profile icbi \
     -w /data/scratch/sturm/projects/2020/pircher-scrnaseq-lung \

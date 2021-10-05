@@ -39,7 +39,7 @@ process H5AD_TO_SCE {
         tuple val(id), path(input_adata)
 
     output:
-        tuple val(id), path("*.rds"), emit: h5seurat
+        tuple val(id), path("*.rds"), emit: sce
 
     script:
     """

@@ -83,6 +83,13 @@ include { PREPARE_ANNDATA }  from "./modules/local/scde/main.nf" addParams(
 include { MAKE_PSEUDOBULK }  from "./modules/local/scde/main.nf" addParams(
     options: ["publish_dir": "test-de"]
 )
+include { DE_EDGER }  from "./modules/local/scde/main.nf" addParams(
+    options: ["publish_dir": "test-de"]
+)
+include { DE_MAST_MIXED_EFFECTS }  from "./modules/local/scde/main.nf" addParams(
+    options: ["publish_dir": "test-de"]
+)
+
 
 
 // TODO: Enable "seed annotation" and use SCANVI (SCVI fails to integrate smartseq2 data)
@@ -249,20 +256,31 @@ workflow {
     )
     SEURAT_TO_SCE_TEST(H5AD_TO_SEURAT_TEST.out.h5seurat)
 
-    H5AD_TO_SCE(
-        Channel.value(['organoids-direct-sce', file('/data/projects/2017/Organoids-ICBI/zenodo/scrnaseq/03_scvi/adata_integrated.h5ad')])
-    )
 
     PREPARE_ANNDATA(
         Channel.value(['organoids', file('/data/projects/2017/Organoids-ICBI/zenodo/scrnaseq/03_scvi/adata_integrated.h5ad')]),
         "X",
         "leiden",
-        [["2", "3"], "rest"]
+        [["6"], "rest"]
     )
     MAKE_PSEUDOBULK(
         PREPARE_ANNDATA.out.adata,
         "organoid",
         "leiden"
+    )
+    DE_EDGER(
+        MAKE_PSEUDOBULK.out.pseudobulk,
+        "leiden",
+        "organoid"
+    )
+
+    H5AD_TO_SCE(
+        PREPARE_ANNDATA.out.adata
+    )
+    DE_MAST_MIXED_EFFECTS(
+        H5AD_TO_SCE.out.sce,
+        "leiden",
+        " + n_genes_by_counts + (1 | organoid)"
     )
 
 }
