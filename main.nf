@@ -61,33 +61,40 @@ include { JUPYTERNOTEBOOK as PREPARE_CELLXGENE }  from "./modules/local/jupytern
 include { H5AD_TO_SEURAT }  from "./modules/local/scconversion/main.nf" addParams(
     options: modules["H5AD_TO_SEURAT"]
 )
-// include { SEURAT_TO_SCE }  from "./modules/local/scconversion/main.nf" addParams(
-//     options: modules["H5AD_TO_SEURAT"]
-// )
 include { SPLIT_ANNDATA }  from "./modules/local/scconversion/main.nf" addParams(
     options: modules["SPLIT_ANNDATA"]
+)
+
+// DE analysis
+include { JUPYTERNOTEBOOK as PREPARE_FOR_DE }  from "./modules/local/jupyternotebook/main.nf" addParams (
+    options: modules["PREPARE_CELLXGENE"]
+)
+include { SPLIT_ANNDATA as SPLIT_ANNDATA2 }  from "./modules/local/scconversion/main.nf" addParams(
+    options: modules["SPLIT_ANNDATA"]
+)
+include { PREPARE_ANNDATA as PREPARE_ANNDATA_TUMOR_NORMAL }  from "./modules/local/scde/main.nf" addParams(
+    options: modules["PREPARE_ANNDATA_TUMOR_NORMAL"]
+)
+include { MAKE_PSEUDOBULK as MAKE_PSEUDOBULK_TUMOR_NORMAL }  from "./modules/local/scde/main.nf" addParams(
+    options: modules["MAKE_PSEUDOBULK_TUMOR_NORMAL"]
+)
+include { DE_EDGER as DE_EDGER_TUMOR_NORMAL }  from "./modules/local/scde/main.nf" addParams(
+    options: modules["DE_EDGER_TUMOR_NORMAL"]
+)
+
+
+// MODULES TEST
+include { DE_MAST_MIXED_EFFECTS }  from "./modules/local/scde/main.nf" addParams(
+   options: modules["PREPARE_ANNDATA_TUMOR_NORMAL"]
+)
+include { H5AD_TO_SCE }  from "./modules/local/scconversion/main.nf" addParams(
+    options: ["publish_dir": "test-conversion"]
 )
 include { H5AD_TO_SEURAT as H5AD_TO_SEURAT_TEST }  from "./modules/local/scconversion/main.nf" addParams(
     options: ["publish_dir": "test-conversion"]
 )
 include { SEURAT_TO_SCE as SEURAT_TO_SCE_TEST }  from "./modules/local/scconversion/main.nf" addParams(
     options: ["publish_dir": "test-conversion"]
-)
-
-include { H5AD_TO_SCE }  from "./modules/local/scconversion/main.nf" addParams(
-    options: ["publish_dir": "test-conversion"]
-)
-include { PREPARE_ANNDATA }  from "./modules/local/scde/main.nf" addParams(
-    options: ["publish_dir": "test-de"]
-)
-include { MAKE_PSEUDOBULK }  from "./modules/local/scde/main.nf" addParams(
-    options: ["publish_dir": "test-de"]
-)
-include { DE_EDGER }  from "./modules/local/scde/main.nf" addParams(
-    options: ["publish_dir": "test-de"]
-)
-include { DE_MAST_MIXED_EFFECTS }  from "./modules/local/scde/main.nf" addParams(
-    options: ["publish_dir": "test-de"]
 )
 
 
@@ -144,10 +151,12 @@ workflow {
         ).collect()
     )
 
+    ch_adata_merged = MERGE_ALL.out.artifacts.collect().map{
+        out -> ["all", out.findAll{ it -> it.getExtension() == "h5ad" }]
+    }
+
     SCVI(
-        MERGE_ALL.out.artifacts.collect().map{
-            out -> ["all", out.findAll{ it -> it.getExtension() == "h5ad" }]
-        },
+        ch_adata_merged,
         Channel.from(0, 1),
         ["batch", "dataset", null]
     )
@@ -245,43 +254,76 @@ workflow {
 
     SPLIT_ANNDATA(ch_adata_annotated_fine, "dataset")
     H5AD_TO_SEURAT(ch_adata_annotated_fine)
-    // SEURAT_TO_SCE(H5AD_TO_SEURAT.out.h5seurat)
 
 
-
-
-    // TEST DE analysis
-    H5AD_TO_SEURAT_TEST(
-        Channel.value(['organoids', file('/data/projects/2017/Organoids-ICBI/zenodo/scrnaseq/03_scvi/adata_integrated.h5ad')])
+    // DE analysis
+    PREPARE_FOR_DE(
+        Channel.value([
+            [id: "31_prepare_for_de"],
+            file("${baseDir}/analyses/20_integrate_scrnaseq_data/31_prepare_de_analysis.py")
+        ]),
+        [
+            "input_adata": "adata_annotated_fine.h5ad",
+            "adata_merged": "merged_all.h5ad"
+        ],
+        ANNOTATE_CELL_TYPES_FINE.out.artifacts.mix(ch_adata_merged.map{ id, it -> it}).collect()
     )
-    SEURAT_TO_SCE_TEST(H5AD_TO_SEURAT_TEST.out.h5seurat)
+    ch_adata_tumor_normal = PREPARE_FOR_DE.out.artifacts.flatten().filter(
+        it -> it.name.contains("tumor_normal")
+    ).map{ it -> [it.baseName, it]}
+    ch_adata_healthy_copd_nsclc = PREPARE_FOR_DE.out.artifacts.flatten().filter(
+        it -> it.name.contains("healthy_copd_nsclc")
+    ).map{ it -> [it.baseName, it]}
 
 
-    PREPARE_ANNDATA(
-        Channel.value(['organoids', file('/data/projects/2017/Organoids-ICBI/zenodo/scrnaseq/03_scvi/adata_integrated.h5ad')]),
+    PREPARE_ANNDATA_TUMOR_NORMAL(
+        ch_adata_tumor_normal,
         "X",
-        "leiden",
-        [["6"], "rest"]
+        "origin",
+        [["tumor_primary"], "rest"]
     )
-    MAKE_PSEUDOBULK(
-        PREPARE_ANNDATA.out.adata,
-        "organoid",
-        "leiden"
+    SPLIT_ANNDATA2(
+        PREPARE_ANNDATA_TUMOR_NORMAL.out.adata,
+        "cell_type"
     )
-    DE_EDGER(
-        MAKE_PSEUDOBULK.out.pseudobulk,
-        "leiden",
-        "organoid"
+    MAKE_PSEUDOBULK_TUMOR_NORMAL(
+        SPLIT_ANNDATA2.out.adata.flatten().map{it -> [it.baseName, it]},
+        "patient",
+        "origin",
+        10
+    )
+    DE_EDGER_TUMOR_NORMAL(
+        // only consider cell-types with at least three case/control samples
+        MAKE_PSEUDOBULK_TUMOR_NORMAL.out.pseudobulk.filter{
+            id, counts, samplesheet -> samplesheet.text.count("\n") >= 6
+        },
+        "origin",
+        "patient"
     )
 
-    H5AD_TO_SCE(
-        PREPARE_ANNDATA.out.adata
-    )
-    DE_MAST_MIXED_EFFECTS(
-        H5AD_TO_SCE.out.sce,
-        "leiden",
-        "n_genes_by_counts + (1 | organoid)"
-    )
+
+    // // TEST DE analysis
+    // H5AD_TO_SEURAT_TEST(
+    //     Channel.value(['organoids', file('/data/projects/2017/Organoids-ICBI/zenodo/scrnaseq/03_scvi/adata_integrated.h5ad')])
+    // )
+    // SEURAT_TO_SCE_TEST(H5AD_TO_SEURAT_TEST.out.h5seurat)
+
+
+    // // PREPARE_ANNDATA(
+    // //     Channel.value(['organoids', file('/data/projects/2017/Organoids-ICBI/zenodo/scrnaseq/03_scvi/adata_integrated.h5ad')]),
+    // //     "X",
+    // //     "leiden",
+    // //     [["6"], "rest"]
+    // // )
+
+    // H5AD_TO_SCE(
+    //     PREPARE_ANNDATA.out.adata
+    // )
+    // DE_MAST_MIXED_EFFECTS(
+    //     H5AD_TO_SCE.out.sce,
+    //     "leiden",
+    //     "n_genes_by_counts + (1 | organoid)"
+    // )
 
 }
 

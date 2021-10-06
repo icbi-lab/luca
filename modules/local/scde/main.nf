@@ -83,6 +83,7 @@ process MAKE_PSEUDOBULK {
     // the column containing the biological replicate variable
     val(replicate_col)
     val(condition_col)
+    val(min_cells_per_sample)
 
     output:
     tuple val(id), path("${id}_counts.csv"), path("${id}_samplesheet.csv"), emit: pseudobulk
@@ -98,17 +99,23 @@ process MAKE_PSEUDOBULK {
     adata = sc.read_h5ad("${input_adata}")
     replicate_col = "${replicate_col}"
     condition_col = "${condition_col}"
+    min_cells_per_sample = $min_cells_per_sample
 
     # aggregate counts by sample
     bulk_samples = {}
+    n_cells = {}
     rep_cond = adata.obs.loc[:, [replicate_col, condition_col]].drop_duplicates()
     for _, replicate, condition in rep_cond.itertuples():
-        bulk_samples[f"{replicate}_{condition}"] = pd.Series(
+        mask = (adata.obs[replicate_col] == replicate) & (
+            adata.obs[condition_col] == condition
+        )
+        sample_id = f"{replicate}_{condition}"
+        n_cells[sample_id] = np.sum(mask)
+        bulk_samples[sample_id] = pd.Series(
             np.sum(
                 adata[
-                    (adata.obs[replicate_col] == replicate) &
-                    (adata.obs[condition_col] == condition),
-                    :
+                    mask,
+                    :,
                 ].X,
                 axis=0,
             ).A1,
@@ -120,7 +127,8 @@ process MAKE_PSEUDOBULK {
 
     # Create samplesheet with all variables in obs that are unique per group.
     keep_cols = np.all(
-        adata.obs.groupby([replicate_col, condition_col]).apply(lambda x: x.nunique()) == 1, axis=0
+        adata.obs.groupby([replicate_col, condition_col], observed=True).apply(lambda x: x.nunique()) == 1,
+        axis=0
     )
     samplesheet = adata.obs.loc[:, keep_cols].drop_duplicates()
     samplesheet.index = [
@@ -128,7 +136,18 @@ process MAKE_PSEUDOBULK {
         for replicate, condition in
         zip(samplesheet[replicate_col], samplesheet[condition_col])
     ]
+    # drop a pre-existing sample column should it exist
+    samplesheet.drop(["sample"], axis="columns", inplace=True, errors="ignore")
     samplesheet.index.name = "sample"
+    samplesheet["n_cells"] = pd.Series(n_cells)
+    samplesheet = samplesheet.loc[samplesheet["n_cells"] > min_cells_per_sample, :]
+
+    # remove all entries that don't have a paired case/control sample
+    keep_replicates = samplesheet.groupby([replicate_col]).size() == 2
+    keep_replicates = keep_replicates.index[keep_replicates].values
+    samplesheet = samplesheet.loc[samplesheet[replicate_col].isin(keep_replicates), :]
+    samplesheet.sort_index(inplace=True)
+    bulk_df = bulk_df.loc[:, samplesheet.index]
 
     # Export as CSV
     bulk_df.to_csv("${id}_counts.csv")
