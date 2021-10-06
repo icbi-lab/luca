@@ -280,7 +280,7 @@ workflow {
     DE_MAST_MIXED_EFFECTS(
         H5AD_TO_SCE.out.sce,
         "leiden",
-        " + n_genes_by_counts + (1 | organoid)"
+        "n_genes_by_counts + (1 | organoid)"
     )
 
 }

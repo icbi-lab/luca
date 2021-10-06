@@ -234,6 +234,9 @@ process DE_MAST_MIXED_EFFECTS {
     val(condition_col)
     val(covariate_formula)
 
+    output:
+    path("*.tsv"), emit: de_res
+
     script:
     """
     #!/usr/bin/env Rscript
@@ -259,13 +262,13 @@ process DE_MAST_MIXED_EFFECTS {
         parallel=TRUE
     )
 
-    contrast = ${condition_col}control
-    zlm_summary = MAST::summary(res_zlm, doLRT=contrast)
+    tmp_contrast = "${condition_col}control"
+    zlm_summary = MAST::summary(res_zlm, doLRT=tmp_contrast)
 
     summary_dt <- zlm_summary\$datatable
-    de_res <- merge(summary_dt[summary_dt\$contrast==contrast
+    de_res <- merge(summary_dt[summary_dt\$contrast==tmp_contrast
                                   & summary_dt\$component=='logFC', c(1,7,5,6,8)],
-                        summary_dt[summary_dt\$contrast==contrast
+                        summary_dt[summary_dt\$contrast==tmp_contrast
                                   & summary_dt\$component=='H', c(1,4)],
                         by = 'primerid')
 
