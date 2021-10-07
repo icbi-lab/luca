@@ -6,6 +6,7 @@ work
 *.code-workspace
 rik*.json
 containers
+deploy
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

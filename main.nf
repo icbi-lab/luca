@@ -67,7 +67,7 @@ include { SPLIT_ANNDATA }  from "./modules/local/scconversion/main.nf" addParams
 
 // DE analysis
 include { JUPYTERNOTEBOOK as PREPARE_FOR_DE }  from "./modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["PREPARE_CELLXGENE"]
+    options: modules["PREPARE_FOR_DE"]
 )
 include { SPLIT_ANNDATA as SPLIT_ANNDATA2 }  from "./modules/local/scconversion/main.nf" addParams(
     options: modules["SPLIT_ANNDATA"]
