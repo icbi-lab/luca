@@ -196,11 +196,13 @@ workflow {
             file("${baseDir}/analyses/20_integrate_scrnaseq_data/25_merge_solo.py")
         ]),
         [
-            "adata_path": "all.umap_leiden.h5ad"
+            "adata_path": "all.umap_leiden.h5ad",
+            // this is to re-integrate all genes (not only HVG)
+            "adata_merged": "merged_all.h5ad"
         ],
         NEIGHBORS_LEIDEN_UMAP_DOUBLET.out.adata.map{ id, adata -> adata}.mix(
             SOLO.out.doublets
-        ).flatten().collect()
+        ).mix(ch_adata_merged.map{ id, it -> it}).flatten().collect()
     )
 
     ANNOTATE_CELL_TYPES_COARSE(
@@ -264,9 +266,8 @@ workflow {
         ]),
         [
             "input_adata": "adata_annotated_fine.h5ad",
-            "adata_merged": "merged_all.h5ad"
         ],
-        ANNOTATE_CELL_TYPES_FINE.out.artifacts.mix(ch_adata_merged.map{ id, it -> it}).collect()
+        ANNOTATE_CELL_TYPES_FINE.out.artifacts
     )
     ch_adata_tumor_normal = PREPARE_FOR_DE.out.artifacts.flatten().filter(
         it -> it.name.contains("tumor_normal")

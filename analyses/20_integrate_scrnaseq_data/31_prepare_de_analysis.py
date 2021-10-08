@@ -12,6 +12,9 @@
 #     name: conda-env-.conda-pircher-sc-integrate2-py
 # ---
 
+# %% [markdown]
+# ## Split anndata into subsets that only contain the required data for the DE analysis. 
+
 # %%
 import scanpy as sc
 import pandas as pd
@@ -19,31 +22,14 @@ from nxfvars import nxfvars
 
 # %%
 # only contains 6000 most DE genes
-adata_annot = sc.read_h5ad(
+adata = sc.read_h5ad(
     nxfvars.get(
         "input_adata",
         "../../data/20_integrate_scrnaseq_data/29_annotate_cell_types_fine/artifacts/adata_annotated_fine.h5ad",
     )
 )
-adata_merged_all = sc.read_h5ad(
-    nxfvars.get(
-        "adata_merged",
-        "../../data/20_integrate_scrnaseq_data/21_merge_all/artifacts/merged_all.h5ad"
-    )
-)
+
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
-
-# %%
-assert adata_annot.shape[0] == adata_merged_all.shape[0]
-
-# %%
-adata = adata_merged_all
-
-# %%
-adata.obs = adata_annot.obs
-
-# %%
-adata.obsm = adata_annot.obsm
 
 # %%
 sc.set_figure_params(figsize=(9, 9))

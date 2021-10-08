@@ -25,10 +25,14 @@ sc.settings.set_figure_params(figsize=(10, 10))
 # ## Get input data
 
 # %%
-input_dir = nxfvars.get("input_dir", "../../data/20_integrate_scrnaseq_data/24_solo/")
+input_dir = nxfvars.get("input_dir", "../../data/20_integrate_scrnaseq_data/25_solo/")
 adata_path = nxfvars.get(
     "adata_path",
-    "../../data/20_integrate_scrnaseq_data/23_scvi_umap/integrated_merged_all_all_genes.umap_leiden.h5ad",
+    "../../data/20_integrate_scrnaseq_data/24_scanvi_umap/all.umap_leiden.h5ad",
+)
+adata_merged_path = nxfvars.get(
+    "adata_merged",
+    "../../data/20_integrate_scrnaseq_data/21_merge_all/artifacts/merged_all.h5ad",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
@@ -38,8 +42,29 @@ doublet_df = pd.concat(
 )
 doublet_df.index = doublet_df.index.str.replace("-0$", "", regex=True)
 
+# %% [markdown]
+# Re-integrate all genes (for scVI we were only using HVGs)
+
 # %%
-adata = sc.read_h5ad(adata_path)
+adata_solo = sc.read_h5ad(adata_path)
+adata_merged_all = sc.read_h5ad(adata_merged_path)
+
+# %%
+assert adata_solo.shape[0] == adata_merged_all.shape[0]
+
+# %%
+adata_solo
+
+# %%
+adata_merged_all
+
+# %%
+adata = adata_merged_all
+adata.obs = adata_solo.obs
+adata.obsm = adata_solo.obsm
+adata.obsp = adata_solo.obsp
+adata.uns = adata_solo.uns
+adata.var["is_highly_variable"] = ["True" if v in adata_solo.var_names else "False" for v in adata.var_names]
 
 # %% [markdown]
 # ## add doublet information to anndata
@@ -59,7 +84,8 @@ adata.obs["doublet_status"].value_counts(dropna=False)
 pd.set_option("display.max_rows", 1000)
 adata.obs.groupby("sample").apply(
     lambda df: pd.DataFrame().assign(
-        doublet_frac=[np.sum(df["doublet_status"] == "doublet") / df.shape[0]], n=[df.shape[0]]
+        doublet_frac=[np.sum(df["doublet_status"] == "doublet") / df.shape[0]],
+        n=[df.shape[0]],
     )
 ).sort_values("doublet_frac")
 
