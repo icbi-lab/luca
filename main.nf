@@ -4,327 +4,63 @@
 import static com.xlson.groovycsv.CsvParser.parseCsv
 
 nextflow.enable.dsl = 2
-
-def modules = params.modules.clone()
-def subworkflows = params.subworkflows.clone()
 assert params.input: "Input samplesheet not specified!"
 
-include { check_samplesheet }  from './modules/local/check_samplesheet' params(params)
+include { integrate_datasets } from "./workflows/integrate_datasets.nf"
+include { annotate_dataset } from "./workflows/annotate_dataset.nf"
 
-include { SCQC } from "./modules/local/scqc/main" addParams(
-    options: modules['SCQC']
-)
-include { SCQC_MERGE_STATS } from "./modules/local/scqc_merge_stats/main.nf" addParams(
-    options: modules['SCQC_MERGE_STATS']
-)
-include { SCVI as SCVI_SEED } from "./modules/local/scvi/main.nf" addParams(
-    options: modules["SCVI_SEED"]
-)
-include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_SEED } from "./subworkflows/neighbors_leiden_umap/main.nf" addParams(
-    options: subworkflows["NEIGHBORS_LEIDEN_UMAP_SEED"]
-)
-include { JUPYTERNOTEBOOK as ANNOTATE_SEED } from "./modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["ANNOTATE_SEED"]
-)
+// include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_FINE }  from "./modules/local/jupyternotebook/main.nf" addParams (
+//     options: modules["ANNOTATE_CELL_TYPES_FINE"]
+// )
+// include { JUPYTERNOTEBOOK as PREPARE_CELLXGENE }  from "./modules/local/jupyternotebook/main.nf" addParams (
+//     options: modules["PREPARE_CELLXGENE"]
+// )
+// include { H5AD_TO_SEURAT }  from "./modules/local/scconversion/main.nf" addParams(
+//     options: modules["H5AD_TO_SEURAT"]
+// )
+// include { SPLIT_ANNDATA }  from "./modules/local/scconversion/main.nf" addParams(
+//     options: modules["SPLIT_ANNDATA"]
+// )
 
 
-include { JUPYTERNOTEBOOK as MERGE_ALL } from "./modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["MERGE_ALL"]
-)
-include { SCVI } from "./modules/local/scvi/main.nf" addParams(
-    options: modules["SCVI"]
-)
-include { SCANVI } from "./modules/local/scvi/main.nf" addParams(
-    options: modules["SCANVI"]
-)
-include { SOLO } from "./modules/local/solo/main.nf" addParams(
-    options: modules["SOLO"]
-)
-include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_DOUBLET } from "./subworkflows/neighbors_leiden_umap/main.nf" addParams(
-    options: subworkflows["NEIGHBORS_LEIDEN_UMAP_DOUBLET"]
-)
-include { JUPYTERNOTEBOOK as MERGE_SOLO }  from "./modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["MERGE_SOLO"]
-)
-include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_COARSE }  from "./modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["ANNOTATE_CELL_TYPES_COARSE"]
-)
-include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_CELL_TYPES } from "./subworkflows/neighbors_leiden_umap/main.nf" addParams(
-    options: subworkflows["NEIGHBORS_LEIDEN_UMAP_CELL_TYPES"]
-)
-include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_FINE }  from "./modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["ANNOTATE_CELL_TYPES_FINE"]
-)
-include { JUPYTERNOTEBOOK as PREPARE_CELLXGENE }  from "./modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["PREPARE_CELLXGENE"]
-)
-include { H5AD_TO_SEURAT }  from "./modules/local/scconversion/main.nf" addParams(
-    options: modules["H5AD_TO_SEURAT"]
-)
-include { SPLIT_ANNDATA }  from "./modules/local/scconversion/main.nf" addParams(
-    options: modules["SPLIT_ANNDATA"]
-)
-
-// DE analysis
-include { JUPYTERNOTEBOOK as PREPARE_FOR_DE }  from "./modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["PREPARE_FOR_DE"]
-)
-include { SPLIT_ANNDATA as SPLIT_ANNDATA2 }  from "./modules/local/scconversion/main.nf" addParams(
-    options: modules["SPLIT_ANNDATA"]
-)
-include { PREPARE_ANNDATA as PREPARE_ANNDATA_TUMOR_NORMAL }  from "./modules/local/scde/main.nf" addParams(
-    options: modules["PREPARE_ANNDATA_TUMOR_NORMAL"]
-)
-include { MAKE_PSEUDOBULK as MAKE_PSEUDOBULK_TUMOR_NORMAL }  from "./modules/local/scde/main.nf" addParams(
-    options: modules["MAKE_PSEUDOBULK_TUMOR_NORMAL"]
-)
-include { DE_EDGER as DE_EDGER_TUMOR_NORMAL }  from "./modules/local/scde/main.nf" addParams(
-    options: modules["DE_EDGER_TUMOR_NORMAL"]
-)
-
-
-// MODULES TEST
-include { DE_MAST_MIXED_EFFECTS }  from "./modules/local/scde/main.nf" addParams(
-   options: modules["PREPARE_ANNDATA_TUMOR_NORMAL"]
-)
-include { H5AD_TO_SCE }  from "./modules/local/scconversion/main.nf" addParams(
-    options: ["publish_dir": "test-conversion"]
-)
-include { H5AD_TO_SEURAT as H5AD_TO_SEURAT_TEST }  from "./modules/local/scconversion/main.nf" addParams(
-    options: ["publish_dir": "test-conversion"]
-)
-include { SEURAT_TO_SCE as SEURAT_TO_SCE_TEST }  from "./modules/local/scconversion/main.nf" addParams(
-    options: ["publish_dir": "test-conversion"]
-)
-
-
-
-// TODO: Enable "seed annotation" and use SCANVI (SCVI fails to integrate smartseq2 data)
 workflow {
-    ch_samples = Channel.from(check_samplesheet(params.input, baseDir))
 
-    SCQC(ch_samples)
-    SCQC_MERGE_STATS(SCQC.out.qc_stats.collect())
-
-    // SEED annotation (manually annotate two datasets (One 10x and one Smartseq)
-    // in order to use the scANVI algorithm for the integration which has been shown
-    // to outperform scVI)
-    ch_seed_ids = Channel.from("Maynard_Bivona_2020_NSCLC", "Lambrechts_2018_LUAD_6653")
-    SCVI_SEED(
-       ch_seed_ids.join(SCQC.out.adata),
-       1,
-       ["sample", "sample", null]
-    )
-    NEIGHBORS_LEIDEN_UMAP_SEED(SCVI_SEED.out.adata, "X_scVI", 1.0)
-    ch_seed_scvi = SCQC.out.adata.join(NEIGHBORS_LEIDEN_UMAP_SEED.out.adata)
-    ANNOTATE_SEED(
-        ch_seed_scvi.map{id, adata1, adata2 -> [
-            ["id": id],
-            file("${baseDir}/analyses/10_seed_annotations/annotate_${id.toLowerCase()}.py")
-        ]},
-        ch_seed_scvi.map{ id, adata_qc, adata_scvi -> [
-            adata_qc: adata_qc.name,
-            adata_scvi: adata_scvi.name
-        ]},
-        ch_seed_scvi.map{
-             id, adata_qc, adata_scvi -> [adata_qc, adata_scvi]
-        }
-    )
-
-    // MERGE and INTEGRATE all datasets
-    MERGE_ALL(
-        channel.value([
-            [id: "21_merge_all"],
-            file("${baseDir}/analyses/20_integrate_scrnaseq_data/21_merge_all.py")
-        ]),
-        [
-            samplesheet: "samplesheet_scrnaseq_preprocessing.csv",
-            dataset_path: ".",
-            dataset_path_annotated: ".",
-            gene_symbol_table: "gene_symbol_dict.csv"
-        ],
-        SCQC.out.adata.flatMap{ id, adata -> adata }.mix(
-            ANNOTATE_SEED.out.artifacts
-        ).mix(
-            Channel.fromPath("${baseDir}/tables/samplesheet_scrnaseq_preprocessing.csv"),
-            Channel.fromPath("${baseDir}/tables/gene_symbol_dict.csv")
-        ).collect()
-    )
-
-    ch_adata_merged = MERGE_ALL.out.artifacts.collect().map{
-        out -> ["all", out.findAll{ it -> it.getExtension() == "h5ad" }]
-    }
-
-    SCVI(
-        ch_adata_merged,
-        Channel.from(0, 1),
-        ["batch", "dataset", null]
-    )
-
-    SCANVI(
-        SCVI.out.adata.join(SCVI.out.scvi_model),
-        "batch",
-        "cell_type"
-    )
-
-    // use HVG version for downstream analysis. We just keep the version with
-    // all genes in case we need to run DE analysis with scVI.
-    ch_scvi_hvg = SCVI.out.adata.filter{ id, adata -> adata.baseName.contains("hvg") }
-    ch_scvi_hvg_model = SCVI.out.scvi_model.filter{ id, adata -> adata.baseName.contains("hvg") }
-    ch_scanvi_hvg = SCANVI.out.adata.filter{ id, adata -> adata.baseName.contains("hvg") }
-    ch_scanvi_hvg_model = SCANVI.out.scvi_model.filter{ id, adata -> adata.baseName.contains("hvg") }
-
-    NEIGHBORS_LEIDEN_UMAP_DOUBLET(
-        ch_scanvi_hvg,
-        "X_scANVI",
-        1.0
-    )
-
-    SOLO(
-        ch_scvi_hvg,
-        ch_scvi_hvg_model,
-        MERGE_ALL.out.artifacts.flatten().filter{
-            it -> it.getName() == "obs_all.csv"
-        }.splitCsv(header : true).filter{
-            it -> it["run_solo"] == "True"
-        }.map{ it -> it["sample"] }
-    )
-
-    MERGE_SOLO(
-        Channel.value([
-            [id: "25_merge_solo"],
-            file("${baseDir}/analyses/20_integrate_scrnaseq_data/25_merge_solo.py")
-        ]),
-        [
-            "adata_path": "all.umap_leiden.h5ad",
-            // this is to re-integrate all genes (not only HVG)
-            "adata_merged": "merged_all.h5ad"
-        ],
-        NEIGHBORS_LEIDEN_UMAP_DOUBLET.out.adata.map{ id, adata -> adata}.mix(
-            SOLO.out.doublets
-        ).mix(ch_adata_merged.map{ id, it -> it}).flatten().collect()
-    )
-
-    ANNOTATE_CELL_TYPES_COARSE(
-        Channel.value([
-            [id: "27_annotate_cell_types"],
-            file("${baseDir}/analyses/20_integrate_scrnaseq_data/27_annotate_cell_types_coarse.py")
-        ]),
-        [:],
-        MERGE_SOLO.out.artifacts
-    )
-
-    ch_adata_annotated_by_cell_type = ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten().filter(
-        it -> !it.baseName.contains("cell_type_coarse")
-    )
-    ch_adata_annotated = ANNOTATE_CELL_TYPES_COARSE.out.artifacts.flatten().filter(
-        it -> it.baseName.contains("cell_type_coarse")
-    )
-
-    NEIGHBORS_LEIDEN_UMAP_CELL_TYPES(
-        ch_adata_annotated_by_cell_type.map{ adata -> [adata.baseName, adata] },
-        "X_scANVI",
-        Channel.from(0.5, 0.75, 1.0, 1.5)
-    )
-
-    ANNOTATE_CELL_TYPES_FINE(
-        Channel.value([
-            [id: "29_annotate_cell_types_fine"],
-            file("${baseDir}/analyses/20_integrate_scrnaseq_data/29_annotate_cell_types_fine.py")
-        ]),
-        [
-            "input_dir": '.',
-            "main_adata": 'adata_cell_type_coarse.h5ad'
-        ],
-        NEIGHBORS_LEIDEN_UMAP_CELL_TYPES.out.adata.map{ id, adata -> adata }.mix(
-            ch_adata_annotated
-        ).collect()
-    )
-
-    PREPARE_CELLXGENE(
-        Channel.value([
-            [id: "zz_prepare_cellxgene"],
-            file("${baseDir}/analyses/zz_cellxgene/stats_and_cellxgene.py")
-        ]),
-        ["adata_in": "adata_annotated_fine.h5ad"],
-        ANNOTATE_CELL_TYPES_FINE.out.artifacts
-    )
-
-    ch_adata_annotated_fine = ANNOTATE_CELL_TYPES_FINE.out.artifacts.flatten().filter(
-        it -> it.name.contains("h5ad")
-    ).map{ it -> [it.baseName, it]}
-
-    SPLIT_ANNDATA(ch_adata_annotated_fine, "dataset")
-    H5AD_TO_SEURAT(ch_adata_annotated_fine)
+    integrate_datasets()
+    annotate_dataset(integrate_datasets.out.adata_integrated)
 
 
-    // DE analysis
-    PREPARE_FOR_DE(
-        Channel.value([
-            [id: "31_prepare_for_de"],
-            file("${baseDir}/analyses/20_integrate_scrnaseq_data/31_prepare_de_analysis.py")
-        ]),
-        [
-            "input_adata": "adata_annotated_fine.h5ad",
-        ],
-        ANNOTATE_CELL_TYPES_FINE.out.artifacts
-    )
-    ch_adata_tumor_normal = PREPARE_FOR_DE.out.artifacts.flatten().filter(
-        it -> it.name.contains("tumor_normal")
-    ).map{ it -> [it.baseName, it]}
-    ch_adata_healthy_copd_nsclc = PREPARE_FOR_DE.out.artifacts.flatten().filter(
-        it -> it.name.contains("healthy_copd_nsclc")
-    ).map{ it -> [it.baseName, it]}
+    /// PREPARE FINAL OUTPUT
 
-
-    PREPARE_ANNDATA_TUMOR_NORMAL(
-        ch_adata_tumor_normal,
-        "X",
-        "origin",
-        [["tumor_primary"], "rest"]
-    )
-    SPLIT_ANNDATA2(
-        PREPARE_ANNDATA_TUMOR_NORMAL.out.adata,
-        "cell_type"
-    )
-    MAKE_PSEUDOBULK_TUMOR_NORMAL(
-        SPLIT_ANNDATA2.out.adata.flatten().map{it -> [it.baseName, it]},
-        "patient",
-        "origin",
-        10
-    )
-    DE_EDGER_TUMOR_NORMAL(
-        // only consider cell-types with at least three case/control samples
-        MAKE_PSEUDOBULK_TUMOR_NORMAL.out.pseudobulk.filter{
-            id, counts, samplesheet -> samplesheet.text.count("\n") >= 6
-        },
-        "origin",
-        "patient"
-    )
-
-
-    // // TEST DE analysis
-    // H5AD_TO_SEURAT_TEST(
-    //     Channel.value(['organoids', file('/data/projects/2017/Organoids-ICBI/zenodo/scrnaseq/03_scvi/adata_integrated.h5ad')])
+    // ANNOTATE_CELL_TYPES_FINE(
+    //     Channel.value([
+    //         [id: "29_annotate_cell_types_fine"],
+    //         file("${baseDir}/analyses/20_integrate_scrnaseq_data/29_annotate_cell_types_fine.py")
+    //     ]),
+    //     [
+    //         "input_dir": '.',
+    //         "main_adata": 'adata_cell_type_coarse.h5ad'
+    //     ],
+    //     NEIGHBORS_LEIDEN_UMAP_CELL_TYPES.out.adata.map{ id, adata -> adata }.mix(
+    //         ch_adata_annotated
+    //     ).collect()
     // )
-    // SEURAT_TO_SCE_TEST(H5AD_TO_SEURAT_TEST.out.h5seurat)
 
-
-    // // PREPARE_ANNDATA(
-    // //     Channel.value(['organoids', file('/data/projects/2017/Organoids-ICBI/zenodo/scrnaseq/03_scvi/adata_integrated.h5ad')]),
-    // //     "X",
-    // //     "leiden",
-    // //     [["6"], "rest"]
-    // // )
-
-    // H5AD_TO_SCE(
-    //     PREPARE_ANNDATA.out.adata
+    // PREPARE_CELLXGENE(
+    //     Channel.value([
+    //         [id: "zz_prepare_cellxgene"],
+    //         file("${baseDir}/analyses/zz_cellxgene/stats_and_cellxgene.py")
+    //     ]),
+    //     ["adata_in": "adata_annotated_fine.h5ad"],
+    //     ANNOTATE_CELL_TYPES_FINE.out.artifacts
     // )
-    // DE_MAST_MIXED_EFFECTS(
-    //     H5AD_TO_SCE.out.sce,
-    //     "leiden",
-    //     "n_genes_by_counts + (1 | organoid)"
-    // )
+
+    // ch_adata_annotated_fine = ANNOTATE_CELL_TYPES_FINE.out.artifacts.flatten().filter(
+    //     it -> it.name.contains("h5ad")
+    // ).map{ it -> [it.baseName, it]}
+
+    // SPLIT_ANNDATA(ch_adata_annotated_fine, "dataset")
+    // H5AD_TO_SEURAT(ch_adata_annotated_fine)
+
 
 }
 

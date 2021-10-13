@@ -76,10 +76,8 @@ sc.pl.umap(adata, color="leiden", legend_loc="on data", legend_fontoutline=2)
 # %%
 ct_map = {
     "B cell": [7],
-    "Ciliated": [20],
-    "Epithelial cell": [3, 31, 18, 25, 5, 12, 29, 27, 32, 33, 34],
-    "Endothelial cell": [10],
-    "Endothelial cell lymphatic": [28],
+    "Epithelial cell": [3, 31, 18, 25, 5, 12, 29, 27, 32, 33, 34, 20],
+    "Endothelial cell": [10, 28],
     "Stromal": [16],
     "Granulocytes": [23],
     "Mast cell": [19],
@@ -97,16 +95,6 @@ adata.obs["cell_type"].value_counts()
 
 # %%
 sc.pl.umap(adata, color="dataset", size=1)
-
-# %% [markdown]
-# ## Write one adata file per cell-type
-# ...  to perform fine-grained annotation in parallel
-
-# %%
-for ct in adata.obs["cell_type"].unique():
-    ct_filename = ct.replace(" ", "_").lower()
-    tmp_adata = adata[adata.obs["cell_type"] == ct, :].copy()
-    tmp_adata.write_h5ad(f"{artifact_dir}/adata_{ct_filename}.h5ad")
 
 # %% [markdown]
 # ### Write full adata

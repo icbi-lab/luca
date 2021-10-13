@@ -22,6 +22,8 @@ process PREPARE_ANNDATA {
     //   * a list of strings refering to individual values in `status_col`
     //   * the string "rest" for `control_groups`, referring to all columns
     //     that are not in `case_group`.
+    //   * the string "all" for 'case_group', referring to all-against-all
+    //     comparisons ("ignores control_groups")
     tuple val(case_groups), val(control_groups)
 
     output:
@@ -30,7 +32,7 @@ process PREPARE_ANNDATA {
 
 
     script:
-    def case_groups_py = "[" + case_groups.collect{ "\"$it\"" }.join(", ") + "]"
+    def case_groups_py = (case_groups == "all") ? '"all"' : "[" + case_groups.collect{ "\"$it\"" }.join(", ") + "]"
     def control_groups_py = (control_groups == "rest") ? '"rest"' : "[" + control_groups.collect{ "\"$it\"" }.join(", ") + "]"
     """
     #!/usr/bin/env python
@@ -43,29 +45,36 @@ process PREPARE_ANNDATA {
     status_col = "${status_col}"
     adata = sc.read_h5ad("${input_adata}")
 
-    status_groups = (
-        set(list(adata.obs[status_col].unique()))
-        if control_groups == "rest"
-        else set(case_groups) | set(control_groups)
-    )
+    if case_groups == "all":
+        case_groups_iter = adata.obs[status_col].unique()
+        control_groups = "rest"
+    else:
+        case_groups_iter = [case_groups]
 
-    # subset to only the categories of interest
-    adata = adata[adata.obs[status_col].isin(status_groups), :]
+    for case_groups in case_groups_iter:
+        status_groups = (
+            set(list(adata.obs[status_col].unique()))
+            if control_groups == "rest"
+            else set(case_groups) | set(control_groups)
+        )
 
-    # create new, reduced anndata with only the information required for DE analysis
-    tmp_adata = sc.AnnData(
-        X = adata.layers[layer] if layer != "X" else adata.X,
-        obs = adata.obs,
-        var = adata.var
-    )
+        # subset to only the categories of interest
+        adata_sub = adata[adata.obs[status_col].isin(status_groups), :]
 
-    tmp_adata.obs[status_col] = [
-        "case" if v in case_groups else "control" for v in tmp_adata.obs[status_col]
-    ]
-    # make categorical
-    tmp_adata._sanitize()
+        # create new, reduced anndata with only the information required for DE analysis
+        tmp_adata = sc.AnnData(
+            X = adata_sub.layers[layer] if layer != "X" else adata_sub.X,
+            obs = adata_sub.obs,
+            var = adata_sub.var
+        )
 
-    tmp_adata.write_h5ad("${id}_for_de.h5ad")
+        tmp_adata.obs[status_col] = [
+            "case" if v in case_groups else "control" for v in tmp_adata.obs[status_col]
+        ]
+        # make categorical
+        tmp_adata._sanitize()
+
+        tmp_adata.write_h5ad(f"${id}_{case_groups.join('-')}_for_de.h5ad")
     """
 }
 
