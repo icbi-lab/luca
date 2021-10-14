@@ -28,7 +28,7 @@ sc.set_figure_params(figsize=(6, 6))
 adata = sc.read_h5ad(
     nxfvars.get(
         "input_adata",
-        "../../data/20_integrate_scrnaseq_data/28_annotate_cell_types_coarse_umap/adata_epithelial_cell.umap_leiden.h5ad",
+        "../../data/20_integrate_scrnaseq_data/annotate_datasets/split_adata_cell_type/adata_cell_type_coarse_epithelial_cell.umap_leiden.h5ad",
     )
 )
 
@@ -51,6 +51,12 @@ sc.pl.umap(
 
 # %%
 sc.set_figure_params(figsize=(4,4))
+
+# %%
+sc.pl.umap(adata, color="leiden", groups=["12"], size=1)
+
+# %%
+sc.pl.umap(adata, cmap="iferno", color=["ST3GAL6", "SPRR3"])
 
 # %%
 for c in sorted(adata.obs["leiden"].unique().astype(int)):

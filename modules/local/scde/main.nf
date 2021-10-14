@@ -46,7 +46,7 @@ process PREPARE_ANNDATA {
     adata = sc.read_h5ad("${input_adata}")
 
     if case_groups == "all":
-        case_groups_iter = adata.obs[status_col].unique()
+        case_groups_iter = [[x] for x in adata.obs[status_col].unique()]
         control_groups = "rest"
     else:
         case_groups_iter = [case_groups]
@@ -74,7 +74,7 @@ process PREPARE_ANNDATA {
         # make categorical
         tmp_adata._sanitize()
 
-        tmp_adata.write_h5ad(f"${id}_{case_groups.join('-')}_for_de.h5ad")
+        tmp_adata.write_h5ad(f"${id}_{'-'.join(case_groups)}_for_de.h5ad")
     """
 }
 
@@ -200,7 +200,7 @@ process DE_EDGER {
     samplesheet = read_csv("${samplesheet}")
 
     # Run edgeR QLF test or LRT Test as descirbed in their vignette
-    design = model.matrix(~ ${condition_col} + ${covariate_formula}, data=samplesheet)
+    design = model.matrix(~ ${condition_col} ${covariate_formula}, data=samplesheet)
     dge = DGEList(
         counts = column_to_rownames(counts, "gene_id"),
         samples = column_to_rownames(samplesheet, "sample")

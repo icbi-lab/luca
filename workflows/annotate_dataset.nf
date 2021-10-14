@@ -16,6 +16,12 @@ include { SPLIT_ANNDATA }  from "../modules/local/scconversion/main.nf" addParam
 include { MAKE_PSEUDOBULK as MAKE_PSEUDOBULK_EPI }  from "../modules/local/scde/main.nf" addParams(
     options: modules["MAKE_PSEUDOBULK_EPI"]
 )
+include { DE_EDGER as DE_EDGER_EPI } from "../modules/local/scde/main.nf" addParams(
+    options: modules["DE_EDGER_EPI"]
+)
+include { DE_EDGER as DE_EDGER_EPI_N_CELLS } from "../modules/local/scde/main.nf" addParams(
+    options: modules["DE_EDGER_EPI_N_CELLS"]
+)
 
 /**
  * Annotate cell-types of the lung cancer atlas.
@@ -54,13 +60,23 @@ workflow annotate_dataset {
         ch_epithelial,
         "X",
         "leiden_0.50",
-        ["all", "all"]
+        ["all", "rest"]
     )
     MAKE_PSEUDOBULK_EPI(
-        PREPARE_ANNDATA_DE_EPI.out.adata,
+        PREPARE_ANNDATA_DE_EPI.out.adata.flatMap{ id, adatas -> adatas }.map{ it -> [it.baseName, it]},
         "patient",
         "leiden_0.50",
         10
+    )
+    DE_EDGER_EPI(
+        MAKE_PSEUDOBULK_EPI.out.pseudobulk,
+        "leiden_0.50",
+        ""
+    )
+    DE_EDGER_EPI_N_CELLS(
+        MAKE_PSEUDOBULK_EPI.out.pseudobulk,
+        "leiden_0.50",
+        " + n_cells"
     )
 
 
