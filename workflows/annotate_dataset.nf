@@ -22,6 +22,18 @@ include { DE_EDGER as DE_EDGER_EPI } from "../modules/local/scde/main.nf" addPar
 include { DE_EDGER as DE_EDGER_EPI_N_CELLS } from "../modules/local/scde/main.nf" addParams(
     options: modules["DE_EDGER_EPI_N_CELLS"]
 )
+include { H5AD_TO_SCE as H5AD_TO_SCE_EPI } from "../modules/local/scconversion/main.nf" addParams(
+    options: modules["H5AD_TO_SCE_EPI"]
+)
+include { DE_MAST_MIXED_EFFECTS as DE_MAST_MIXED_EFFECTS_EPI } from "../modules/local/scde/main.nf" addParams(
+    options: modules["DE_MAST_MIXED_EFFECTS_EPI"]
+)
+include { DE_DREAM as DE_DREAM_EPI } from "../modules/local/scde/main.nf" addParams(
+    options: modules["DE_DREAM_EPI"]
+)
+include { DE_DREAM as DE_DREAM_EPI_N_CELLS } from "../modules/local/scde/main.nf" addParams(
+    options: modules["DE_DREAM_EPI_N_CELLS"]
+)
 
 /**
  * Annotate cell-types of the lung cancer atlas.
@@ -62,22 +74,39 @@ workflow annotate_dataset {
         "leiden_0.50",
         ["all", "rest"]
     )
+    ch_adata_for_de = PREPARE_ANNDATA_DE_EPI.out.adata.flatMap{ id, adatas -> adatas }.map{ it -> [it.baseName, it]}
     MAKE_PSEUDOBULK_EPI(
-        PREPARE_ANNDATA_DE_EPI.out.adata.flatMap{ id, adatas -> adatas }.map{ it -> [it.baseName, it]},
+        ch_adata_for_de,
         "patient",
         "leiden_0.50",
-        10
+        [10, true]
     )
+    // DE_DREAM_EPI(
+    //     MAKE_PSEUDOBULK_EPI.out.pseudobulk,
+    //     "leiden_0.50",
+    //     "+ (1 | dataset) + (1 | patient:dataset)"
+    // )
+    // DE_DREAM_EPI_N_CELLS(
+    //     MAKE_PSEUDOBULK_EPI.out.pseudobulk,
+    //     "leiden_0.50",
+    //     "+ n_cells + (1 | dataset) + (1 | patient:dataset)"
+    // )
     DE_EDGER_EPI(
         MAKE_PSEUDOBULK_EPI.out.pseudobulk,
         "leiden_0.50",
-        ""
+        " + patient"
     )
     DE_EDGER_EPI_N_CELLS(
         MAKE_PSEUDOBULK_EPI.out.pseudobulk,
         "leiden_0.50",
-        " + n_cells"
+        " + patient + n_cells"
     )
+    // H5AD_TO_SCE_EPI(ch_adata_for_de)
+    // DE_MAST_MIXED_EFFECTS_EPI(
+    //     H5AD_TO_SCE_EPI.out.sce,
+    //     "leiden_0.50",
+    //     " + n_genes_by_counts + (1 | patient:dataset) + (1 | dataset)"
+    // )
 
 
     // emit:

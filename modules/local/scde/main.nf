@@ -92,12 +92,15 @@ process MAKE_PSEUDOBULK {
     // the column containing the biological replicate variable
     val(replicate_col)
     val(condition_col)
-    val(min_cells_per_sample)
+    // minimum number of cells for a sample to be kept and
+    // whether or not to keep unpaired samples
+    tuple(val(min_cells_per_sample), val(keep_unpaired_samples))
 
     output:
     tuple val(id), path("${id}_counts.csv"), path("${id}_samplesheet.csv"), emit: pseudobulk
 
     script:
+    def keep_unpaired_samples = keep_unpaired_samples ? "True" : "False"
     """
     #!/usr/bin/env python
 
@@ -108,6 +111,7 @@ process MAKE_PSEUDOBULK {
     adata = sc.read_h5ad("${input_adata}")
     replicate_col = "${replicate_col}"
     condition_col = "${condition_col}"
+    keep_unpaired_samples = "${keep_unpaired_samples}"
     min_cells_per_sample = $min_cells_per_sample
 
     # aggregate counts by sample
@@ -152,9 +156,10 @@ process MAKE_PSEUDOBULK {
     samplesheet = samplesheet.loc[samplesheet["n_cells"] > min_cells_per_sample, :]
 
     # remove all entries that don't have a paired case/control sample
-    keep_replicates = samplesheet.groupby([replicate_col]).size() == 2
-    keep_replicates = keep_replicates.index[keep_replicates].values
-    samplesheet = samplesheet.loc[samplesheet[replicate_col].isin(keep_replicates), :]
+    if not keep_unpaired_samples:
+        keep_replicates = samplesheet.groupby([replicate_col]).size() == 2
+        keep_replicates = keep_replicates.index[keep_replicates].values
+        samplesheet = samplesheet.loc[samplesheet[replicate_col].isin(keep_replicates), :]
     samplesheet.sort_index(inplace=True)
     bulk_df = bulk_df.loc[:, samplesheet.index]
 
@@ -221,29 +226,62 @@ process DE_EDGER {
 }
 
 
-// process DE_DREAM {
-//     /**
-//      * For a pseodubulk analysis with mixed effects
-//      * See https://bioconductor.org/packages/release/bioc/vignettes/variancePartition/inst/doc/dream.html
+process DE_DREAM {
+    /**
+     * For a pseodubulk analysis with mixed effects
+     * See https://bioconductor.org/packages/release/bioc/vignettes/variancePartition/inst/doc/dream.html
 
-//      * This is useful if there is a batch effect that is not controlled for
-//      * by the experimental design
-//      */
+     * This is useful if there is a batch effect that is not controlled for
+     * by the experimental design
+     */
 
-//     input:
-//     tuple val(id), path(counts), path(samplesheet)
-//     val(condition_col)
-//     val(covariate_formula)
+    publishDir "${params.outdir}",
+        mode: params.publish_dir_mode,
+        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
 
-//     output:
-//     path("de_res.csv"), emit: de_res
+    cpus 1
+    conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
 
-//     script:
-//     """
-//     # Run limma/dream as descirbed in their vignette
-//     """
+    input:
+    tuple val(id), path(counts), path(samplesheet)
+    val(condition_col)
+    val(covariate_formula)
 
-// }
+    output:
+    path("*.tsv"), emit: de_res
+
+    script:
+    """
+    #!/usr/bin/env Rscript
+
+    RhpcBLASctl::blas_set_num_threads(1)
+
+    library('variancePartition')
+    library('edgeR')
+    library('BiocParallel')
+    library('readr')
+    library('tibble')
+
+    register(SerialParam())
+
+    counts = read_csv("${counts}")
+    samplesheet = read_csv("${samplesheet}")
+    formula = ~ ${condition_col} ${covariate_formula}
+
+    dge = DGEList(
+        counts = column_to_rownames(counts, "gene_id"),
+        samples = column_to_rownames(samplesheet, "sample")
+    )
+    dge = calcNormFactors(dge)
+
+    vobjDream = voomWithDreamWeights(dge, formula, data=dge\$samples)
+    fitmm = dream(vobjDream, formula, dge\$samples)
+
+    de_res = topTable( fitmm, coef="${condition_col}", number=Inf)
+    write_tsv(de_res, "${id}_de_res_${condition_col}_dream.tsv")
+    """
+
+}
 
 
 process DE_MAST_MIXED_EFFECTS {
@@ -277,9 +315,12 @@ process DE_MAST_MIXED_EFFECTS {
     sce = readRDS("${sce}")
     # expect counts in adata.X
     assays(sce)\$counts = assays(sce)\$X
+    message("Log-Norm transformation")
     sce = scater::logNormCounts(sce)
-    sca = MAST::SceToSingleCellAssay(sce, check_sanity = TRUE)
+    message("Converting to SCA")
+    sca = MAST::SceToSingleCellAssay(sce, check_sanity = FALSE)
 
+    message("fitting zlm")
     res_zlm = zlm(
         # ~ leiden + n_genes_by_counts + (1 | organoid),
         ~ ${condition_col} + ${covariate_formula},

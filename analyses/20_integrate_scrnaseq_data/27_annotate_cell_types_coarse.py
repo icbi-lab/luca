@@ -34,7 +34,7 @@ ah = AnnotationHelper()
 
 # %%
 input_dir = nxfvars.get(
-    "input_dir", "../../data/20_integrate_scrnaseq_data/integrate_datasets/26_merge_solo/artifacts"
+    "input_dir", "../../data/20_integrate_scrnaseq_data/26_merge_solo/artifacts"
 )
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
@@ -43,9 +43,6 @@ adata = sc.read_h5ad(f"{input_dir}/adata.doublet_filtered.h5ad")
 
 # %%
 adata.obs["leiden"] = adata.obs["leiden_1.00"]
-
-# %%
-sc.pl.umap(adata, color="leiden")
 
 # %%
 sc.pl.umap(adata, color="leiden")
