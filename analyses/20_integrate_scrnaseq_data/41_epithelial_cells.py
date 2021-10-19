@@ -21,6 +21,7 @@ from scanpy_helpers import de
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+from natsort import natsorted
 
 # %%
 ah = AnnotationHelper()
@@ -29,22 +30,27 @@ ah = AnnotationHelper()
 sc.set_figure_params(figsize=(4, 4))
 
 # %%
-adata = sc.read_h5ad(
-    nxfvars.get(
-        "input_adata",
-        "../../data/20_integrate_scrnaseq_data/annotate_datasets/split_adata_cell_type/adata_cell_type_coarse_epithelial_cell.umap_leiden.h5ad",
-    )
+input_adata = nxfvars.get(
+    "input_adata",
+    "../../data/20_integrate_scrnaseq_data/annotate_datasets/split_adata_cell_type/adata_cell_type_coarse_epithelial_cell.umap_leiden.h5ad",
 )
+
+artifact_dir = nxfvars.get("artifact_dir", "../../data/zz_epi")
+
+# %%
+adata = sc.read_h5ad(input_adata)
 
 # %%
 with plt.rc_context({"figure.figsize": (6, 6)}):
-    sc.pl.umap(
+    fig = sc.pl.umap(
         adata,
         color=["cell_type", "EPCAM", "dataset", "condition", "origin"],
         cmap="inferno",
         size=2,
         ncols=3,
+        return_fig=True,
     )
+    fig.savefig(f"{artifact_dir}/overview_epithelial_cluster.pdf", bbox_inches="tight")
 
 # %%
 adata.obs["leiden"] = adata.obs["leiden_0.50"]
@@ -88,8 +94,10 @@ cell_type_map = {
     "Alevolar cell type 2": [0, 12, 17],
     "Ciliated": [7],
     "Tumor cells (distant metastases)": [15, 13],
-} 
-cell_type_map.update({str(k): [k] for k in [1, 14, 16, 19, 4, 6, 3, 5, 2, 11, 8, 18, 9]})
+}
+cell_type_map.update(
+    {str(k): [k] for k in [1, 14, 16, 19, 4, 6, 3, 5, 2, 11, 8, 18, 9]}
+)
 
 # %%
 ah.annotate_cell_types(adata, cell_type_map)
@@ -173,115 +181,17 @@ with plt.rc_context({"figure.figsize": (4, 4)}):
     )
 
 # %%
-ah.annotate_cell_types(adata_11, {"Alevolar cell type 2": [2], "11-1": [0], "11-2": [1]})
+ah.annotate_cell_types(
+    adata_11, {"Alevolar cell type 2": [2], "11-1": [0], "11-2": [1]}
+)
 
 # %%
 ah.integrate_back(adata, adata_11)
 
 # %%
 with plt.rc_context({"figure.figsize": (7, 7)}):
-    sc.pl.umap(adata, color="cell_type", legend_loc="on data", legend_fontoutline=1)
-
-# %% [markdown]
-# ### EdgeR paired
-
-# %%
-
-# %%
-de_res = {}
-for c in adata.obs["leiden"].unique():
-    try:
-        de_res[c] = pd.read_csv(
-            f"/home/sturm/projects/2020/pircher-scrnaseq-lung/data/20_integrate_scrnaseq_data/annotate_datasets/de_epi/edger/adata_cell_type_coarse_epithelial_cell_{c}_for_de_de_res_leiden_0.50_edger.tsv",
-            #             f"/home/sturm/projects/2020/pircher-scrnaseq-lung/data/20_integrate_scrnaseq_data/annotate_datasets/de_epi/edger_n_cells/adata_cell_type_coarse_epithelial_cell_{c}_for_de_de_res_leiden_0.50_edger.tsv",
-            sep="\t",
-        ).assign(leiden=c)
-    except IOError:
-        pass
-
-# %%
-de_res_all = pd.concat(de_res.values())
-
-# %%
-de_res_all["score"] = (
-    -np.log10(de_res_all["FDR"])
-    * (de_res_all["logCPM"] > 5)
-    * (de_res_all["logFC"] < 1)
-)
-
-# %%
-de.de_res_to_anndata(
-    adata,
-    de_res_all,
-    groupby="leiden",
-    gene_id_col="gene_id",
-    pval_col="PValue",
-    pval_adj_col="FDR",
-    lfc_col="logFC",
-    score_col="score",
-)
-
-# %%
-de_res_all.sort_values("score", ascending=False)
-
-# %%
-sc.pl.rank_genes_groups_dotplot(adata, dendrogram=False)
-
-# %% [markdown]
-# ### Mast
-
-# %%
-de_res = {}
-for c in adata.obs["leiden"].unique():
-    try:
-        de_res[c] = (
-            pd.read_csv(
-                f"/home/sturm/projects/2020/pircher-scrnaseq-lung/data/20_integrate_scrnaseq_data/annotate_datasets/de_epi/mast/adata_cell_type_coarse_epithelial_cell_{c}_for_de_de_res_leiden_0.50_mast.tsv",
-                sep="\t",
-            )
-            .sort_values("Pr(>Chisq)")
-            .assign(leiden=c)
-        )
-    except IOError:
-        pass
-
-# %%
-de_res_all = pd.concat(de_res.values())
-
-# %%
-de_res_all["score"] = (de_res_all["Pr(>Chisq)"] == 0) * -de_res_all["coef"]
-
-# %%
-de.de_res_to_anndata(
-    adata,
-    de_res_all,
-    groupby="leiden",
-    gene_id_col="primerid",
-    pval_col="Pr(>Chisq)",
-    pval_adj_col="Pr(>Chisq)",
-    lfc_col="coef",
-    score_col="score",
-)
-
-# %%
-sc.pl.rank_genes_groups_dotplot(adata, dendrogram=False)
-
-# %%
-ah.plot_umap(
-    adata,
-    filter_cell_type=[
-        "Alevolar",
-        "Basal",
-        "Club",
-        "Dividing",
-        "Goblet",
-        "Ionocyte",
-        "Mesothelial",
-        "Suprabasal",
-    ],
-    size=1,
-    cmap="inferno",
-)
+    fig = sc.pl.umap(adata, color="cell_type", size=1, return_fig=True)
+    fig.savefig(f"{artifact_dir}/umap_cell_type.pdf", bbox_inches="tight")
 
 # %% [markdown]
 # ## Hierarchical bootstrapping
@@ -297,7 +207,7 @@ from tqdm import trange
 # %%
 def bootstrap(adata, c):
     idx = []
-    leiden_mask = adata.obs["leiden"] == c
+    leiden_mask = adata.obs["cell_type"] == c
     datasets = np.random.choice(
         adata.obs["dataset"][leiden_mask].unique(), size=np.sum(leiden_mask)
     )
@@ -317,7 +227,7 @@ def bootstrap(adata, c):
 sc.pp.normalize_total(adata)
 
 # %%
-clusters = adata.obs["leiden"].unique()
+clusters = adata.obs["cell_type"].unique()
 
 
 def make_means():
@@ -421,6 +331,23 @@ gini_df = (
 )
 
 # %%
+gini_df.reset_index().sort_values(
+    ["leiden", "rank", "gini"], ascending=[True, True, False]
+).loc[:, ["leiden", "gene_id", "rank", "gini", "expr"]].to_csv(
+    f"{artifact_dir}/markers_all.csv"
+)
+
+# %%
+gini_df.reset_index().sort_values(
+    ["leiden", "rank", "gini"], ascending=[True, True, False]
+).loc[
+    lambda x: (x["expr"] >= 0.5) & (x["rank"] <= 3) & (x["gini"] > 0.6),
+    ["leiden", "gene_id", "rank", "gini", "expr"],
+].to_csv(
+    f"{artifact_dir}/markers_filtered.csv"
+)
+
+# %%
 marker_genes = (
     gini_df.loc[(gini_df["rank"] == 1) & (gini_df["expr"] >= 0.5), :]
     .groupby("leiden")
@@ -436,14 +363,29 @@ marker_genes = (
 marker_genes
 
 # %%
-sc.pl.dotplot(adata, var_names=marker_genes, groupby="leiden")
+fig = sc.pl.dotplot(adata, var_names=marker_genes, groupby="cell_type", return_fig=True)
+fig.savefig(f"{artifact_dir}/marker_dotplot.pdf", bbox_inches="tight")
 
 # %%
-sc.pl.umap(adata, color=list(itertools.chain(*marker_genes.values())), cmap="inferno")
+fig = sc.pl.umap(
+    adata,
+    color=list(itertools.chain(*marker_genes.values())),
+    cmap="inferno",
+    return_fig=True,
+)
+fig.savefig(f"{artifact_dir}/marker_umaps.pdf", bbox_inches="tight")
 
 # %%
-sc.pl.umap(adata, color="leiden", legend_loc="on data")
+nrows = int(np.ceil(adata.obs["cell_type"].nunique() / 4))
+fig, axs = plt.subplots(
+    nrows, 4, figsize=(16, nrows * 4), gridspec_kw={"wspace": 0.5, "hspace": 0.5}
+)
+for c, ax in zip(natsorted(adata.obs["cell_type"].unique()), axs.flatten()):
+    sc.pl.umap(adata, color="cell_type", groups=[str(c)], size=1, ax=ax, show=False)
+
+fig.savefig(f"{artifact_dir}/clusters.pdf", bbox_inches="tight")
 
 # %%
+adata.write_h5ad(f"{artifact_dir}/adata_epithelial_cells.h5ad")
 
 # %%
