@@ -75,29 +75,33 @@ workflow annotate_dataset {
         ["all", "rest"]
     )
     ch_adata_for_de = PREPARE_ANNDATA_DE_EPI.out.adata.flatMap{ id, adatas -> adatas }.map{ it -> [it.baseName, it]}
+
     MAKE_PSEUDOBULK_EPI(
         ch_adata_for_de,
         "patient",
         "leiden_0.50",
-        [10, true]
+        [10, false]
     )
+    ch_pseudobulk_leiden = MAKE_PSEUDOBULK_EPI.out.pseudobulk.filter{
+        id, counts, samplesheet -> samplesheet.text.count("\n") >= 6
+    }
     // DE_DREAM_EPI(
-    //     MAKE_PSEUDOBULK_EPI.out.pseudobulk,
+    //     ch_pseudobulk_leiden,
     //     "leiden_0.50",
     //     "+ (1 | dataset) + (1 | patient:dataset)"
     // )
     // DE_DREAM_EPI_N_CELLS(
-    //     MAKE_PSEUDOBULK_EPI.out.pseudobulk,
+    //     ch_pseudobulk_leiden,
     //     "leiden_0.50",
     //     "+ n_cells + (1 | dataset) + (1 | patient:dataset)"
     // )
     DE_EDGER_EPI(
-        MAKE_PSEUDOBULK_EPI.out.pseudobulk,
+        ch_pseudobulk_leiden,
         "leiden_0.50",
         " + patient"
     )
     DE_EDGER_EPI_N_CELLS(
-        MAKE_PSEUDOBULK_EPI.out.pseudobulk,
+        ch_pseudobulk_leiden,
         "leiden_0.50",
         " + patient + n_cells"
     )

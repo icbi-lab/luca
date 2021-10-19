@@ -111,7 +111,7 @@ process MAKE_PSEUDOBULK {
     adata = sc.read_h5ad("${input_adata}")
     replicate_col = "${replicate_col}"
     condition_col = "${condition_col}"
-    keep_unpaired_samples = "${keep_unpaired_samples}"
+    keep_unpaired_samples = ${keep_unpaired_samples}
     min_cells_per_sample = $min_cells_per_sample
 
     # aggregate counts by sample
@@ -179,7 +179,7 @@ process DE_EDGER {
         mode: params.publish_dir_mode,
         saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
 
-    cpus 1
+    cpus 4
     conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
 
     input:
