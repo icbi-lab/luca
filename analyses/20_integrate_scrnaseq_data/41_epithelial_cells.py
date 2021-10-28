@@ -46,6 +46,9 @@ adata.obs["leiden"] = adata.obs["leiden_0.50"]
 # %%
 sc.pl.umap(adata, color="leiden")
 
+# %% [markdown]
+# ### Redo UMAP with PAGA
+
 # %%
 sc.tl.paga(adata, groups="leiden")
 
@@ -108,9 +111,7 @@ cell_type_map = {
     "Club": [2],
     "Tumor cells (distant metastases)": [15, 13],
 }
-cell_type_map.update(
-    {str(k): [k] for k in [1, 14, 16, 19, 4, 6, 3, 5, 11, 8, 18, 9]}
-)
+cell_type_map.update({str(k): [k] for k in [1, 14, 16, 19, 4, 6, 3, 5, 11, 8, 18, 9]})
 
 # %%
 ah.annotate_cell_types(adata, cell_type_map)
@@ -169,7 +170,10 @@ with plt.rc_context({"figure.figsize": (4, 4)}):
 sc.pl.umap(adata_8, cmap="inferno", color="ROS1")
 
 # %%
-ah.annotate_cell_types(adata_8, {"Alevolar cell type 2": [0, 4, 5], "ROS+ healthy epithelial": [3], "Club": [1,2]})
+ah.annotate_cell_types(
+    adata_8,
+    {"Alevolar cell type 2": [0, 4, 5], "ROS+ healthy epithelial": [3], "Club": [1, 2]},
+)
 
 # %%
 ah.integrate_back(adata, adata_8)
@@ -240,27 +244,6 @@ def bootstrap(adata, c):
 
 
 # %%
-sc.pp.normalize_total(adata)
-
-# %%
-clusters = adata.obs["cell_type"].unique()
-
-
-def make_means():
-    means = np.vstack(
-        [np.mean(adata.X[bootstrap(adata, c), :], axis=0).A1 for c in clusters]
-    )
-    return means
-
-
-# %%
-mean_distribution = np.dstack([make_means() for _ in trange(20)])
-
-# %%
-mean_distribution.shape
-
-
-# %%
 @njit
 def gini(array):
     """
@@ -291,6 +274,26 @@ def gini(array):
         n * np.sum(array)
     )  # Gini coefficient
 
+
+# %%
+sc.pp.normalize_total(adata)
+
+# %%
+clusters = adata.obs["cell_type"].unique()
+
+
+def make_means():
+    means = np.vstack(
+        [np.mean(adata.X[bootstrap(adata, c), :], axis=0).A1 for c in clusters]
+    )
+    return means
+
+
+# %%
+mean_distribution = np.dstack([make_means() for _ in trange(20)])
+
+# %%
+mean_distribution.shape
 
 # %%
 mean_distribution.shape
@@ -350,7 +353,7 @@ gini_df = (
 gini_df.reset_index().sort_values(
     ["leiden", "rank", "gini"], ascending=[True, True, False]
 ).loc[:, ["leiden", "gene_id", "rank", "gini", "expr"]].to_csv(
-    f"{artifact_dir}/markers_all.csv"
+    f"{artifact_dir}/markers_all_preliminary.csv"
 )
 
 # %%
@@ -360,7 +363,7 @@ gini_df.reset_index().sort_values(
     lambda x: (x["expr"] >= 0.5) & (x["rank"] <= 3) & (x["gini"] > 0.6),
     ["leiden", "gene_id", "rank", "gini", "expr"],
 ].to_csv(
-    f"{artifact_dir}/markers_filtered.csv"
+    f"{artifact_dir}/markers_filtered_preliminary.csv"
 )
 
 # %%
@@ -377,16 +380,9 @@ marker_genes = (
 
 # %%
 fig = sc.pl.dotplot(adata, var_names=marker_genes, groupby="cell_type", return_fig=True)
-fig.savefig(f"{artifact_dir}/marker_dotplot.pdf", bbox_inches="tight")
+fig.savefig(f"{artifact_dir}/marker_dotplot_preliminary.pdf", bbox_inches="tight")
 
 # %%
-# fig = sc.pl.umap(
-#     adata,
-#     color=list(itertools.chain(*marker_genes.values())),
-#     cmap="inferno",
-#     return_fig=True,
-# )
-# fig.savefig(f"{artifact_dir}/marker_umaps.pdf", bbox_inches="tight")
 
 # %%
 # nrows = int(np.ceil(adata.obs["cell_type"].nunique() / 4))
@@ -402,44 +398,232 @@ fig.savefig(f"{artifact_dir}/marker_dotplot.pdf", bbox_inches="tight")
 # ### Annotate clusters
 
 # %%
-with plt.rc_context({"figure.figsize": (8,8)}):
-    sc.pl.umap(adata, color="cell_type", size=.6)
+with plt.rc_context({"figure.figsize": (8, 8)}):
+    sc.pl.umap(adata, color="cell_type", size=0.6)
 
 # %%
-adata.obs["cell_type"] = ["Club" if x in ["11-1"] else x for x in adata.obs["cell_type"]]
-adata.obs["cell_type"] = ["Alevolar cell type 2" if x in ["11-2"] else x for x in adata.obs["cell_type"]]
-adata.obs["cell_type"] = ["undifferentiated" if x in ["3"] else x for x in adata.obs["cell_type"]]
-adata.obs["cell_type"] = ["Erythrocytes" if x in ["9-2"] else x for x in adata.obs["cell_type"]]
-adata.obs["cell_type"] = ["Hemoglobin+" if x in ["18"] else x for x in adata.obs["cell_type"]]
-adata.obs["cell_type"] = ["Tumor cells" if x in ["1","4", "5", "6", "9-1", "14", "16", "19"] else x for x in adata.obs["cell_type"]]
+adata.obs["cell_type"] = [
+    "Club" if x in ["11-1"] else x for x in adata.obs["cell_type"]
+]
+adata.obs["cell_type"] = [
+    "Alevolar cell type 2" if x in ["11-2"] else x for x in adata.obs["cell_type"]
+]
+adata.obs["cell_type"] = [
+    "undifferentiated" if x in ["3"] else x for x in adata.obs["cell_type"]
+]
+adata.obs["cell_type"] = [
+    "Hemoglobin+" if x in ["9-2"] else x for x in adata.obs["cell_type"]
+]
+adata.obs["cell_type"] = [
+    "Hepatocytes" if x in ["18"] else x for x in adata.obs["cell_type"]
+]
+adata.obs["cell_type"] = [
+    "Tumor cells" if x in ["1", "4", "5", "6", "9-1", "14", "16", "19"] else x
+    for x in adata.obs["cell_type"]
+]
 
 
 # %%
-with plt.rc_context({"figure.figsize": (8,8)}):
-    sc.pl.umap(adata, color=["cell_type"], size=.8)
+with plt.rc_context({"figure.figsize": (8, 8)}):
+    sc.pl.umap(adata, color=["cell_type"], size=0.8)
 
 # %%
-adata_tumor = adata[adata.obs["cell_type"] == "Tumor cells", :]
+adata_tumor = adata[adata.obs["cell_type"] == "Tumor cells", :].copy()
 
 # %%
 ah.reprocess_adata_subset_scvi(adata_tumor, leiden_res=0.5)
 
 # %%
+# if not removed, paga plotting fails
+del adata_tumor.uns["leiden_colors"]
+
+# %%
 sc.tl.paga(adata_tumor, "leiden")
 
 # %%
-sc.pl.paga(adata_tumor, threshold=0.2)
+sc.pl.paga(adata_tumor, color="leiden", threshold=.2)
 
 # %%
 sc.tl.umap(adata_tumor, init_pos="paga")
 
 # %%
-sc.pl.umap(adata_tumor, color=["KRT5", "KRT6A", "NTRK2", "SOX2", "MKI67", "TOP2A", "COL1A1", "VIM", "ENO2", "NCAM1", "leiden", "dataset", "origin", "condition"], cmap="inferno")
+sc.pl.umap(adata_tumor, color="leiden")
+
+# %%
+sc.pl.umap(
+    adata_tumor,
+    color=[
+        "origin",
+        "condition",
+        "KRT5",
+        "KRT14",
+        "KRT6A",
+        "TP63",
+        "CD24",
+        "TACSTD2",
+        "MUC20",
+        "MUC1",
+        "NAPSA",
+        "NKX2-1",
+        "MUC4",
+        "CLDN4",
+    ],
+    cmap="inferno"
+)
+
+# %%
+sc.pl.umap(
+    adata_tumor,
+    color=[
+        "KRT5",
+        "KRT6A",
+        "NTRK2",
+        "SOX2",
+        "MKI67",
+        "TOP2A",
+        "COL1A1",
+        "VIM",
+        "ENO2",
+        "NCAM1",
+        "leiden",
+        "dataset",
+        "origin",
+        "condition",
+    ],
+    cmap="inferno",
+    wspace=0.35,
+)
+
+# %%
+ah.annotate_cell_types(adata_tumor, cell_type_map = {
+    "Tumor cells LSCC mitotic": [1, 17, 14],
+    "Tumor cells LSCC": [0],
+    "Tumor cells EMT": [3, 11, 13],
+    "Tumor cells LUAD mitotic": [8, 5], 
+    "Tumor cells LUAD": [4, 10, 2, 7, 17, 6, 9, 16, 12],
+    "Tumor cells Neuroendocrine": [15]
+})
+
+# %%
+ah.integrate_back(adata, adata_tumor)
+
+# %%
+fig = sc.pl.umap(
+    adata,
+    color="cell_type",
+    return_fig=True,
+)
+fig.savefig(f"{artifact_dir}/marker_umaps.pdf", bbox_inches="tight")
+
+# %% [markdown]
+# ### Get markers
+
+# %%
+clusters = adata.obs["cell_type"].unique()
+
+
+def make_means():
+    means = np.vstack(
+        [np.mean(adata.X[bootstrap(adata, c), :], axis=0).A1 for c in clusters]
+    )
+    return means
+
+
+# %%
+mean_distribution = np.dstack([make_means() for _ in trange(20)])
+
+# %%
+mean_distribution.shape
+
+# %%
+mean_distribution.shape
+
+# %%
+median_expr = np.median(mean_distribution, axis=2)
+
+# %%
+from scipy.stats import rankdata
+
+# %%
+gene_ranks = rankdata(-median_expr, axis=0, method="min")
+
+# %%
+gini_dist = np.vstack(
+    [
+        np.apply_along_axis(gini, 0, mean_distribution[:, :, i])
+        for i in trange(mean_distribution.shape[2])
+    ]
+)
+
+# %%
+gini_dist.shape
+
+# %%
+median_gini = np.median(gini_dist, axis=0)
+
+# %%
+gini_df = (
+    pd.melt(
+        pd.DataFrame(gene_ranks, index=clusters, columns=adata.var_names).reset_index(),
+        id_vars=["index"],
+        var_name="gene_id",
+        value_name="rank",
+    )
+    .rename(columns={"index": "leiden"})
+    .set_index("gene_id")
+    .join(pd.DataFrame(index=adata.var_names).assign(gini=median_gini))
+    .reset_index()
+    .rename(columns={"index": "gene_id"})
+    .set_index(["gene_id", "leiden"])
+    .join(
+        pd.melt(
+            pd.DataFrame(
+                median_expr, index=clusters, columns=adata.var_names
+            ).reset_index(),
+            id_vars=["index"],
+            var_name="gene_id",
+            value_name="expr",
+        )
+        .rename(columns={"index": "leiden"})
+        .set_index(["gene_id", "leiden"])
+    )
+)
+
+# %%
+gini_df.reset_index().sort_values(
+    ["leiden", "rank", "gini"], ascending=[True, True, False]
+).loc[:, ["leiden", "gene_id", "rank", "gini", "expr"]].to_csv(
+    f"{artifact_dir}/markers_all_final.csv"
+)
+
+# %%
+gini_df.reset_index().sort_values(
+    ["leiden", "rank", "gini"], ascending=[True, True, False]
+).loc[
+    lambda x: (x["expr"] >= 0.5) & (x["rank"] <= 3) & (x["gini"] > 0.6),
+    ["leiden", "gene_id", "rank", "gini", "expr"],
+].to_csv(
+    f"{artifact_dir}/markers_filtered_final.csv"
+)
+
+# %%
+marker_genes = (
+    gini_df.loc[(gini_df["rank"] == 1) & (gini_df["expr"] >= 0.5), :]
+    .groupby("leiden")
+    .apply(
+        lambda df: [
+            x[0] for x in df.sort_values("gini", ascending=False).index[:10].values
+        ]
+    )
+    .to_dict()
+)
+
+# %%
+fig = sc.pl.dotplot(adata, var_names=marker_genes, groupby="cell_type", return_fig=True)
+fig.savefig(f"{artifact_dir}/marker_dotplot_final.pdf", bbox_inches="tight")
 
 # %% [markdown]
 # ### Write output
 
 # %%
 adata.write_h5ad(f"{artifact_dir}/adata_epithelial_cells.h5ad")
-
-# %%
