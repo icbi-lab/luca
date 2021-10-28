@@ -41,6 +41,21 @@ artifact_dir = nxfvars.get("artifact_dir", "../../data/zz_epi")
 adata = sc.read_h5ad(input_adata)
 
 # %%
+adata.obs["leiden"] = adata.obs["leiden_0.50"]
+
+# %%
+sc.pl.umap(adata, color="leiden")
+
+# %%
+sc.tl.paga(adata, groups="leiden")
+
+# %%
+sc.pl.paga(adata, color="leiden", threshold=0.2)
+
+# %%
+sc.tl.umap(adata, init_pos="paga")
+
+# %%
 with plt.rc_context({"figure.figsize": (6, 6)}):
     fig = sc.pl.umap(
         adata,
@@ -51,9 +66,6 @@ with plt.rc_context({"figure.figsize": (6, 6)}):
         return_fig=True,
     )
     fig.savefig(f"{artifact_dir}/overview_epithelial_cluster.pdf", bbox_inches="tight")
-
-# %%
-adata.obs["leiden"] = adata.obs["leiden_0.50"]
 
 # %%
 nrows = int(np.ceil(adata.obs["leiden"].nunique() / 4))
@@ -93,10 +105,11 @@ cell_type_map = {
     "Alevolar cell type 1": [10],
     "Alevolar cell type 2": [0, 12, 17],
     "Ciliated": [7],
+    "Club": [2],
     "Tumor cells (distant metastases)": [15, 13],
 }
 cell_type_map.update(
-    {str(k): [k] for k in [1, 14, 16, 19, 4, 6, 3, 5, 2, 11, 8, 18, 9]}
+    {str(k): [k] for k in [1, 14, 16, 19, 4, 6, 3, 5, 11, 8, 18, 9]}
 )
 
 # %%
@@ -125,7 +138,7 @@ with plt.rc_context({"figure.figsize": (4, 4)}):
     )
 
 # %%
-ah.annotate_cell_types(adata_9, {"Club/Goblet": [0, 1], "9-1": [2, 3], "9-2": [4]})
+ah.annotate_cell_types(adata_9, {"Goblet": [0, 1], "9-1": [2, 3], "9-2": [4]})
 
 # %%
 ah.integrate_back(adata, adata_9)
@@ -367,23 +380,81 @@ fig = sc.pl.dotplot(adata, var_names=marker_genes, groupby="cell_type", return_f
 fig.savefig(f"{artifact_dir}/marker_dotplot.pdf", bbox_inches="tight")
 
 # %%
-fig = sc.pl.umap(
-    adata,
-    color=list(itertools.chain(*marker_genes.values())),
-    cmap="inferno",
-    return_fig=True,
-)
-fig.savefig(f"{artifact_dir}/marker_umaps.pdf", bbox_inches="tight")
+# fig = sc.pl.umap(
+#     adata,
+#     color=list(itertools.chain(*marker_genes.values())),
+#     cmap="inferno",
+#     return_fig=True,
+# )
+# fig.savefig(f"{artifact_dir}/marker_umaps.pdf", bbox_inches="tight")
 
 # %%
-nrows = int(np.ceil(adata.obs["cell_type"].nunique() / 4))
-fig, axs = plt.subplots(
-    nrows, 4, figsize=(16, nrows * 4), gridspec_kw={"wspace": 0.5, "hspace": 0.5}
-)
-for c, ax in zip(natsorted(adata.obs["cell_type"].unique()), axs.flatten()):
-    sc.pl.umap(adata, color="cell_type", groups=[str(c)], size=1, ax=ax, show=False)
+# nrows = int(np.ceil(adata.obs["cell_type"].nunique() / 4))
+# fig, axs = plt.subplots(
+#     nrows, 4, figsize=(16, nrows * 4), gridspec_kw={"wspace": 0.5, "hspace": 0.5}
+# )
+# for c, ax in zip(natsorted(adata.obs["cell_type"].unique()), axs.flatten()):
+#     sc.pl.umap(adata, color="cell_type", groups=[str(c)], size=1, ax=ax, show=False)
 
-fig.savefig(f"{artifact_dir}/clusters.pdf", bbox_inches="tight")
+# fig.savefig(f"{artifact_dir}/clusters.pdf", bbox_inches="tight")
+
+# %% [markdown]
+# ### Annotate clusters
+
+# %%
+with plt.rc_context({"figure.figsize": (8,8)}):
+    sc.pl.umap(adata, color="cell_type", size=.6)
+
+# %%
+sc.pl.umap(adata, color="cell_type", groups=["11-1", "11-2"])
+
+# %%
+sc.pl.umap(adata, color="dataset")
+
+# %%
+adata.obs["cell_type"] = ["Club" if x in ["11-1"] else x for x in adata.obs["cell_type"]]
+adata.obs["cell_type"] = ["Alevolar cell type 2" if x in ["11-2"] else x for x in adata.obs["cell_type"]]
+
+
+# %%
+with plt.rc_context({"figure.figsize": (8,8)}):
+    sc.pl.umap(adata, color="cell_type", size=.6)
+
+# %%
+# TODO: subcluster 3
+# TODO annotate tumor cells. 
+# TODO: ros cluster described in Gerold's email. 
+
+# %%
+adata.obs["cell_type"] = ["Tumor cells" if x in ["1","5", "6", "4", "9-1", "16", "14", "19"] else x for x in adata.obs["cell_type"]]
+adata.obs["cell_type"] = ["Erythrocytes" if x in ["9-2"] else x for x in adata.obs["cell_type"]]
+adata.obs["cell_type"] = ["Hepatocytes ???" if x in ["18"] else x for x in adata.obs["cell_type"]]
+
+# subclustering is warranted! 
+adata.obs["cell_type"] = ["undifferentiated ???" if x in ["3"] else x for x in adata.obs["cell_type"]]
+adata.obs["cell_type"] = ["unknown ROS+" if x in ["8-1"] else x for x in adata.obs["cell_type"]]
+
+
+# %%
+adata_tumor = adata[adata.obs["cell_type"] == "tumor cells", :]
+
+# %%
+ah.reprocess_adata_subset_scvi(adata_tumor, leiden_res=0.5)
+
+# %%
+sc.tl.paga(adata_tumor, "leiden")
+
+# %%
+sc.pl.paga(adata_tumor, threshold=0.2)
+
+# %%
+sc.tl.umap(adata_tumor, init_pos="paga")
+
+# %%
+sc.pl.umap(adata_tumor, color=["KRT5", "KRT6A", "NTRK2", "SOX2", "MKI67", "TOP2A", "COL1A1", "VIM", "ENO2", "NCAM1", "leiden", "dataset", "origin", "condition"], cmap="inferno")
+
+# %% [markdown]
+# ### Write output
 
 # %%
 adata.write_h5ad(f"{artifact_dir}/adata_epithelial_cells.h5ad")
