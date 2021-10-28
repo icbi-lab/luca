@@ -166,7 +166,10 @@ with plt.rc_context({"figure.figsize": (4, 4)}):
     )
 
 # %%
-ah.annotate_cell_types(adata_8, {"Alevolar cell type 2": [0, 4, 5], "8-1": [1, 2, 3]})
+sc.pl.umap(adata_8, cmap="inferno", color="ROS1")
+
+# %%
+ah.annotate_cell_types(adata_8, {"Alevolar cell type 2": [0, 4, 5], "ROS+ healthy epithelial": [3], "Club": [1,2]})
 
 # %%
 ah.integrate_back(adata, adata_8)
@@ -373,9 +376,6 @@ marker_genes = (
 )
 
 # %%
-marker_genes
-
-# %%
 fig = sc.pl.dotplot(adata, var_names=marker_genes, groupby="cell_type", return_fig=True)
 fig.savefig(f"{artifact_dir}/marker_dotplot.pdf", bbox_inches="tight")
 
@@ -406,37 +406,20 @@ with plt.rc_context({"figure.figsize": (8,8)}):
     sc.pl.umap(adata, color="cell_type", size=.6)
 
 # %%
-sc.pl.umap(adata, color="cell_type", groups=["11-1", "11-2"])
-
-# %%
-sc.pl.umap(adata, color="dataset")
-
-# %%
 adata.obs["cell_type"] = ["Club" if x in ["11-1"] else x for x in adata.obs["cell_type"]]
 adata.obs["cell_type"] = ["Alevolar cell type 2" if x in ["11-2"] else x for x in adata.obs["cell_type"]]
+adata.obs["cell_type"] = ["undifferentiated" if x in ["3"] else x for x in adata.obs["cell_type"]]
+adata.obs["cell_type"] = ["Erythrocytes" if x in ["9-2"] else x for x in adata.obs["cell_type"]]
+adata.obs["cell_type"] = ["Hemoglobin+" if x in ["18"] else x for x in adata.obs["cell_type"]]
+adata.obs["cell_type"] = ["Tumor cells" if x in ["1","4", "5", "6", "9-1", "14", "16", "19"] else x for x in adata.obs["cell_type"]]
 
 
 # %%
 with plt.rc_context({"figure.figsize": (8,8)}):
-    sc.pl.umap(adata, color="cell_type", size=.6)
+    sc.pl.umap(adata, color=["cell_type"], size=.8)
 
 # %%
-# TODO: subcluster 3
-# TODO annotate tumor cells. 
-# TODO: ros cluster described in Gerold's email. 
-
-# %%
-adata.obs["cell_type"] = ["Tumor cells" if x in ["1","5", "6", "4", "9-1", "16", "14", "19"] else x for x in adata.obs["cell_type"]]
-adata.obs["cell_type"] = ["Erythrocytes" if x in ["9-2"] else x for x in adata.obs["cell_type"]]
-adata.obs["cell_type"] = ["Hepatocytes ???" if x in ["18"] else x for x in adata.obs["cell_type"]]
-
-# subclustering is warranted! 
-adata.obs["cell_type"] = ["undifferentiated ???" if x in ["3"] else x for x in adata.obs["cell_type"]]
-adata.obs["cell_type"] = ["unknown ROS+" if x in ["8-1"] else x for x in adata.obs["cell_type"]]
-
-
-# %%
-adata_tumor = adata[adata.obs["cell_type"] == "tumor cells", :]
+adata_tumor = adata[adata.obs["cell_type"] == "Tumor cells", :]
 
 # %%
 ah.reprocess_adata_subset_scvi(adata_tumor, leiden_res=0.5)
