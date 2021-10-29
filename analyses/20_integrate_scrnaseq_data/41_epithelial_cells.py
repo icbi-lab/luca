@@ -627,3 +627,4 @@ fig.savefig(f"{artifact_dir}/marker_dotplot_final.pdf", bbox_inches="tight")
 
 # %%
 adata.write_h5ad(f"{artifact_dir}/adata_epithelial_cells.h5ad")
+adata_tumor.write_h5ad(f"{artifact_dir}/adata_tumor_cells.h5ad")
