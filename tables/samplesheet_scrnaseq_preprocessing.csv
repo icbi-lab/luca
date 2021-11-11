@@ -4,8 +4,8 @@ Chen_Zhang_2020_NSCLC,data/10_public_datasets/Chen_Zhang_2020_NSCLC/h5ad_raw/Che
 Goveia_Carmeliet_2020_NSCLC,data/10_public_datasets/Goveia_Carmeliet_2020_NSCLC/h5ad_raw/goveia_carmeliet_2020_nsclc.h5ad,600,30000,250,10000,20,sample,true
 Guo_Zhang_2018_NSCLC,data/10_public_datasets/Guo_Zhang_2018_NSCLC/h5ad_raw/guo_zhang_2018_nsclc.h5ad,20000,3000000,1000,20000,20,sample,false
 Habermann_Kropski_2020_pulmonary-fibrosis,data/10_public_datasets/Habermann_Kropski_2020_pulmonary-fibrosis/h5ad_raw/Habermann_Kropski_2020_pulmonary-fibrosis.h5ad,600,30000,200,10000,20,sample,true
-He_Fan_2021_LUAD,data/10_public_datasets/Kim_Lee_2020_LUAD/h5ad_raw/Kim_Lee_2020_LUAD.h5ad,1000,35000,300,10000,20,sample,true
-Kim_Lee_2020_LUAD,data/10_public_datasets/He_Fan_2021_LUAD/h5ad_raw/He_Fan_2021_LUAD.h5ad,600,30000,250,10000,20,sample,true
+Kim_Lee_2020_LUAD,data/10_public_datasets/Kim_Lee_2020_LUAD/h5ad_raw/Kim_Lee_2020_LUAD.h5ad,1000,35000,300,10000,20,sample,true
+He_Fan_2021_LUAD,data/10_public_datasets/He_Fan_2021_LUAD/h5ad_raw/He_Fan_2021_LUAD.h5ad,600,30000,250,10000,20,sample,true
 Lambrechts_2018_LUAD_6149v1,data/10_public_datasets/Lambrechts_2018_LUAD/E-MTAB-6149-v1/h5ad_raw/lambrechts_2018_luad_6149v1.h5ad,600,30000,200,10000,15,sample,true
 Lambrechts_2018_LUAD_6149v2,data/10_public_datasets/Lambrechts_2018_LUAD/E-MTAB-6149-v2/h5ad_raw/lambrechts_2018_luad_6149v2.h5ad,600,30000,250,10000,20,sample,true
 Lambrechts_2018_LUAD_6653,data/10_public_datasets/Lambrechts_2018_LUAD/E-MTAB-6653/h5ad_raw/lambrechts_2018_luad_6653.h5ad,1200,40000,250,10000,20,sample,true
