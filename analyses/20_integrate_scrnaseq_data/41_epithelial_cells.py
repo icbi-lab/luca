@@ -22,6 +22,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from natsort import natsorted
+import dorothea
+import progeny
 
 # %%
 ah = AnnotationHelper()
@@ -59,6 +61,12 @@ sc.pl.paga(adata, color="leiden", threshold=0.2)
 sc.tl.umap(adata, init_pos="paga")
 
 # %%
+adata[adata.obs["cell_type"] == "undifferentiated", :].obs["dataset"].value_counts()
+
+# %%
+sc.pl.umap(adata, color="dataset")
+
+# %%
 with plt.rc_context({"figure.figsize": (6, 6)}):
     fig = sc.pl.umap(
         adata,
@@ -77,6 +85,63 @@ fig, axs = plt.subplots(
 )
 for c, ax in zip(sorted(adata.obs["leiden"].unique().astype(int)), axs.flatten()):
     sc.pl.umap(adata, color="leiden", groups=[str(c)], size=1, ax=ax, show=False)
+
+# %% [markdown]
+# ### Dorothea/progeny
+
+# %%
+regulons = dorothea.load_regulons(
+    [
+        "A",
+        "B",
+    ],  # Which levels of confidence to use (A most confident, E least confident)
+    organism="Human",  # If working with mouse, set to Mouse
+)
+
+# %%
+dorothea.run(
+    adata,  # Data to use
+    regulons,  # Dorothea network
+    center=True,  # Center gene expression by mean per cell
+    num_perm=0,  # Simulate m random activities
+    norm=True,  # Normalize by number of edges to correct for large regulons
+    scale=True,  # Scale values per feature so that values can be compared across cells
+    use_raw=True,  # Use raw adata, where we have the lognorm gene expression
+    min_size=5,  # TF with less than 5 targets will be ignored
+)
+
+# %%
+model = progeny.load_model(
+    organism="Human",  # If working with mouse, set to Mouse
+    top=1000,  # For sc we recommend ~1k target genes since there are dropouts
+)
+
+# %%
+progeny.run(
+    adata,  # Data to use
+    model,  # PROGENy network
+    center=True,  # Center gene expression by mean per cell
+    num_perm=0,  # Simulate m random activities
+    norm=True,  # Normalize by number of edges to correct for large regulons
+    scale=True,  # Scale values per feature so that values can be compared across cells
+    use_raw=True,  # Use raw adata, where we have the lognorm gene expression
+)
+
+# %%
+adata_progeny = progeny.extract(adata)
+adata_dorothea = dorothea.extract(adata)
+
+# %%
+sc.pl.matrixplot(adata_progeny, var_names=adata_progeny.var_names, groupby="cell_type", cmap="coolwarm", vmax=2, vmin=-2)
+
+# %%
+sc.pl.umap(adata_progeny, color=adata_progeny.var_names, cmap="coolwarm", vmin=-2, vmax=2)
+
+# %%
+sc.pl.matrixplot(adata_dorothea, var_names=adata_dorothea.var_names, groupby="cell_type", cmap="coolwarm", vmax=2, vmin=-2)
+
+# %% [markdown]
+# ## Annotation
 
 # %%
 with plt.rc_context({"figure.figsize": (4, 4)}):
@@ -109,9 +174,10 @@ cell_type_map = {
     "Alevolar cell type 2": [0, 12, 17],
     "Ciliated": [7],
     "Club": [2],
-    "Tumor cells (distant metastases)": [15, 13],
 }
-cell_type_map.update({str(k): [k] for k in [1, 14, 16, 19, 4, 6, 3, 5, 11, 8, 18, 9]})
+cell_type_map.update(
+    {str(k): [k] for k in [1, 14, 16, 19, 4, 6, 3, 5, 11, 8, 18, 9, 15, 13]}
+)
 
 # %%
 ah.annotate_cell_types(adata, cell_type_map)
@@ -409,7 +475,10 @@ adata.obs["cell_type"] = [
     "Alevolar cell type 2" if x in ["11-2"] else x for x in adata.obs["cell_type"]
 ]
 adata.obs["cell_type"] = [
-    "undifferentiated" if x in ["3"] else x for x in adata.obs["cell_type"]
+    "Pleural cells" if x in ["13"] else x for x in adata.obs["cell_type"]
+]
+adata.obs["cell_type"] = [
+    "Neuronal cells" if x in ["15"] else x for x in adata.obs["cell_type"]
 ]
 adata.obs["cell_type"] = [
     "Hemoglobin+" if x in ["9-2"] else x for x in adata.obs["cell_type"]
@@ -418,7 +487,7 @@ adata.obs["cell_type"] = [
     "Hepatocytes" if x in ["18"] else x for x in adata.obs["cell_type"]
 ]
 adata.obs["cell_type"] = [
-    "Tumor cells" if x in ["1", "4", "5", "6", "9-1", "14", "16", "19"] else x
+    "Tumor cells" if x in ["1", "3", "4", "5", "6", "9-1", "14", "16", "19"] else x
     for x in adata.obs["cell_type"]
 ]
 
@@ -441,7 +510,7 @@ del adata_tumor.uns["leiden_colors"]
 sc.tl.paga(adata_tumor, "leiden")
 
 # %%
-sc.pl.paga(adata_tumor, color="leiden", threshold=.2)
+sc.pl.paga(adata_tumor, color="leiden", threshold=0.2)
 
 # %%
 sc.tl.umap(adata_tumor, init_pos="paga")
@@ -468,7 +537,7 @@ sc.pl.umap(
         "MUC4",
         "CLDN4",
     ],
-    cmap="inferno"
+    cmap="inferno",
 )
 
 # %%
@@ -495,14 +564,17 @@ sc.pl.umap(
 )
 
 # %%
-ah.annotate_cell_types(adata_tumor, cell_type_map = {
-    "Tumor cells LSCC mitotic": [1, 17, 14],
-    "Tumor cells LSCC": [0],
-    "Tumor cells EMT": [3, 11, 13],
-    "Tumor cells LUAD mitotic": [8, 5], 
-    "Tumor cells LUAD": [4, 10, 2, 7, 17, 6, 9, 16, 12],
-    "Tumor cells Neuroendocrine": [15]
-})
+ah.annotate_cell_types(
+    adata_tumor,
+    cell_type_map={
+        "Tumor cells LSCC mitotic": [1, 17, 14],
+        "Tumor cells LSCC": [0],
+        "Tumor cells EMT": [3, 11, 13],
+        "Tumor cells LUAD mitotic": [8, 5],
+        "Tumor cells LUAD": [4, 10, 2, 7, 17, 6, 9, 16, 12],
+        "Tumor cells Neuroendocrine": [15],
+    },
+)
 
 # %%
 ah.integrate_back(adata, adata_tumor)
