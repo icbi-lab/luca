@@ -3,8 +3,7 @@ include { initOptions; saveFiles; getSoftwareName } from './functions'
 
 
 process NEIGHBORS {
-    // conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
-    container = "containers/sc-integrate2_2021-11-16.sif"
+    conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
     // container "containers/sc-integrate2.sif"
     cpus 8
 
@@ -36,8 +35,7 @@ process NEIGHBORS {
 }
 
 process UMAP {
-    container = "containers/sc-integrate2_2021-11-16.sif"
-    // conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
+    conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
     // container "containers/sc-integrate2.sif"
     cpus 8
 
@@ -64,8 +62,7 @@ process UMAP {
 }
 
 process LEIDEN {
-    // conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
-    container = "containers/sc-integrate2_2021-11-16.sif"
+    conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
     // container "containers/sc-integrate2.sif"
     cpus 1
 
@@ -97,8 +94,7 @@ process MERGE_UMAP_LEIDEN {
         mode: params.publish_dir_mode,
         saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
 
-    // conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
-    container = "containers/sc-integrate2_2021-11-16.sif"
+    conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
     // container "containers/sc-integrate2.sif"
     cpus 1
 
