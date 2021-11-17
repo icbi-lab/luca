@@ -18,10 +18,6 @@ process NEIGHBORS {
     """
     #!/usr/bin/env python
 
-    import os
-    # https://github.com/theislab/scanpy/issues/2014
-    os.environ["NUMBA_CPU_NAME"] = "generic"
-
     import scanpy as sc
     from threadpoolctl import threadpool_limits
 
