@@ -1,42 +1,18 @@
-def modules = params.integrate_datasets.clone()
+include { check_samplesheet } from '../modules/local/check_samplesheet'
 
-include { check_samplesheet }  from '../modules/local/check_samplesheet' params(params)
-
-include { SCQC } from "../modules/local/scqc/main" addParams(
-    options: modules['SCQC']
-)
-include { SCQC_MERGE_STATS } from "../modules/local/scqc_merge_stats/main.nf" addParams(
-    options: modules['SCQC_MERGE_STATS']
-)
-include { SCVI as SCVI_SEED } from "../modules/local/scvi/main.nf" addParams(
-    options: modules["SCVI_SEED"]
-)
-include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_SEED } from "../subworkflows/neighbors_leiden_umap/main.nf" addParams(
-    options: modules["NEIGHBORS_LEIDEN_UMAP_SEED"]
-)
-include { JUPYTERNOTEBOOK as ANNOTATE_SEED } from "../modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["ANNOTATE_SEED"]
-)
+include { SCQC } from "../modules/local/scqc/main"
+include { SCQC_MERGE_STATS } from "../modules/local/scqc_merge_stats/main.nf"
+include { SCVI as SCVI_SEED } from "../modules/local/scvi/main.nf"
+include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_SEED } from "../subworkflows/neighbors_leiden_umap/main.nf"
+include { JUPYTERNOTEBOOK as ANNOTATE_SEED } from "../modules/local/jupyternotebook/main.nf"
 
 
-include { JUPYTERNOTEBOOK as MERGE_ALL } from "../modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["MERGE_ALL"]
-)
-include { SCVI } from "../modules/local/scvi/main.nf" addParams(
-    options: modules["SCVI"]
-)
-include { SCANVI } from "../modules/local/scvi/main.nf" addParams(
-    options: modules["SCANVI"]
-)
-include { SOLO } from "../modules/local/solo/main.nf" addParams(
-    options: modules["SOLO"]
-)
-include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_DOUBLET } from "../subworkflows/neighbors_leiden_umap/main.nf" addParams(
-    options: modules["NEIGHBORS_LEIDEN_UMAP_DOUBLET"]
-)
-include { JUPYTERNOTEBOOK as MERGE_SOLO }  from "../modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["MERGE_SOLO"]
-)
+include { JUPYTERNOTEBOOK as MERGE_ALL } from "../modules/local/jupyternotebook/main.nf"
+include { SCVI } from "../modules/local/scvi/main.nf"
+include { SCANVI } from "../modules/local/scvi/main.nf"
+include { SOLO } from "../modules/local/solo/main.nf"
+include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_DOUBLET } from "../subworkflows/neighbors_leiden_umap/main.nf"
+include { JUPYTERNOTEBOOK as MERGE_SOLO }  from "../modules/local/jupyternotebook/main.nf"
 
 
 /**

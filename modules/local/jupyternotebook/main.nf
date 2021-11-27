@@ -1,9 +1,6 @@
 // Import generic module functions
-include { initOptions; saveFiles; getSoftwareName } from './functions'
 include { dump_params_yml; indent_code_block } from "./parametrize"
 
-params.options = [:]
-options        = initOptions(params.options)
 params.parametrize = true
 params.implicit_params = true
 params.meta_params = true
@@ -11,19 +8,6 @@ params.meta_params = true
 process JUPYTERNOTEBOOK {
     tag "$meta.id"
     label 'process_low'
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
-
-    //NB: You likely want to override this with a container containing all required
-    //dependencies for you analysis. The container at least needs to contain the
-    //yaml and rmarkdown R packages.
-    conda (params.enable_conda ? "ipykernel=6.0.3 jupytext=1.11.4 nbconvert=6.1.0 papermill=2.3.3 matplotlib=3.4.2" : null)
-    if (workflow.containerEngine == 'singularity' && !params.singularity_pull_docker_container) {
-        container "https://depot.galaxyproject.org/singularity/mulled-v2-514b1a5d280c7043110b2a8d0a87b57ba392a963%3A879972fc8bdc81ee92f2bce3b4805d89a772bf84-0"
-    } else {
-        container "quay.io/biocontainers/mulled-v2-514b1a5d280c7043110b2a8d0a87b57ba392a963:879972fc8bdc81ee92f2bce3b4805d89a772bf84-0"
-    }
 
     input:
     tuple val(meta), path(notebook)
@@ -36,8 +20,7 @@ process JUPYTERNOTEBOOK {
     path "versions.yml"          , emit: version
 
     script:
-    def software = getSoftwareName(task.process)
-    def prefix   = options.suffix ? "${meta.id}${options.suffix}" : "${meta.id}"
+    def prefix   = meta.id
     def kernel   = task.ext.kernel ?: '-'
 
     // Dump parameters to yaml file.
@@ -86,7 +69,7 @@ process JUPYTERNOTEBOOK {
         | jupyter nbconvert --stdin --to html --output ${prefix}.html
 
     cat <<-END_VERSIONS > versions.yml
-    ${software}:
+    "${task.process}":
         - jupytext: \$( jupytext --version )
         - samtools: \$( python -c "import ipykernel; print(ipykernel.__version__)" )
         - nbconvert: \$(jupyter nbconvert --version)

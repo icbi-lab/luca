@@ -1,17 +1,7 @@
-include { nxfvars } from "../nxfvars.nf"
-include { initOptions; saveFiles; getSoftwareName } from './functions'
-
-params.options = [:]
-def options    = initOptions(params.options)
-
+include { nxfvars } from "./nxfvars.nf"
 
 process SCQC {
     tag = { meta.id }
-
-    publishDir {params.outdir},
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }
-
 
     input:
     tuple path(scqc_notebook), path(scqc_lib)

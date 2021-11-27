@@ -1,14 +1,7 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl = 2
 
-include { initOptions; saveFiles; getSoftwareName } from './functions'
-
 process H5AD_TO_SEURAT {
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
-
-    cpus 1
     conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
     stageInMode 'link'
 
@@ -26,11 +19,6 @@ process H5AD_TO_SEURAT {
 }
 
 process H5AD_TO_SCE {
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
-
-    cpus 1
     // requires rpy2 <= 3.4.2, see https://github.com/theislab/anndata2ri/issues/63
     conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
     stageInMode 'link'
@@ -67,11 +55,6 @@ process H5AD_TO_SCE {
 
 
 process SEURAT_TO_SCE {
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
-
-    cpus 1
     conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
 
     input:
@@ -95,10 +78,6 @@ process SEURAT_TO_SCE {
 
 
 process SPLIT_ANNDATA {
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
-
     cpus 1
     conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
 

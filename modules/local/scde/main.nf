@@ -1,14 +1,8 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl = 2
 
-include { initOptions; saveFiles; getSoftwareName } from './functions'
-
 
 process PREPARE_ANNDATA {
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
-
     cpus 1
     conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
 
@@ -80,10 +74,6 @@ process PREPARE_ANNDATA {
 
 
 process MAKE_PSEUDOBULK {
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
-
     cpus 1
     conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
 
@@ -175,10 +165,6 @@ process DE_EDGER {
     /**
      * For a standard pseudobulk analysis
      */
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
-
     cpus 4
     conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
 
@@ -234,11 +220,6 @@ process DE_DREAM {
      * This is useful if there is a batch effect that is not controlled for
      * by the experimental design
      */
-
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
-
     cpus 1
     conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
 
@@ -285,10 +266,6 @@ process DE_DREAM {
 
 
 process DE_MAST_MIXED_EFFECTS {
-    publishDir "${params.outdir}",
-        mode: params.publish_dir_mode,
-        saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
-
     cpus 40
     conda "/data/scratch/sturm/conda/envs/2020-pircher-mast"
     /**
