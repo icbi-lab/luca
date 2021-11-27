@@ -20,8 +20,8 @@ process SOLO {
     """
     #!/usr/bin/env python
     import scanpy as sc
-    # from threadpoolctl import threadpool_limits
-    # threadpool_limits(${task.cpus})
+    from threadpoolctl import threadpool_limits
+    threadpool_limits(${task.cpus})
 
     import scvi
 
