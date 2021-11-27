@@ -8,12 +8,12 @@ process SCVI {
         mode: params.publish_dir_mode,
         saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), meta:meta, publish_by_meta:['id']) }
 
-    cpus 4
-    conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
-    // container "containers/sc-integrate2.sif"
-    // // support for nvidia https://lucacozzuto.medium.com/using-gpu-within-nextflow-19cd185d5e69
+    cpus 44
+    // conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
+    container "containers/sc-integrate2.sif"
+    // support for nvidia https://lucacozzuto.medium.com/using-gpu-within-nextflow-19cd185d5e69
     // containerOptions = "--nv"
-    clusterOptions '-V -S /bin/bash -q all.q@apollo-15'
+    // clusterOptions '-V -S /bin/bash -q all.q@apollo-15'
 
     input:
         tuple val(id), path(input_adata)
@@ -53,7 +53,8 @@ process SCANVI {
     // full compute node
     cpus 44
     // container "containers/sc-integrate2.sif"
-    conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
+    container = "containers/sc-integrate2_2021-11-16.sif"
+    // conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
 
     input:
         tuple val(id), path(input_adata), path(input_model)
