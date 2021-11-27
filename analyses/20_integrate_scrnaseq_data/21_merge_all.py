@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.11.2
+#       jupytext_version: 1.13.1
 #   kernelspec:
 #     display_name: Python [conda env:.conda-pircher-sc-integrate2]
 #     language: python
@@ -60,10 +60,10 @@ dataset_table = pd.read_csv(
 )
 dataset_path_annotated = nxfvars.get(
     "dataset_path_annotated",
-    "../../data/20_integrate_scrnaseq_data/11_seed_annotations/artifacts/",
+    "../../data/20_integrate_scrnaseq_data/integrate_datasets/11_seed_annotations/artifacts/",
 )
 dataset_path = nxfvars.get(
-    "dataset_path", "../../data/20_integrate_scrnaseq_data/02_qc_and_filtering/"
+    "dataset_path", "../../data/20_integrate_scrnaseq_data/integrate_datasets/02_qc_and_filtering/"
 )
 
 # %%

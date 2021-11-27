@@ -12,10 +12,9 @@ process SCQC {
         mode: params.publish_dir_mode,
         saveAs: { filename -> saveFiles(filename:filename, options:params.options, publish_dir:getSoftwareName(task.process), publish_id:meta.id) }
 
-    // conda "/home/sturm/.conda/envs/single-cell-analysis-nf"
-    container "containers/scqc.sif"
 
     input:
+    tuple path(scqc_notebook), path(scqc_lib)
     tuple val(meta), path(input_adata)
 
     output:
@@ -33,9 +32,10 @@ process SCQC {
     max_genes = meta.max_genes
     max_pct_mito = meta.max_pct_mito
     """
+    export NUMBA_CACHE_DIR=/tmp/numba_cache
+
     ${nxfvars(task)}
 
-    export PYTHONPATH="${moduleDir}"
-    nxfvars execute ${moduleDir}/scqc-notebook.py ${dataset_id}_qc_report.html
+    nxfvars execute ${scqc_notebook} ${dataset_id}_qc_report.html
     """
 }

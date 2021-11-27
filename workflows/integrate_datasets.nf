@@ -51,7 +51,13 @@ workflow integrate_datasets {
     main:
     ch_samples = Channel.from(check_samplesheet(params.input, baseDir))
 
-    SCQC(ch_samples)
+    SCQC(
+        [
+            file('modules/local/scqc/scqc-notebook.py', checkIfExists: true),
+            file('modules/local/scqc/qc_plots.py', checkIfExists: true)
+        ],
+        ch_samples
+    )
     SCQC_MERGE_STATS(SCQC.out.qc_stats.collect())
 
     // SEED annotation (manually annotate two datasets (One 10x and one Smartseq)

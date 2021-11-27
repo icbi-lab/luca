@@ -38,6 +38,7 @@ process JUPYTERNOTEBOOK {
     script:
     def software = getSoftwareName(task.process)
     def prefix   = options.suffix ? "${meta.id}${options.suffix}" : "${meta.id}"
+    def kernel   = task.ext.kernel ?: '-'
 
     // Dump parameters to yaml file.
     // Using a yaml file over using the CLI params because
@@ -80,7 +81,7 @@ process JUPYTERNOTEBOOK {
     export NUMBA_CPU_NAME=generic
 
     # Convert notebook to ipynb using jupytext, execute using papermill, convert using nbconvert
-    jupytext --to notebook --output - --set-kernel - ${notebook}  \\
+    jupytext --to notebook --output - --set-kernel ${kernel} ${notebook}  \\
         | ${render_cmd} \\
         | jupyter nbconvert --stdin --to html --output ${prefix}.html
 
