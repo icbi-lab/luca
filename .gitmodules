@@ -1,3 +1,6 @@
 [submodule "lib/scanpy_helper_submodule"]
 	path = lib/scanpy_helper_submodule
 	url = git@gitlab.i-med.ac.at:icbi-lab/tools/scanpy_helpers.git
+[submodule "lib/sc-hierarchical-bootstrapping"]
+	path = lib/sc-hierarchical-bootstrapping
+	url = git@github.com:grst/sc-hierarchical-bootstrapping.git
