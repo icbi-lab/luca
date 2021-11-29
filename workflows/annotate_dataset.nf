@@ -1,5 +1,6 @@
 
 include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_COARSE }  from "../modules/local/jupyternotebook/main.nf"
+include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_FINE }  from "../modules/local/jupyternotebook/main.nf"
 include { SPLIT_ANNDATA }  from "../modules/local/scconversion/main.nf"
 include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_CELL_TYPES } from "../subworkflows/neighbors_leiden_umap/main.nf"
 
@@ -31,8 +32,9 @@ workflow annotate_dataset {
         [:],
         adata_integrated
     )
+    ch_adata_annotated = ANNOTATE_CELL_TYPES_COARSE.out.artifacts
     SPLIT_ANNDATA(
-        ANNOTATE_CELL_TYPES_COARSE.out.artifacts.map{ it -> [it.baseName, it]},
+        ch_adata_annotated.map{ it -> [it.baseName, it]},
         "cell_type"
     )
     NEIGHBORS_LEIDEN_UMAP_CELL_TYPES(
@@ -40,6 +42,35 @@ workflow annotate_dataset {
         "X_scANVI",
         Channel.from(0.5, 0.75, 1.0, 1.5)
     )
+    ANNOTATE_CELL_TYPES_FINE(
+        Channel.value([
+            [id: "annotate_cell_types_fine"],
+            file("${baseDir}/analyses/30_annotate_scrnaseq_data/32_annotate_cell_types_fine.py")
+        ]),
+        [
+            "input_dir": '.',
+            "main_adata": 'adata_cell_type_coarse.h5ad'
+        ],
+        NEIGHBORS_LEIDEN_UMAP_CELL_TYPES.out.adata.map{ id, adata -> adata }.mix(
+            ch_adata_annotated
+        ).collect()
+    )
+
+    // PREPARE_CELLXGENE(
+    //     Channel.value([
+    //         [id: "zz_prepare_cellxgene"],
+    //         file("${baseDir}/analyses/zz_cellxgene/stats_and_cellxgene.py")
+    //     ]),
+    //     ["adata_in": "adata_annotated_fine.h5ad"],
+    //     ANNOTATE_CELL_TYPES_FINE.out.artifacts
+    // )
+
+    // ch_adata_annotated_fine = ANNOTATE_CELL_TYPES_FINE.out.artifacts.flatten().filter(
+    //     it -> it.name.contains("h5ad")
+    // ).map{ it -> [it.baseName, it]}
+
+    // SPLIT_ANNDATA(ch_adata_annotated_fine, "dataset")
+    // H5AD_TO_SEURAT(ch_adata_annotated_fine)
 
     // ch_epithelial = NEIGHBORS_LEIDEN_UMAP_CELL_TYPES.out.adata.filter{
     //     id, adata -> id.contains("epithelial")

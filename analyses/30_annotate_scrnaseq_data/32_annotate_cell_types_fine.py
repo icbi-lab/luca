@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.11.2
+#       jupytext_version: 1.13.1
 #   kernelspec:
 #     display_name: Python [conda env:.conda-pircher-sc-integrate2]
 #     language: python
@@ -36,11 +36,11 @@ ah = AnnotationHelper()
 # %%
 input_dir = nxfvars.get(
     "input_dir",
-    "../../data/20_integrate_scrnaseq_data/28_annotate_cell_types_coarse_umap/",
+    "../../data/20_integrate_scrnaseq_data/annotate_datasets/31_cell_types_coarse/by_cell_type/",
 )
 main_adata = nxfvars.get(
     "main_adata",
-    "../../data/20_integrate_scrnaseq_data/27_annotate_cell_types_coarse/artifacts/adata_cell_type_coarse.h5ad",
+    "../../data/20_integrate_scrnaseq_data/annotate_datasets/31_cell_types_coarse/artifacts/adata_cell_type_coarse.h5ad",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
@@ -57,14 +57,14 @@ adata.obs["cell_type_coarse"] = adata.obs["cell_type"]
 # ## T cell subclustering
 
 # %%
-adata_t = sc.read_h5ad(f"{input_dir}/adata_t_cell.umap_leiden.h5ad")
+adata_t = sc.read_h5ad(f"{input_dir}/adata_cell_type_coarse_t_cell.umap_leiden.h5ad")
 adata_t.obs["leiden"] = adata_t.obs["leiden_1.00"]
 
 # %%
 ah.plot_umap(adata_t, filter_cell_type=["T cell", "NK", "Div"], cmap="inferno", size=1)
 
 # %%
-ah.plot_dotplot(adata_t, groupby="leiden_1.00")
+ah.plot_dotplot(adata_t, groupby="leiden")
 
 # %%
 sc.pl.umap(adata_t, color="dataset")
@@ -74,13 +74,12 @@ sc.pl.umap(adata_t, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
 cell_type_map = {
-    "B cell dividing": [17],
-    "NK cell": [0, 18],
-    "T cell dividing": [14],
-    "T cell CD4": [2, 3, 5],
-    "T cell CD8": [13, 1, 12, 8, 9, 11, 16, 19, 15],
-    "T cell regulatory": [4, 6, 7],
-    "T cell other": [10],
+    "NK cell": [0, 11],
+    "T cell dividing": [13],
+    "T cell CD4": [1, 4, 5, 9, 14],
+    "T cell CD8": [6, 2, 7, 16, 12, 10, 3],
+    "T cell regulatory": [8],
+    "other (T-assoc.)": [15],
 }
 
 # %%
@@ -93,7 +92,9 @@ ah.integrate_back(adata, adata_t)
 # ## Stromal cell subclustering
 
 # %%
-adata_stromal = sc.read_h5ad(f"{input_dir}/adata_stromal.umap_leiden.h5ad")
+adata_stromal = sc.read_h5ad(
+    f"{input_dir}/adata_cell_type_coarse_stromal.umap_leiden.h5ad"
+)
 
 # %%
 ah.plot_umap(
@@ -112,11 +113,11 @@ sc.pl.umap(adata_stromal, color="leiden", legend_loc="on data", legend_fontoutli
 # %%
 ct_map = {
     "Mesothelial": [8],
-    "Pericyte": [3],
-    "Smooth muscle cell": [6],
+    "Pericyte": [4],
+    "Smooth muscle cell": [5],
     "Fibroblast adventitial": [1],
     "Fibroblast alevolar": [2],
-    "Fibroblast": [0, 9, 4, 5, 7],
+    "Fibroblast": [0, 7, 10, 11, 12, 6, 3, 9],
 }
 
 # %%
@@ -129,7 +130,7 @@ ah.integrate_back(adata, adata_stromal)
 # ## Myeloid compartment
 
 # %%
-adata_m = sc.read_h5ad(f"{input_dir}/adata_myeloid.umap_leiden.h5ad")
+adata_m = sc.read_h5ad(f"{input_dir}/adata_cell_type_coarse_myeloid.umap_leiden.h5ad")
 
 # %%
 ah.plot_umap(
@@ -150,13 +151,14 @@ ah.plot_dotplot(adata_m, groupby="leiden")
 
 # %%
 ct_map = {
-    "myeloid dividing": [11],
-    "DC mature/cDC 1": [14],
-    "Macrophage FABP4+": [5, 0, 15, 9, 6, 10, 7],
-    "Macrophage": [12, 1],
-    "Monocyte": [4, 3, 8],
+    "myeloid dividing": [10],
+    "DC mature/cDC 1": [13],
+    "Macrophage FABP4+": [6, 3, 9, 7, 8, 11],
+    "Macrophage": [1, 5, 15, 17],
+    "Monocyte": [0, 4, 14, 19],
     "cDC2": [2, 16],
-    "potential myeloid/epithelial doublets": [13],
+    "potential myeloid/epithelial doublets": [12],
+    "other (myeloid-assoc.)": [18],
 }
 
 # %%
@@ -169,6 +171,35 @@ ah.integrate_back(adata, adata_m)
 # ## Epithelial compartment
 #
 # separate notebook
+
+# %% [markdown]
+# ### Investigate 'other'
+
+# %%
+other_m = adata[adata.obs["cell_type"] == "other (myeloid-assoc.)", :]
+
+# %%
+other_m.obs["dataset"].value_counts()
+
+# %%
+other_t = adata[adata.obs["cell_type"] == "other (T-assoc.)", :]
+
+# %%
+other_t.obs["dataset"].value_counts()
+
+# %%
+other_test = adata[
+    adata.obs["cell_type"].isin(["other (myeloid-assoc.)", "other (T-assoc.)"])
+    | adata.obs_names.isin(np.random.choice(adata.obs_names.values, 2000, replace=False)),
+    :,
+]
+other_test.obs["cell_type"] = [c if c.startswith("other") else "known" for c in other_test.obs["cell_type"] ]
+
+# %%
+sc.tl.rank_genes_groups(other_test, groupby="cell_type")
+
+# %%
+sc.pl.rank_genes_groups_dotplot(other_test, dendrogram=False)
 
 # %% [markdown]
 # ## Write out results
