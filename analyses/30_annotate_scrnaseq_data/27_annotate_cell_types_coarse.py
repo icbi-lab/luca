@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.11.2
+#       jupytext_version: 1.13.1
 #   kernelspec:
 #     display_name: Python [conda env:.conda-pircher-sc-integrate2]
 #     language: python
@@ -34,7 +34,8 @@ ah = AnnotationHelper()
 
 # %%
 input_dir = nxfvars.get(
-    "input_dir", "../../data/20_integrate_scrnaseq_data/26_merge_solo/artifacts"
+    "input_dir",
+    "../../data/20_integrate_scrnaseq_data/integrate_datasets/26_merge_solo/artifacts",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
@@ -75,16 +76,16 @@ sc.pl.umap(adata, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
 ct_map = {
-    "B cell": [7],
-    "Epithelial cell": [3, 31, 18, 25, 5, 12, 29, 27, 32, 33, 34, 20],
-    "Endothelial cell": [10, 28],
-    "Stromal": [16],
-    "Granulocytes": [23],
-    "Mast cell": [19],
-    "Myeloid": [15, 9, 24, 0, 13, 11, 2, 21],
-    "Plasma cell": [17],
-    "T cell": [6, 26, 22, 1, 8, 4, 14],
-    "pDC": [30],
+    "B cell": [7, 31],
+    "Epithelial cell": [18, 21, 11, 13, 3, 12, 30, 25, 27, 29, 32],
+    "Endothelial cell": [10, 23],
+    "Stromal": [14],
+    "Granulocytes": [20],
+    "Mast cell": [17],
+    "Myeloid": [0, 28, 33, 34, 19, 16, 22, 2, 6, 9, 24],
+    "Plasma cell": [15],
+    "T cell": [4, 8, 5, 1],
+    "pDC": [26],
 }
 
 # %%
