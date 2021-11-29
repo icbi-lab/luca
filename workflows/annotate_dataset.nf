@@ -1,39 +1,18 @@
 
 def modules = params.annotate_datasets.clone()
 
-include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_COARSE }  from "../modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["ANNOTATE_CELL_TYPES_COARSE"]
-)
-include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_CELL_TYPES } from "../subworkflows/neighbors_leiden_umap/main.nf" addParams(
-    options: modules["NEIGHBORS_LEIDEN_UMAP_CELL_TYPES"]
-)
-include { PREPARE_ANNDATA as PREPARE_ANNDATA_DE_EPI }  from "../modules/local/scde/main.nf" addParams(
-    options: modules["PREPARE_ANNDATA_DE_EPI"]
-)
-include { SPLIT_ANNDATA }  from "../modules/local/scconversion/main.nf" addParams(
-    options: modules["SPLIT_ANNDATA"]
-)
-include { MAKE_PSEUDOBULK as MAKE_PSEUDOBULK_EPI }  from "../modules/local/scde/main.nf" addParams(
-    options: modules["MAKE_PSEUDOBULK_EPI"]
-)
-include { DE_EDGER as DE_EDGER_EPI } from "../modules/local/scde/main.nf" addParams(
-    options: modules["DE_EDGER_EPI"]
-)
-include { DE_EDGER as DE_EDGER_EPI_N_CELLS } from "../modules/local/scde/main.nf" addParams(
-    options: modules["DE_EDGER_EPI_N_CELLS"]
-)
-include { H5AD_TO_SCE as H5AD_TO_SCE_EPI } from "../modules/local/scconversion/main.nf" addParams(
-    options: modules["H5AD_TO_SCE_EPI"]
-)
-include { DE_MAST_MIXED_EFFECTS as DE_MAST_MIXED_EFFECTS_EPI } from "../modules/local/scde/main.nf" addParams(
-    options: modules["DE_MAST_MIXED_EFFECTS_EPI"]
-)
-include { DE_DREAM as DE_DREAM_EPI } from "../modules/local/scde/main.nf" addParams(
-    options: modules["DE_DREAM_EPI"]
-)
-include { DE_DREAM as DE_DREAM_EPI_N_CELLS } from "../modules/local/scde/main.nf" addParams(
-    options: modules["DE_DREAM_EPI_N_CELLS"]
-)
+include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_COARSE }  from "../modules/local/jupyternotebook/main.nf"
+include { SPLIT_ANNDATA }  from "../modules/local/scconversion/main.nf"
+include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_CELL_TYPES } from "../subworkflows/neighbors_leiden_umap/main.nf"
+
+// include { PREPARE_ANNDATA as PREPARE_ANNDATA_DE_EPI }  from "../modules/local/scde/main.nf"
+// include { MAKE_PSEUDOBULK as MAKE_PSEUDOBULK_EPI }  from "../modules/local/scde/main.nf"
+// include { DE_EDGER as DE_EDGER_EPI } from "../modules/local/scde/main.nf"
+// include { DE_EDGER as DE_EDGER_EPI_N_CELLS } from "../modules/local/scde/main.nf"
+// include { H5AD_TO_SCE as H5AD_TO_SCE_EPI } from "../modules/local/scconversion/main.nf"
+// include { DE_MAST_MIXED_EFFECTS as DE_MAST_MIXED_EFFECTS_EPI } from "../modules/local/scde/main.nf"
+// include { DE_DREAM as DE_DREAM_EPI } from "../modules/local/scde/main.nf"
+// include { DE_DREAM as DE_DREAM_EPI_N_CELLS } from "../modules/local/scde/main.nf"
 
 /**
  * Annotate cell-types of the lung cancer atlas.
@@ -49,7 +28,7 @@ workflow annotate_dataset {
     ANNOTATE_CELL_TYPES_COARSE(
         Channel.value([
             [id: "27_annotate_cell_types"],
-            file("${baseDir}/analyses/30_annotate_scrnaseq_data/27_annotate_cell_types_coarse.py")
+            file("${baseDir}/analyses/30_annotate_scrnaseq_data/31_annotate_cell_types_coarse.py")
         ]),
         [:],
         adata_integrated
@@ -58,7 +37,6 @@ workflow annotate_dataset {
         ANNOTATE_CELL_TYPES_COARSE.out.artifacts.map{ it -> [it.baseName, it]},
         "cell_type"
     )
-
     NEIGHBORS_LEIDEN_UMAP_CELL_TYPES(
         SPLIT_ANNDATA.out.adata.flatten().map{ it -> [it.baseName, it] },
         "X_scANVI",

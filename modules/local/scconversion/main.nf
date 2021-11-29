@@ -78,9 +78,6 @@ process SEURAT_TO_SCE {
 
 
 process SPLIT_ANNDATA {
-    cpus 1
-    conda "/home/sturm/.conda/envs/pircher-sc-integrate2"
-
     input:
         tuple val(id), path(input_adata)
         val(split_variable)
