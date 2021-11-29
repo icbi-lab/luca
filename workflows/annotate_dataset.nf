@@ -1,6 +1,4 @@
 
-def modules = params.annotate_datasets.clone()
-
 include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_COARSE }  from "../modules/local/jupyternotebook/main.nf"
 include { SPLIT_ANNDATA }  from "../modules/local/scconversion/main.nf"
 include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_CELL_TYPES } from "../subworkflows/neighbors_leiden_umap/main.nf"
@@ -27,7 +25,7 @@ workflow annotate_dataset {
     main:
     ANNOTATE_CELL_TYPES_COARSE(
         Channel.value([
-            [id: "27_annotate_cell_types"],
+            [id: "annotate_cell_types_coarse"],
             file("${baseDir}/analyses/30_annotate_scrnaseq_data/31_annotate_cell_types_coarse.py")
         ]),
         [:],
