@@ -5,7 +5,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.11.2
+#       jupytext_version: 1.13.1
 #   kernelspec:
 #     display_name: Python [conda env:.conda-pircher-sc-integrate2]
 #     language: python
@@ -34,7 +34,7 @@ sc.set_figure_params(figsize=(4, 4))
 # %%
 input_adata = nxfvars.get(
     "input_adata",
-    "../../data/20_integrate_scrnaseq_data/annotate_datasets/split_adata_cell_type/adata_cell_type_coarse_epithelial_cell.umap_leiden.h5ad",
+    "../../data/0_backup/2021-11-16/20_integrate_scrnaseq_data/annotate_datasets/split_adata_cell_type/adata_cell_type_coarse_epithelial_cell.umap_leiden.h5ad",
 )
 
 artifact_dir = nxfvars.get("artifact_dir", "../../data/zz_epi")
