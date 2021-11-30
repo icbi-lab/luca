@@ -31,6 +31,7 @@ import progeny
 import hierarchical_bootstrapping as hb
 from natsort import natsorted
 import itertools
+from threadpoolctl import threadpool_limits
 
 # %%
 ah = AnnotationHelper()
@@ -43,8 +44,10 @@ input_adata = nxfvars.get(
     "input_adata",
     "../../data/20_integrate_scrnaseq_data/annotate_datasets/31_cell_types_coarse/by_cell_type/adata_cell_type_coarse_epithelial_cell.umap_leiden.h5ad",
 )
-
-artifact_dir = nxfvars.get("artifact_dir", "../../data/zz_epi")
+threadpool_limits(nxfvars.get("cpus", 32))
+artifact_dir = nxfvars.get(
+    "artifact_dir", "../../data/20_integrate_scrnaseq_data/zz_epi"
+)
 
 # %%
 adata = sc.read_h5ad(input_adata)
@@ -81,72 +84,6 @@ with plt.rc_context({"figure.figsize": (6, 6)}):
         return_fig=True,
     )
     fig.savefig(f"{artifact_dir}/overview_epithelial_cluster.pdf", bbox_inches="tight")
-
-# %% [markdown]
-# ### Dorothea/progeny
-
-# %%
-regulons = dorothea.load_regulons(
-    [
-        "A",
-        "B",
-    ],  # Which levels of confidence to use (A most confident, E least confident)
-    organism="Human",  # If working with mouse, set to Mouse
-)
-
-# %%
-from threadpoolctl import threadpool_limits
-
-# %%
-threadpool_limits(50)
-
-# %%
-dorothea.run(
-    adata,  # Data to use
-    regulons,  # Dorothea network
-    center=True,  # Center gene expression by mean per cell
-    num_perm=100,  # Simulate m random activities
-    norm=True,  # Normalize by number of edges to correct for large regulons
-    scale=True,  # Scale values per feature so that values can be compared across cells
-    use_raw=True,  # Use raw adata, where we have the lognorm gene expression
-    min_size=5,  # TF with less than 5 targets will be ignored
-)
-
-# %%
-model = progeny.load_model(
-    organism="Human",  # If working with mouse, set to Mouse
-    top=1000,  # For sc we recommend ~1k target genes since there are dropouts
-)
-
-# %%
-progeny.run(
-    adata,  # Data to use
-    model,  # PROGENy network
-    center=True,  # Center gene expression by mean per cell
-    num_perm=100,  # Simulate m random activities
-    norm=True,  # Normalize by number of edges to correct for large regulons
-    scale=True,  # Scale values per feature so that values can be compared across cells
-    use_raw=True,  # Use raw adata, where we have the lognorm gene expression
-)
-
-# %%
-adata_progeny = progeny.extract(adata)
-adata_dorothea = dorothea.extract(adata)
-
-# %%
-sc.pl.umap(
-    adata_progeny, color=adata_progeny.var_names, cmap="coolwarm", vmin=-2, vmax=2
-)
-
-# %%
-sc.pl.matrixplot(
-    adata_dorothea,
-    var_names=adata_dorothea.var_names,
-    groupby="leiden",
-    cmap="coolwarm",
-    vmax=2,
-    vmin=-2,
-)
 
 # %% [markdown]
 # ## Annotation
@@ -295,6 +232,32 @@ ah.annotate_cell_types(
 ah.integrate_back(adata, adata_11)
 
 # %% [markdown]
+# ### Subcluster 5, contains some weird normal cells
+
+# %%
+adata_5 = adata[adata.obs["cell_type"] == "5", :]
+
+# %%
+ah.reprocess_adata_subset_scvi(adata_5, leiden_res=0.4)
+
+# %%
+sc.pl.umap(adata_5, color="leiden", legend_loc="on data", legend_fontoutline=2)
+
+# %%
+sc.pl.umap(adata_5, color=["origin", "dataset"], wspace=0.5)
+
+# %%
+ah.plot_dotplot(adata_5)
+
+# %%
+ah.annotate_cell_types(
+    adata_5, {"Alevolar cell type 2": [7], "tumor cell": [0, 1, 2, 3, 4, 5, 6, 8, 9]}
+)
+
+# %%
+ah.integrate_back(adata, adata_5)
+
+# %% [markdown]
 # ## Find markers for remaining clusters
 
 # %%
@@ -305,9 +268,6 @@ with plt.rc_context({"figure.figsize": (8, 8)}):
 bdata = hb.tl.bootstrap(
     adata, groupby="cell_type", hierarchy=["dataset", "patient"], n=20, use_raw=True
 )
-
-# %%
-gini_res["expr"].sort_values()
 
 # %%
 gini_res = hb.tl.gini(bdata, groupby="cell_type")
@@ -335,9 +295,6 @@ sc.pl.umap(adata, color=["ALB", "GPM6B"], cmap="inferno")
 # %%
 adata2 = adata.copy()
 
-
-# %%
-cell_type_map
 
 # %%
 adata2.obs["cell_type"] = adata.obs["cell_type"]
@@ -386,187 +343,158 @@ sc.pl.paga(adata_tumor, color="leiden", threshold=0.2)
 sc.tl.umap(adata_tumor, init_pos="paga")
 
 # %%
-sc.pl.umap(adata_tumor, color="leiden")
+ah.plot_umap(
+    adata_tumor, filter_cell_type=["Epi", "Alev", "Goblet", "Club"], cmap="inferno"
+)
 
 # %%
+print("general")
 sc.pl.umap(
     adata_tumor,
-    color=[
-        "origin",
-        "condition",
-        "KRT5",
-        "KRT14",
-        "KRT6A",
-        "TP63",
-        "CD24",
-        "TACSTD2",
-        "MUC20",
-        "MUC1",
-        "NAPSA",
-        "NKX2-1",
-        "MUC4",
-        "CLDN4",
-    ],
+    color=["EPCAM", "CDK1", "NEAT1", "MSLN", "origin", "condition", "dataset"],
+    cmap="inferno",
+)
+
+print("LUSC")
+sc.pl.umap(
+    adata_tumor,
+    color=["NTRK2", "KRT5", "TP63", "SOX2"],
+    cmap="inferno",
+)
+
+print("LUAD")
+sc.pl.umap(
+    adata_tumor,
+    color=["MUC1", "NKX2-1", "KRT7", "SFTA2"],
+    cmap="inferno",
+)
+
+print("EMT")
+sc.pl.umap(
+    adata_tumor,
+    color=["VIM", "NME2", "MIF", "MSLN", "CHGA"],
     cmap="inferno",
 )
 
 # %%
-sc.pl.umap(
-    adata_tumor,
-    color=[
-        "KRT5",
-        "KRT6A",
-        "NTRK2",
-        "SOX2",
-        "MKI67",
-        "TOP2A",
-        "COL1A1",
-        "VIM",
-        "ENO2",
-        "NCAM1",
-        "leiden",
-        "dataset",
-        "origin",
-        "condition",
-    ],
-    cmap="inferno",
-    wspace=0.35,
-)
+sc.pl.umap(adata_tumor, color="leiden", legend_loc="on data", legend_fontoutline=2)
+
+# %%
+adata_tumor_copy = adata_tumor.copy()
 
 # %%
 ah.annotate_cell_types(
     adata_tumor,
     cell_type_map={
-        "Tumor cells LSCC mitotic": [1, 17, 14],
-        "Tumor cells LSCC": [0],
-        "Tumor cells EMT": [3, 11, 13],
-        "Tumor cells LUAD mitotic": [8, 5],
-        "Tumor cells LUAD": [4, 10, 2, 7, 17, 6, 9, 16, 12],
-        "Tumor cells Neuroendocrine": [15],
+        "Tumor cells metastasic MSLN+": [13],
+        "Tumor cells LSCC mitotic": [3],
+        "Tumor cells LSCC": [0, 6, 16, 10],
+        "Tumor cells LUAD mitotic": [14, 12],
+        "Tumor cells LUAD": [2, 1, 7, 9],
+        "Tumor cells EMT": [4, 15],
+        "Tumor cells C8": [8],
+        "Tumor cells C5": [5],
+        "Tumor cells C11": [11],
+        "Tumor cells C17": [17],
     },
 )
 
 # %%
 ah.integrate_back(adata, adata_tumor)
 
-# %%
-fig = sc.pl.umap(
-    adata,
-    color="cell_type",
-    return_fig=True,
-)
-fig.savefig(f"{artifact_dir}/marker_umaps.pdf", bbox_inches="tight")
-
 # %% [markdown]
-# ### Get markers
+# ## In-depth characterization of tumor clusters
 
 # %%
-clusters = adata.obs["cell_type"].unique()
-
-
-def make_means():
-    means = np.vstack(
-        [np.mean(adata.X[bootstrap(adata, c), :], axis=0).A1 for c in clusters]
-    )
-    return means
-
+sc.tl.rank_genes_groups(adata_tumor, groupby="cell_type")
 
 # %%
-mean_distribution = np.dstack([make_means() for _ in trange(20)])
+fig = sc.pl.rank_genes_groups_dotplot(adata_tumor, dendrogram=False, return_fig=True)
+fig.savefig(f"{artifact_dir}/marker_dotplot_tumor.pdf", bbox_inches="tight")
+
+# %% [markdown] tags=[]
+# ### Dorothea/progeny
 
 # %%
-mean_distribution.shape
-
-# %%
-mean_distribution.shape
-
-# %%
-median_expr = np.median(mean_distribution, axis=2)
-
-# %%
-from scipy.stats import rankdata
-
-# %%
-gene_ranks = rankdata(-median_expr, axis=0, method="min")
-
-# %%
-gini_dist = np.vstack(
+regulons = dorothea.load_regulons(
     [
-        np.apply_along_axis(gini, 0, mean_distribution[:, :, i])
-        for i in trange(mean_distribution.shape[2])
+        "A",
+        "B",
+    ],  # Which levels of confidence to use (A most confident, E least confident)
+    organism="Human",  # If working with mouse, set to Mouse
+)
+
+# %%
+dorothea.run(
+    adata_tumor,  # Data to use
+    regulons,  # Dorothea network
+    center=True,  # Center gene expression by mean per cell
+    num_perm=100,  # Simulate m random activities
+    norm=True,  # Normalize by number of edges to correct for large regulons
+    scale=True,  # Scale values per feature so that values can be compared across cells
+    use_raw=True,  # Use raw adata, where we have the lognorm gene expression
+    min_size=5,  # TF with less than 5 targets will be ignored
+)
+
+# %%
+model = progeny.load_model(
+    organism="Human",  # If working with mouse, set to Mouse
+    top=1000,  # For sc we recommend ~1k target genes since there are dropouts
+)
+
+# %%
+progeny.run(
+    adata_tumor,  # Data to use
+    model,  # PROGENy network
+    center=True,  # Center gene expression by mean per cell
+    num_perm=100,  # Simulate m random activities
+    norm=True,  # Normalize by number of edges to correct for large regulons
+    scale=True,  # Scale values per feature so that values can be compared across cells
+    use_raw=True,  # Use raw adata, where we have the lognorm gene expression
+)
+
+# %%
+adata_progeny = progeny.extract(adata_tumor)
+adata_dorothea = dorothea.extract(adata_tumor)
+
+# %%
+fig =sc.pl.matrixplot(
+    adata_progeny,
+    var_names=adata_progeny.var_names,
+    groupby="cell_type",
+    cmap="coolwarm",
+    vmax=2,
+    vmin=-2,
+    dendrogram=True,
+    return_fig=True
+)
+fig.savefig(f"{artifact_dir}/progeny_tumor.pdf", bbox_inches="tight")
+
+# %%
+for i, var_names in enumerate(
+    [
+        adata_dorothea.var_names[:40],
+        adata_dorothea.var_names[40:80],
+        adata_dorothea.var_names[80:],
     ]
-)
-
-# %%
-gini_dist.shape
-
-# %%
-median_gini = np.median(gini_dist, axis=0)
-
-# %%
-gini_df = (
-    pd.melt(
-        pd.DataFrame(gene_ranks, index=clusters, columns=adata.var_names).reset_index(),
-        id_vars=["index"],
-        var_name="gene_id",
-        value_name="rank",
+):
+    fig = sc.pl.matrixplot(
+        adata_dorothea,
+        var_names=var_names,
+        groupby="cell_type",
+        cmap="coolwarm",
+        vmax=2,
+        vmin=-2,
+        dendrogram=True,
+        return_fig=True
     )
-    .rename(columns={"index": "leiden"})
-    .set_index("gene_id")
-    .join(pd.DataFrame(index=adata.var_names).assign(gini=median_gini))
-    .reset_index()
-    .rename(columns={"index": "gene_id"})
-    .set_index(["gene_id", "leiden"])
-    .join(
-        pd.melt(
-            pd.DataFrame(
-                median_expr, index=clusters, columns=adata.var_names
-            ).reset_index(),
-            id_vars=["index"],
-            var_name="gene_id",
-            value_name="expr",
-        )
-        .rename(columns={"index": "leiden"})
-        .set_index(["gene_id", "leiden"])
-    )
-)
-
-# %%
-gini_df.reset_index().sort_values(
-    ["leiden", "rank", "gini"], ascending=[True, True, False]
-).loc[:, ["leiden", "gene_id", "rank", "gini", "expr"]].to_csv(
-    f"{artifact_dir}/markers_all_final.csv"
-)
-
-# %%
-gini_df.reset_index().sort_values(
-    ["leiden", "rank", "gini"], ascending=[True, True, False]
-).loc[
-    lambda x: (x["expr"] >= 0.5) & (x["rank"] <= 3) & (x["gini"] > 0.6),
-    ["leiden", "gene_id", "rank", "gini", "expr"],
-].to_csv(
-    f"{artifact_dir}/markers_filtered_final.csv"
-)
-
-# %%
-marker_genes = (
-    gini_df.loc[(gini_df["rank"] == 1) & (gini_df["expr"] >= 0.5), :]
-    .groupby("leiden")
-    .apply(
-        lambda df: [
-            x[0] for x in df.sort_values("gini", ascending=False).index[:10].values
-        ]
-    )
-    .to_dict()
-)
-
-# %%
-fig = sc.pl.dotplot(adata, var_names=marker_genes, groupby="cell_type", return_fig=True)
-fig.savefig(f"{artifact_dir}/marker_dotplot_final.pdf", bbox_inches="tight")
+    fig.savefig(f"{artifact_dir}/dorothea_tumor_{i}.pdf", bbox_inches="tight")
 
 # %% [markdown]
-# ### Write output
+# ## Write output file
 
 # %%
-adata.write_h5ad(f"{artifact_dir}/adata_epithelial_cells.h5ad")
-adata_tumor.write_h5ad(f"{artifact_dir}/adata_tumor_cells.h5ad")
+adata.write_h5ad(f"{artifact_dir}/adata_epithelial.h5ad")
+adata.write_h5ad(f"{artifact_dir}/adata_tumor.h5ad")
+
+# %%
