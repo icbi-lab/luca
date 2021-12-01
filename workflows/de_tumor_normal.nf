@@ -1,18 +1,8 @@
-include { JUPYTERNOTEBOOK as PREPARE_FOR_DE }  from "./modules/local/jupyternotebook/main.nf" addParams (
-    options: modules["PREPARE_FOR_DE"]
-)
-include { SPLIT_ANNDATA as SPLIT_ANNDATA2 }  from "./modules/local/scconversion/main.nf" addParams(
-    options: modules["SPLIT_ANNDATA"]
-)
-include { PREPARE_ANNDATA as PREPARE_ANNDATA_TUMOR_NORMAL }  from "./modules/local/scde/main.nf" addParams(
-    options: modules["PREPARE_ANNDATA_TUMOR_NORMAL"]
-)
-include { MAKE_PSEUDOBULK as MAKE_PSEUDOBULK_TUMOR_NORMAL }  from "./modules/local/scde/main.nf" addParams(
-    options: modules["MAKE_PSEUDOBULK_TUMOR_NORMAL"]
-)
-include { DE_EDGER as DE_EDGER_TUMOR_NORMAL }  from "./modules/local/scde/main.nf" addParams(
-    options: modules["DE_EDGER_TUMOR_NORMAL"]
-)
+include { JUPYTERNOTEBOOK as PREPARE_FOR_DE }  from "./modules/local/jupyternotebook/main.nf"
+include { SPLIT_ANNDATA as SPLIT_ANNDATA2 }  from "./modules/local/scconversion/main.nf"
+include { PREPARE_ANNDATA as PREPARE_ANNDATA_TUMOR_NORMAL }  from "./modules/local/scde/main.nf"
+include { MAKE_PSEUDOBULK as MAKE_PSEUDOBULK_TUMOR_NORMAL }  from "./modules/local/scde/main.nf"
+include { DE_EDGER as DE_EDGER_TUMOR_NORMAL }  from "./modules/local/scde/main.nf"
 
 
 workflow de_tumor_normal {
@@ -22,8 +12,8 @@ workflow de_tumor_normal {
     main:
     PREPARE_FOR_DE(
         Channel.value([
-            [id: "31_prepare_for_de"],
-            file("${baseDir}/analyses/20_integrate_scrnaseq_data/31_prepare_de_analysis.py")
+            [id: "prepare_for_de"],
+            file("${baseDir}/analyses/20_integrate_scrnaseq_data/41_prepare_de_analysis.py")
         ]),
         [
             "input_adata": "adata_annotated_fine.h5ad",

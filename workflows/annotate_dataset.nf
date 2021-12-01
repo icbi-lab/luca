@@ -4,15 +4,7 @@ include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_FINE }  from "../modules/local/
 include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_EPI }  from "../modules/local/jupyternotebook/main.nf"
 include { SPLIT_ANNDATA }  from "../modules/local/scconversion/main.nf"
 include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_CELL_TYPES } from "../subworkflows/neighbors_leiden_umap/main.nf"
-
-// include { PREPARE_ANNDATA as PREPARE_ANNDATA_DE_EPI }  from "../modules/local/scde/main.nf"
-// include { MAKE_PSEUDOBULK as MAKE_PSEUDOBULK_EPI }  from "../modules/local/scde/main.nf"
-// include { DE_EDGER as DE_EDGER_EPI } from "../modules/local/scde/main.nf"
-// include { DE_EDGER as DE_EDGER_EPI_N_CELLS } from "../modules/local/scde/main.nf"
-// include { H5AD_TO_SCE as H5AD_TO_SCE_EPI } from "../modules/local/scconversion/main.nf"
-// include { DE_MAST_MIXED_EFFECTS as DE_MAST_MIXED_EFFECTS_EPI } from "../modules/local/scde/main.nf"
-// include { DE_DREAM as DE_DREAM_EPI } from "../modules/local/scde/main.nf"
-// include { DE_DREAM as DE_DREAM_EPI_N_CELLS } from "../modules/local/scde/main.nf"
+include { JUPYTERNOTEBOOK as EXPORT_ATLAS }  from "../modules/local/jupyternotebook/main.nf"
 
 /**
  * Annotate cell-types of the lung cancer atlas.
@@ -69,14 +61,17 @@ workflow annotate_dataset {
         )
     )
 
-    // PREPARE_CELLXGENE(
-    //     Channel.value([
-    //         [id: "zz_prepare_cellxgene"],
-    //         file("${baseDir}/analyses/zz_cellxgene/stats_and_cellxgene.py")
-    //     ]),
-    //     ["adata_in": "adata_annotated_fine.h5ad"],
-    //     ANNOTATE_CELL_TYPES_FINE.out.artifacts
-    // )
+    EXPORT_ATLAS(
+        Channel.value([
+            [id: "export_atlas"],
+            file("${baseDir}/analyses/30_annotate_scrnaseq_data/35_export_atlas.py")
+        ]),
+        [
+            "adata_annotated_fine": "adata_annotated_fine.h5ad",
+            "adata_epi": "adata_epithelial.h5ad"
+        ],
+        ANNOTATE_CELL_TYPES_FINE.out.artifacts.mix(ANNOTATE_CELL_TYPES_EPI.out.artifacts).collect()
+    )
 
 
 

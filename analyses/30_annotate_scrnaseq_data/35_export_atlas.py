@@ -17,6 +17,10 @@
 import scanpy as sc
 from nxfvars import nxfvars
 from scanpy_helpers.annotation import AnnotationHelper
+from datetime import datetime
+
+# %%
+sc.settings.set_figure_params(figsize=(6,6))
 
 # %%
 path_adata_fine = nxfvars.get(
@@ -25,7 +29,7 @@ path_adata_fine = nxfvars.get(
 )
 path_adata_epi = nxfvars.get(
     "adata_epi",
-    "../../data/20_integrate_scrnaseq_data/annotate_datasets/33_cell_type_epi/artifacts/adata_epithelial.h5ad",
+    "../../data/20_integrate_scrnaseq_data/zz_epi/adata_epithelial.h5ad",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/data/scratch/sturm/tmp/")
 
@@ -37,25 +41,26 @@ adata_epi = sc.read_h5ad(path_adata_epi)
 adata = sc.read_h5ad(path_adata_fine)
 
 # %%
+sc.pl.umap(adata, color="cell_type")
+
+# %%
+sc.pl.umap(adata_epi, color="cell_type")
+
+# %%
 ah.integrate_back(adata, adata_epi)
 
 # %%
+adata.obs.columns
+
+# %%
+for col in adata.obs.columns:
+    if col.startswith("_"):
+        del adata.obs[col]
+        
 del adata.obs["leiden_1.00"]
-del adata.obs["doublet_status"]
-
-# %% [markdown]
-# ### Prepare datasets for cellxgene
-#
-# -> all genes in `X`, normalized values in `X`. 
 
 # %%
-adata = sc.read_h5ad(adata_in)
-
-# %% [markdown]
-# ### Dimensions (number of cells, number of genes)
-
-# %%
-adata.raw.shape
+adata.obs.columns
 
 # %% [markdown]
 # ### Overview of celltypes
@@ -73,7 +78,13 @@ sc.pl.umap(
 
 # %%
 sc.set_figure_params(figsize=(6, 6))
-sc.pl.umap(adata, color=["dataset", "condition", "origin"], wspace=0.5)
+sc.pl.umap(adata, color=["condition", "origin", "dataset"], wspace=0.3)
+
+# %% [markdown]
+# ### Dimensions (number of cells, number of genes)
+
+# %%
+adata.raw.shape
 
 # %% [markdown]
 # ### count by cell-type
@@ -124,7 +135,15 @@ print(f"total patients: {adata.obs['patient'].nunique()}")
 adata.obs.loc[:, ["origin", "patient"]].drop_duplicates()["origin"].value_counts()
 
 # %% [markdown]
-# ### Export for cellxgene
+# ## Export data
+
+# %% [markdown]
+# ### Prepare datasets for cellxgene
+#
+# -> all genes in `X`, normalized values in `X`. 
+
+# %%
+date_now = datetime.now().date().isoformat()
 
 # %%
 adata_cellxgene = sc.AnnData(
@@ -132,4 +151,15 @@ adata_cellxgene = sc.AnnData(
 )
 
 # %%
-adata_cellxgene.write_h5ad(f"{artifact_dir}/adata_cellxgene.h5ad")
+adata_cellxgene_epi = sc.AnnData(
+    var=adata_epi.raw.var, X=adata_epi.raw.X, obs=adata_epi.obs, obsm=adata_epi.obsm
+)
+
+# %%
+adata.write_h5ad(f"{artifact_dir}/full_atlas_annotated.h5ad")
+
+# %%
+adata_cellxgene.write_h5ad(f"{artifact_dir}/full_atlas_{date_now}.h5ad")
+adata_cellxgene.write_h5ad(f"{artifact_dir}/epithelial_cells_{date_now}.h5ad")
+
+# %%
