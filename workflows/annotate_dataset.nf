@@ -1,6 +1,7 @@
 
 include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_COARSE }  from "../modules/local/jupyternotebook/main.nf"
 include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_FINE }  from "../modules/local/jupyternotebook/main.nf"
+include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_EPI }  from "../modules/local/jupyternotebook/main.nf"
 include { SPLIT_ANNDATA }  from "../modules/local/scconversion/main.nf"
 include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_CELL_TYPES } from "../subworkflows/neighbors_leiden_umap/main.nf"
 
@@ -55,6 +56,18 @@ workflow annotate_dataset {
             ch_adata_annotated
         ).collect()
     )
+    ANNOTATE_CELL_TYPES_EPI(
+        Channel.value([
+            [id: "annotate_cell_types_epi"],
+            file("${baseDir}/analyses/30_annotate_scrnaseq_data/33_epithelial_cells.py")
+        ]),
+        [
+            "input_adata": 'adata_cell_type_coarse_epithelial_cell.umap_leiden.h5ad',
+        ],
+        NEIGHBORS_LEIDEN_UMAP_CELL_TYPES.out.adata.map{ id, adata -> adata }.filter(
+            it -> it.name.equals("adata_cell_type_coarse_epithelial_cell.umap_leiden.h5ad")
+        )
+    )
 
     // PREPARE_CELLXGENE(
     //     Channel.value([
@@ -65,59 +78,7 @@ workflow annotate_dataset {
     //     ANNOTATE_CELL_TYPES_FINE.out.artifacts
     // )
 
-    // ch_adata_annotated_fine = ANNOTATE_CELL_TYPES_FINE.out.artifacts.flatten().filter(
-    //     it -> it.name.contains("h5ad")
-    // ).map{ it -> [it.baseName, it]}
 
-    // SPLIT_ANNDATA(ch_adata_annotated_fine, "dataset")
-    // H5AD_TO_SEURAT(ch_adata_annotated_fine)
-
-    // ch_epithelial = NEIGHBORS_LEIDEN_UMAP_CELL_TYPES.out.adata.filter{
-    //     id, adata -> id.contains("epithelial")
-    // }
-    // PREPARE_ANNDATA_DE_EPI(
-    //     ch_epithelial,
-    //     "X",
-    //     "leiden_0.50",
-    //     ["all", "rest"]
-    // )
-    // ch_adata_for_de = PREPARE_ANNDATA_DE_EPI.out.adata.flatMap{ id, adatas -> adatas }.map{ it -> [it.baseName, it]}
-
-    // MAKE_PSEUDOBULK_EPI(
-    //     ch_adata_for_de,
-    //     "patient",
-    //     "leiden_0.50",
-    //     [10, false]
-    // )
-    // ch_pseudobulk_leiden = MAKE_PSEUDOBULK_EPI.out.pseudobulk.filter{
-    //     id, counts, samplesheet -> samplesheet.text.count("\n") >= 6
-    // }
-    // // DE_DREAM_EPI(
-    // //     ch_pseudobulk_leiden,
-    // //     "leiden_0.50",
-    // //     "+ (1 | dataset) + (1 | patient:dataset)"
-    // // )
-    // // DE_DREAM_EPI_N_CELLS(
-    // //     ch_pseudobulk_leiden,
-    // //     "leiden_0.50",
-    // //     "+ n_cells + (1 | dataset) + (1 | patient:dataset)"
-    // // )
-    // DE_EDGER_EPI(
-    //     ch_pseudobulk_leiden,
-    //     "leiden_0.50",
-    //     " + patient"
-    // )
-    // DE_EDGER_EPI_N_CELLS(
-    //     ch_pseudobulk_leiden,
-    //     "leiden_0.50",
-    //     " + patient + n_cells"
-    // )
-    // // H5AD_TO_SCE_EPI(ch_adata_for_de)
-    // // DE_MAST_MIXED_EFFECTS_EPI(
-    // //     H5AD_TO_SCE_EPI.out.sce,
-    // //     "leiden_0.50",
-    // //     " + n_genes_by_counts + (1 | patient:dataset) + (1 | dataset)"
-    // // )
 
 
     // // emit:

@@ -32,6 +32,7 @@ import hierarchical_bootstrapping as hb
 from natsort import natsorted
 import itertools
 from threadpoolctl import threadpool_limits
+import numba
 
 # %%
 ah = AnnotationHelper()
@@ -44,7 +45,8 @@ input_adata = nxfvars.get(
     "input_adata",
     "../../data/20_integrate_scrnaseq_data/annotate_datasets/31_cell_types_coarse/by_cell_type/adata_cell_type_coarse_epithelial_cell.umap_leiden.h5ad",
 )
-threadpool_limits(nxfvars.get("cpus", 32))
+threadpool_limits(nxfvars.get("cpus", 1))
+numba.set_num_threads(nxfvars.get("cpus", 1))
 artifact_dir = nxfvars.get(
     "artifact_dir", "../../data/20_integrate_scrnaseq_data/zz_epi"
 )
@@ -416,85 +418,85 @@ fig.savefig(f"{artifact_dir}/marker_dotplot_tumor.pdf", bbox_inches="tight")
 # ### Dorothea/progeny
 
 # %%
-regulons = dorothea.load_regulons(
-    [
-        "A",
-        "B",
-    ],  # Which levels of confidence to use (A most confident, E least confident)
-    organism="Human",  # If working with mouse, set to Mouse
-)
+# regulons = dorothea.load_regulons(
+#     [
+#         "A",
+#         "B",
+#     ],  # Which levels of confidence to use (A most confident, E least confident)
+#     organism="Human",  # If working with mouse, set to Mouse
+# )
 
 # %%
-dorothea.run(
-    adata_tumor,  # Data to use
-    regulons,  # Dorothea network
-    center=True,  # Center gene expression by mean per cell
-    num_perm=100,  # Simulate m random activities
-    norm=True,  # Normalize by number of edges to correct for large regulons
-    scale=True,  # Scale values per feature so that values can be compared across cells
-    use_raw=True,  # Use raw adata, where we have the lognorm gene expression
-    min_size=5,  # TF with less than 5 targets will be ignored
-)
+# dorothea.run(
+#     adata_tumor,  # Data to use
+#     regulons,  # Dorothea network
+#     center=True,  # Center gene expression by mean per cell
+#     num_perm=100,  # Simulate m random activities
+#     norm=True,  # Normalize by number of edges to correct for large regulons
+#     scale=True,  # Scale values per feature so that values can be compared across cells
+#     use_raw=True,  # Use raw adata, where we have the lognorm gene expression
+#     min_size=5,  # TF with less than 5 targets will be ignored
+# )
 
 # %%
-model = progeny.load_model(
-    organism="Human",  # If working with mouse, set to Mouse
-    top=1000,  # For sc we recommend ~1k target genes since there are dropouts
-)
+# model = progeny.load_model(
+#     organism="Human",  # If working with mouse, set to Mouse
+#     top=1000,  # For sc we recommend ~1k target genes since there are dropouts
+# )
 
 # %%
-progeny.run(
-    adata_tumor,  # Data to use
-    model,  # PROGENy network
-    center=True,  # Center gene expression by mean per cell
-    num_perm=100,  # Simulate m random activities
-    norm=True,  # Normalize by number of edges to correct for large regulons
-    scale=True,  # Scale values per feature so that values can be compared across cells
-    use_raw=True,  # Use raw adata, where we have the lognorm gene expression
-)
+# progeny.run(
+#     adata_tumor,  # Data to use
+#     model,  # PROGENy network
+#     center=True,  # Center gene expression by mean per cell
+#     num_perm=100,  # Simulate m random activities
+#     norm=True,  # Normalize by number of edges to correct for large regulons
+#     scale=True,  # Scale values per feature so that values can be compared across cells
+#     use_raw=True,  # Use raw adata, where we have the lognorm gene expression
+# )
 
 # %%
-adata_progeny = progeny.extract(adata_tumor)
-adata_dorothea = dorothea.extract(adata_tumor)
+# adata_progeny = progeny.extract(adata_tumor)
+# adata_dorothea = dorothea.extract(adata_tumor)
 
 # %%
-fig =sc.pl.matrixplot(
-    adata_progeny,
-    var_names=adata_progeny.var_names,
-    groupby="cell_type",
-    cmap="coolwarm",
-    vmax=2,
-    vmin=-2,
-    dendrogram=True,
-    return_fig=True
-)
-fig.savefig(f"{artifact_dir}/progeny_tumor.pdf", bbox_inches="tight")
+# fig =sc.pl.matrixplot(
+#     adata_progeny,
+#     var_names=adata_progeny.var_names,
+#     groupby="cell_type",
+#     cmap="coolwarm",
+#     vmax=2,
+#     vmin=-2,
+#     dendrogram=True,
+#     return_fig=True
+# )
+# fig.savefig(f"{artifact_dir}/progeny_tumor.pdf", bbox_inches="tight")
 
 # %%
-for i, var_names in enumerate(
-    [
-        adata_dorothea.var_names[:40],
-        adata_dorothea.var_names[40:80],
-        adata_dorothea.var_names[80:],
-    ]
-):
-    fig = sc.pl.matrixplot(
-        adata_dorothea,
-        var_names=var_names,
-        groupby="cell_type",
-        cmap="coolwarm",
-        vmax=2,
-        vmin=-2,
-        dendrogram=True,
-        return_fig=True
-    )
-    fig.savefig(f"{artifact_dir}/dorothea_tumor_{i}.pdf", bbox_inches="tight")
+# for i, var_names in enumerate(
+#     [
+#         adata_dorothea.var_names[:40],
+#         adata_dorothea.var_names[40:80],
+#         adata_dorothea.var_names[80:],
+#     ]
+# ):
+#     fig = sc.pl.matrixplot(
+#         adata_dorothea,
+#         var_names=var_names,
+#         groupby="cell_type",
+#         cmap="coolwarm",
+#         vmax=2,
+#         vmin=-2,
+#         dendrogram=True,
+#         return_fig=True
+#     )
+#     fig.savefig(f"{artifact_dir}/dorothea_tumor_{i}.pdf", bbox_inches="tight")
 
 # %% [markdown]
 # ## Write output file
 
 # %%
 adata.write_h5ad(f"{artifact_dir}/adata_epithelial.h5ad")
-adata.write_h5ad(f"{artifact_dir}/adata_tumor.h5ad")
+adata_tumor.write_h5ad(f"{artifact_dir}/adata_tumor.h5ad")
 
 # %%

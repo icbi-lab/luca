@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.11.2
+#       jupytext_version: 1.13.1
 #   kernelspec:
 #     display_name: Python [conda env:.conda-pircher-sc-integrate2]
 #     language: python
@@ -16,13 +16,32 @@
 # %%
 import scanpy as sc
 from nxfvars import nxfvars
+from scanpy_helpers.annotation import AnnotationHelper
 
 # %%
-adata_in = nxfvars.get(
-    "adata_in",
-    "../../data/20_integrate_scrnaseq_data/29_annotate_cell_types_fine/artifacts/adata_annotated_fine.h5ad",
+path_adata_fine = nxfvars.get(
+    "adata_annotated_fine",
+    "../../data/20_integrate_scrnaseq_data/annotate_datasets/32_cell_types_fine/artifacts/adata_annotated_fine.h5ad",
+)
+path_adata_epi = nxfvars.get(
+    "adata_epi",
+    "../../data/20_integrate_scrnaseq_data/annotate_datasets/33_cell_type_epi/artifacts/adata_epithelial.h5ad",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/data/scratch/sturm/tmp/")
+
+# %%
+ah = AnnotationHelper()
+
+# %%
+adata_epi = sc.read_h5ad(path_adata_epi)
+adata = sc.read_h5ad(path_adata_fine)
+
+# %%
+ah.integrate_back(adata, adata_epi)
+
+# %%
+del adata.obs["leiden_1.00"]
+del adata.obs["doublet_status"]
 
 # %% [markdown]
 # ### Prepare datasets for cellxgene

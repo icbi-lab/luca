@@ -60,8 +60,6 @@ process JUPYTERNOTEBOOK {
     export OPENBLAS_NUM_THREADS="${task.cpus}"
     export OMP_NUM_THREADS="${task.cpus}"
     export NUMBA_NUM_THREADS="${task.cpus}"
-    # https://github.com/theislab/scanpy/issues/2014
-    export NUMBA_CPU_NAME=generic
 
     # Convert notebook to ipynb using jupytext, execute using papermill, convert using nbconvert
     jupytext --to notebook --output - --set-kernel ${kernel} ${notebook}  \\
