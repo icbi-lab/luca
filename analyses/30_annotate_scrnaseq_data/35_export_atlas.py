@@ -160,6 +160,6 @@ adata.write_h5ad(f"{artifact_dir}/full_atlas_annotated.h5ad")
 
 # %%
 adata_cellxgene.write_h5ad(f"{artifact_dir}/full_atlas_{date_now}.h5ad")
-adata_cellxgene.write_h5ad(f"{artifact_dir}/epithelial_cells_{date_now}.h5ad")
+adata_cellxgene_epi.write_h5ad(f"{artifact_dir}/epithelial_cells_{date_now}.h5ad")
 
 # %%
