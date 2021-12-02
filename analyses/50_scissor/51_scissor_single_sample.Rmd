@@ -1,0 +1,134 @@
+---
+title: "Untitled"
+output: html_document
+params:
+  sce_path: "../../data/20_integrate_scrnaseq_data/scissor/adata_by_sample/adata.doublet_filtered_lambrechts_2018_luad_6149v2_bt1295.rds"
+  survival_path: "../../tables/mmc1.xlsx"
+  tcga_tpm_path: "../../data/13_tcga/tcga-lung-primary.rds"  
+  cpus: 1
+  id: test
+  artifact_dir: "/data/scratch/sturm/tmp"
+  meta: NULL
+  input_dir: NULL
+---
+
+
+```{r, include=FALSE}
+library(Scissor)
+library(readxl)
+library(SingleCellExperiment)
+library(readxl)
+library(dplyr)
+library(readr)
+library(stringr)
+# library(RhpcBLASctl)
+```
+
+```{r}
+# # TODO test/train split, put into separate script
+# lusc = read_tsv("../../data/13_tcga/TCGA-LUSC-PrimaryTumor-TPM.txt.gz")
+# luad = read_tsv("../../data/13_tcga/TCGA-LUAD-PrimaryTumor-TPM.txt.gz")
+# tcga_lung = luad %>% 
+#   inner_join(lusc, by=c("ENSGID", "GeneName")) %>%
+#   select(-ENSGID) %>%
+#   group_by(GeneName) %>%
+#   summarise_all(sum) %>% 
+#   tibble::column_to_rownames("GeneName") %>%
+#   as.matrix()
+# 
+# colnames_new = sapply(colnames(tcga_lung), function(x) {paste(str_split(x, pattern="-")[[1]][1:3], collapse="-")}, USE.NAMES = FALSE)
+# colnames(tcga_lung) = colnames_new
+# 
+# # for now, exclude duplicates
+# tcga_lung = tcga_lung[, !duplicated(colnames(tcga_lung))]
+# 
+# saveRDS(tcga_lung, "../../data/13_tcga/tcga-lung-primary.rds", compress=FALSE)
+```
+
+```{r}
+# # Example data
+# load("scRNA-seq.RData")
+# load("./TCGA_LUAD_exp1.RData")
+# load("./TCGA_LUAD_survival.RData")
+```
+
+### Load data
+```{r}
+sce = readRDS(params$sce_path)
+
+# According to the example dataset, bulk data are TPM (not log-transformed).
+survival = read_excel(params$survival_path, guess_max=1000000, na=c("", "[Not Available]")) %>% 
+  filter(type %in% c("LUAD", "LUSC")) %>% 
+  select(TCGA_patient_barcode=bcr_patient_barcode, OS_time=OS.time, Status=OS) 
+tcga_expr = readRDS(params$tcga_tpm_path)
+
+common_patients = sort(intersect(colnames(tcga_expr), survival$TCGA_patient_barcode))
+
+survival = survival %>% 
+  filter(TCGA_patient_barcode %in% common_patients) %>% 
+  arrange(TCGA_patient_barcode)
+tcga_expr = tcga_expr[, common_patients]
+```
+
+```{r}
+sc_dataset = Seurat_preprocessing(assays(sce)$X)
+```
+
+```{r, fig.width=6, fig.height=5}
+DimPlot(sc_dataset, reduction = 'umap', label = T, label.size = 5)
+```
+
+
+```{r}
+dim(tcga_expr)
+head(survival)
+stopifnot(all(colnames(tcga_expr) == survival$TCGA_patient_barcode))
+```
+
+```{r}
+phenotype <- survival[,2:3]
+colnames(phenotype) <- c("time", "status")
+```
+
+### execute scissor
+```{r}
+scissor_rdata = file.path(params$artifact_dir, paste0(params$id, '_scissor.RData'))
+
+infos1 <- Scissor(tcga_expr, sc_dataset, phenotype, alpha = 0.05,
+                 family = "cox", Save_file = scissor_rdata)
+```
+
+```{r}
+Scissor_select <- rep(NA, ncol(sc_dataset))
+names(Scissor_select) <- colnames(sc_dataset)
+Scissor_select[infos1$Scissor_pos] <- "pos"
+Scissor_select[infos1$Scissor_neg] <- "neg"
+sc_dataset <- AddMetaData(sc_dataset, metadata = Scissor_select, col.name = "scissor")
+DimPlot(sc_dataset, reduction = 'umap', group.by = 'scissor', cols = c('royalblue','indianred1'), pt.size = 1.2, order = c(2,1))
+```
+```{r}
+write_tsv(as.data.frame(Scissor_select) %>% as_tibble(rownames="cell_id"), file.path(params$artifact_dir, paste0(params$id, "_scissor.tsv")))
+```
+
+```{r}
+# load("Scissor_LUAD_survival.RData")
+```
+
+
+```{r}
+# computationally very expensive, leave for now! 
+# numbers <- length(infos1$Scissor_pos) + length(infos1$Scissor_neg)
+# result1 <- reliability.test(X, Y, network, alpha = 0.05, family = "cox", cell_num = numbers, n = 10, nfold = 10)
+# saveRDS(result1, file="result1.rds")
+```
+
+```{r}
+# evaulate_summary = evaluate.cell("Scissor_LUAD_survival.RData", infos1, FDR=.05, bootstrap_n=100)
+# saveRDS(evaulate_summary, file="evaluate_summary.rds")
+```
+
+
+
+
+
+
