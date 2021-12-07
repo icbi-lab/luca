@@ -64,7 +64,9 @@ adata.obs = adata_solo.obs
 adata.obsm = adata_solo.obsm
 adata.obsp = adata_solo.obsp
 adata.uns = adata_solo.uns
-adata.var["is_highly_variable"] = ["True" if v in adata_solo.var_names else "False" for v in adata.var_names]
+adata.var["is_highly_variable"] = [
+    "True" if v in adata_solo.var_names else "False" for v in adata.var_names
+]
 
 # %% [markdown]
 # ## add doublet information to anndata
@@ -105,4 +107,4 @@ sc.pl.umap(adata_nodoublet, color="doublet_status", size=5)
 # ## Write output file
 
 # %%
-adata.write_h5ad(f"{artifact_dir}/adata.doublet_filtered.h5ad")
+adata_nodoublet.write_h5ad(f"{artifact_dir}/adata.doublet_filtered.h5ad")

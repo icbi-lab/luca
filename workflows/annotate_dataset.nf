@@ -72,11 +72,8 @@ workflow annotate_dataset {
         ],
         ANNOTATE_CELL_TYPES_FINE.out.artifacts.mix(ANNOTATE_CELL_TYPES_EPI.out.artifacts).collect()
     )
+    ch_atlas = EXPORT_ATLAS.out.artifacts.flatten().filter{ it -> it.baseName.equals("full_atlas_annotated") }
 
-
-
-
-    // // emit:
-    // //     adata_annotated_by_cell_type = ch_adata_annotated_by_cell_type
-    // //     adata_annotated_cell_type_coarse = ch_adata_annotated
+    emit:
+        final_atlas = ch_atlas
 }
