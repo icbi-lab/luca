@@ -13,6 +13,7 @@ include { SCANVI } from "../modules/local/scvi/main.nf"
 include { SOLO } from "../modules/local/solo/main.nf"
 include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_DOUBLET } from "../subworkflows/neighbors_leiden_umap/main.nf"
 include { JUPYTERNOTEBOOK as MERGE_SOLO }  from "../modules/local/jupyternotebook/main.nf"
+include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_NODOUBLET } from "../subworkflows/neighbors_leiden_umap/main.nf"
 
 
 /**
@@ -135,6 +136,16 @@ workflow integrate_datasets {
         ).mix(ch_adata_merged.map{ id, it -> it}).flatten().collect()
     )
 
+    //re-compute neighbors, leiden, umap after doublet filtering.
+    ch_adata_doublet_filtered = MERGE_SOLO.out.artifacts.filter{
+        it -> it.baseName.contains("doublet_filtered")
+    }.map{ it -> [it.baseName, it] }
+    NEIGHBORS_LEIDEN_UMAP_NODOUBLET(
+        ch_adata_doublet_filtered,
+        "X_scANVI",
+        1.0
+    )
+
     emit:
-        adata_integrated = MERGE_SOLO.out.artifacts
+        adata_integrated = NEIGHBORS_LEIDEN_UMAP_NODOUBLET.out.adata.map{ meta, ad -> ad }
 }
