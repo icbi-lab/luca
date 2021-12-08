@@ -49,9 +49,6 @@ adata.obs["leiden"] = adata.obs["leiden_1.00"]
 sc.pl.umap(adata, color="leiden")
 
 # %%
-sc.pl.umap(adata, color="leiden")
-
-# %%
 sc.pl.umap(adata, color="dataset")
 
 # %%
@@ -59,6 +56,9 @@ sc.pl.umap(adata, color="dataset", groups=["Maynard_Bivona_2020_NSCLC"], size=8)
 
 # %%
 ah.plot_umap(adata, cmap="inferno", size=2)
+
+# %%
+sc.pl.umap(adata, color=["GPM6B", "ALB", "HBB"], cmap="inferno", size=2)
 
 # %%
 ah.plot_dotplot(adata)
@@ -79,16 +79,18 @@ sc.pl.umap(adata, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
 ct_map = {
-    "B cell": [7, 31],
-    "Epithelial cell": [18, 21, 11, 13, 3, 12, 30, 25, 27, 29, 32],
-    "Endothelial cell": [10, 23],
+    "B cell": [8],
+    "Epithelial cell": [31, 18, 5, 13, 19, 12, 28, 23, 21, 29],
+    "Endothelial cell": [9, 25],
     "Stromal": [14],
-    "Granulocytes": [20],
-    "Mast cell": [17],
-    "Myeloid": [0, 28, 33, 34, 19, 16, 22, 2, 6, 9, 24],
+    "Granulocytes": [22],
+    "Mast cell": [20],
+    "Myeloid": [0, 2, 30, 17, 27, 6, 11, 16],
     "Plasma cell": [15],
-    "T cell": [4, 8, 5, 1],
+    "T cell": [7, 1, 4, 3, 10, 24],
     "pDC": [26],
+    # they come from brain metastases
+    "Neuronal cells": [29]
 }
 
 # %%
