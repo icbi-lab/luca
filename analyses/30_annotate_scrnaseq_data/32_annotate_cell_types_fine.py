@@ -74,12 +74,13 @@ sc.pl.umap(adata_t, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
 cell_type_map = {
-    "NK cell": [0, 11],
-    "T cell dividing": [13],
-    "T cell CD4": [1, 4, 5, 9, 14],
-    "T cell CD8": [6, 2, 7, 16, 12, 10, 3],
-    "T cell regulatory": [8],
-    "other (T-assoc.)": [15],
+    "NK cell": [5, 3],
+    "T cell dividing": [15],
+    "T cell CD4": [1, 4, 0, 17, 16, 7],
+    "T cell CD8": [13, 10, 8, 6, 12, 14, 9],
+    "T cell regulatory": [2],
+    "B cell dividing": [18],
+    "other (T assoc.)": [11]
 }
 
 # %%
@@ -114,10 +115,10 @@ sc.pl.umap(adata_stromal, color="leiden", legend_loc="on data", legend_fontoutli
 ct_map = {
     "Mesothelial": [8],
     "Pericyte": [4],
-    "Smooth muscle cell": [5],
-    "Fibroblast adventitial": [1],
+    "Smooth muscle cell": [6],
+    "Fibroblast adventitial": [0],
     "Fibroblast alevolar": [2],
-    "Fibroblast": [0, 7, 10, 11, 12, 6, 3, 9],
+    "Fibroblast": [1, 7, 5, 3, 9],
 }
 
 # %%
@@ -151,18 +152,35 @@ ah.plot_dotplot(adata_m, groupby="leiden")
 
 # %%
 ct_map = {
-    "myeloid dividing": [10],
-    "DC mature/cDC 1": [13],
-    "Macrophage FABP4+": [6, 3, 9, 7, 8, 11],
-    "Macrophage": [1, 5, 15, 17],
-    "Monocyte": [0, 4, 14, 19],
-    "cDC2": [2, 16],
-    "potential myeloid/epithelial doublets": [12],
+    "myeloid dividing": [16, 11],
+    "Macrophage FABP4+": [0, 2, 9, 7],
+    "Macrophage": [3, 6, 15, 12, 5, 10],
+    "Monocyte": [1, 14, 8, 17],
+    "cDC2": [4],
     "other (myeloid-assoc.)": [18],
+    "cDC1/mature": [13]
 }
 
 # %%
 ah.annotate_cell_types(adata_m, ct_map)
+
+# %%
+adata_dc = adata_m[adata_m.obs["leiden"] == "13", :]
+
+# %%
+ah.reprocess_adata_subset_scvi(adata_dc, leiden_res=0.5)
+
+# %%
+ah.plot_umap(adata_dc, filter_cell_type=["DC"], cmap="inferno")
+
+# %%
+sc.pl.umap(adata_dc, color="leiden", legend_loc="on data", legend_fontoutline=2)
+
+# %%
+ah.annotate_cell_types(adata_dc, {"DC mature": [2, 0, 8, 9], "cDC1": [5, 3, 6, 4, 1, 7]})
+
+# %%
+ah.integrate_back(adata_m, adata_dc)
 
 # %%
 ah.integrate_back(adata, adata_m)
@@ -171,35 +189,6 @@ ah.integrate_back(adata, adata_m)
 # ## Epithelial compartment
 #
 # separate notebook
-
-# %% [markdown]
-# ### Investigate 'other'
-
-# %%
-other_m = adata[adata.obs["cell_type"] == "other (myeloid-assoc.)", :]
-
-# %%
-other_m.obs["dataset"].value_counts()
-
-# %%
-other_t = adata[adata.obs["cell_type"] == "other (T-assoc.)", :]
-
-# %%
-other_t.obs["dataset"].value_counts()
-
-# %%
-other_test = adata[
-    adata.obs["cell_type"].isin(["other (myeloid-assoc.)", "other (T-assoc.)"])
-    | adata.obs_names.isin(np.random.choice(adata.obs_names.values, 2000, replace=False)),
-    :,
-]
-other_test.obs["cell_type"] = [c if c.startswith("other") else "known" for c in other_test.obs["cell_type"] ]
-
-# %%
-sc.tl.rank_genes_groups(other_test, groupby="cell_type")
-
-# %%
-sc.pl.rank_genes_groups_dotplot(other_test, dendrogram=False)
 
 # %% [markdown]
 # ## Write out results

@@ -33,6 +33,8 @@ from natsort import natsorted
 import itertools
 from threadpoolctl import threadpool_limits
 import numba
+from toolz.functoolz import reduce
+from operator import or_
 
 # %%
 ah = AnnotationHelper()
@@ -47,9 +49,7 @@ input_adata = nxfvars.get(
 )
 threadpool_limits(nxfvars.get("cpus", 1))
 numba.set_num_threads(nxfvars.get("cpus", 1))
-artifact_dir = nxfvars.get(
-    "artifact_dir", "../../data/20_integrate_scrnaseq_data/zz_epi"
-)
+artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 
 # %%
 adata = sc.read_h5ad(input_adata)
@@ -91,6 +91,9 @@ with plt.rc_context({"figure.figsize": (6, 6)}):
 # ## Annotation
 
 # %%
+sc.pl.umap(adata, color=["GMNC", "FOXJ1", "FOXA3"], cmap="inferno")
+
+# %%
 with plt.rc_context({"figure.figsize": (4, 4)}):
     ah.plot_umap(
         adata,
@@ -116,15 +119,12 @@ with plt.rc_context({"figure.figsize": (6, 6)}):
     sc.pl.umap(adata, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
-from toolz.functoolz import reduce
-from operator import or_
-
-# %%
 cell_type_map = {
     "Alevolar cell type 1": [10],
-    "Alevolar cell type 2": [0],
-    "Ciliated": [7],
-    "Club": [1],
+    "Alevolar cell type 2": [1, 14, 8, 12],
+    "Ciliated": [6, 15],
+    "Club": [3],
+    "tumor cells": [2, 9, 13, 17, 11, 4, 0, 16],
 }
 cell_type_map.update(
     {
@@ -138,195 +138,80 @@ cell_type_map.update(
 ah.annotate_cell_types(adata, cell_type_map)
 
 # %% [markdown]
-# ### Subcluster 15, contains alevolar 2
-
-# %%
-adata_15 = adata[adata.obs["cell_type"] == "15", :]
-
-# %%
-ah.reprocess_adata_subset_scvi(adata_15, leiden_res=0.5)
-
-# %%
-sc.pl.umap(adata_15, color="leiden", legend_loc="on data", legend_fontoutline=2)
-
-# %%
-sc.pl.umap(adata_15, color="dataset")
-
-# %%
-ah.plot_umap(adata_15, filter_cell_type=["Alev", "Goblet", "Club"])
-
-# %%
-ah.plot_dotplot(adata_15)
-
-# %%
-ah.annotate_cell_types(
-    adata_15,
-    {"Alevolar cell type 2": [0, 1, 2, 4], "Alevolar cell type 1": [5], "Club": [3]},
-)
-
-# %%
-ah.integrate_back(adata, adata_15)
-
-# %% [markdown]
-# ### Subcluster 9, contains alevolar 2
-
-# %%
-adata_9 = adata[adata.obs["cell_type"] == "9", :]
-
-# %%
-ah.reprocess_adata_subset_scvi(adata_9, leiden_res=0.5)
-
-# %%
-sc.pl.umap(adata_9, color="leiden", legend_loc="on data", legend_fontoutline=2)
-
-# %%
-sc.pl.umap(adata_9, color=["origin", "dataset"], wspace=0.5)
-
-# %%
-ah.plot_umap(adata_9, filter_cell_type=["Alev", "Goblet", "Club", "Epi"])
-
-# %%
-ah.annotate_cell_types(
-    adata_9,
-    {
-        "Alevolar cell type 2": [0, 6, 2, 7, 5],
-        "Club": [4, 3, 8],
-        "ROS1+ normal epithelial": [1],
-    },
-)
-
-# %%
-ah.integrate_back(adata, adata_9)
-
-# %% [markdown]
-# ### Subcluster 11, contains goblet
-
-# %%
-adata_11 = adata[adata.obs["cell_type"] == "11", :]
-
-# %%
-ah.reprocess_adata_subset_scvi(adata_11, leiden_res=0.5)
-
-# %%
-sc.pl.umap(adata_11, color="leiden", legend_loc="on data", legend_fontoutline=2)
-
-# %%
-sc.pl.umap(adata_11, color=["origin", "dataset"], wspace=0.5)
-
-# %%
-ah.plot_umap(adata_11, filter_cell_type=["Alev", "Goblet", "Club"])
-
-# %%
-ah.plot_dotplot(adata_11)
-
-# %%
-ah.annotate_cell_types(
-    adata_11,
-    {
-        "Club": [9],
-        "Goblet": [7, 3, 1, 0, 4, 5],
-        "11-1": [2, 10, 6],
-        "11-2": [8],
-    },
-)
-
-# %%
-ah.integrate_back(adata, adata_11)
-
-# %% [markdown]
-# ### Subcluster 5, contains some weird normal cells
+# ### Subcluster 5
 
 # %%
 adata_5 = adata[adata.obs["cell_type"] == "5", :]
 
 # %%
-ah.reprocess_adata_subset_scvi(adata_5, leiden_res=0.4)
+ah.reprocess_adata_subset_scvi(adata_5, leiden_res=0.5)
 
 # %%
-sc.pl.umap(adata_5, color="leiden", legend_loc="on data", legend_fontoutline=2)
+sc.pl.umap(adata_5, color=["origin", "dataset"])
 
 # %%
-sc.pl.umap(adata_5, color=["origin", "dataset"], wspace=0.5)
+sc.pl.umap(adata_5, color="ROS1")
+
+# %%
+ah.plot_umap(adata_5, filter_cell_type=["Alev", "Goblet", "Club"], cmap="inferno")
 
 # %%
 ah.plot_dotplot(adata_5)
 
 # %%
+sc.pl.umap(adata_5, color="leiden", legend_loc="on data", legend_fontoutline=2)
+
+# %%
+
+# %%
 ah.annotate_cell_types(
-    adata_5, {"Alevolar cell type 2": [7], "tumor cell": [0, 1, 2, 3, 4, 5, 6, 8, 9]}
+    adata_5,
+    {
+        "Alevolar cell type 2": [9],
+        "Club": [0, 5, 6],
+        "ROS1+ healthy epithelial": [2],
+        "tumor cells": [8, 4, 3, 1, 7],
+    },
 )
 
 # %%
 ah.integrate_back(adata, adata_5)
 
 # %% [markdown]
-# ## Find markers for remaining clusters
+# ### Subcluster 7, contains goblet
 
 # %%
-with plt.rc_context({"figure.figsize": (8, 8)}):
-    sc.pl.umap(adata, color="cell_type", size=0.6)
+adata_7 = adata[adata.obs["cell_type"] == "7", :]
 
 # %%
-bdata = hb.tl.bootstrap(
-    adata, groupby="cell_type", hierarchy=["dataset", "patient"], n=20, use_raw=True
-)
+ah.reprocess_adata_subset_scvi(adata_7, leiden_res=0.5)
 
 # %%
-gini_res = hb.tl.gini(bdata, groupby="cell_type")
+sc.pl.umap(adata_7, color=["origin", "dataset"], wspace=0.5)
 
 # %%
-hb.pl.gini_dotplot(adata, gini_res, groupby="cell_type", max_rank=2)
+ah.plot_umap(adata_7, filter_cell_type=["Alev", "Goblet", "Club", "Epi"])
 
 # %%
-hb.pl.gini_matrixplot(bdata, gini_res, groupby="cell_type", cmap="Reds", max_rank=2)
-
-# %% [markdown]
-# ## Annotate remaining clusters
+ah.plot_dotplot(adata_7)
 
 # %%
-nrows = int(np.ceil(adata.obs["cell_type"].nunique() / 4))
-fig, axs = plt.subplots(
-    nrows, 4, figsize=(16, nrows * 4), gridspec_kw={"wspace": 0.35, "hspace": 0.35}
-)
-for c, ax in zip(natsorted(adata.obs["cell_type"].unique()), axs.flatten()):
-    sc.pl.umap(adata, color="cell_type", groups=[str(c)], size=1, ax=ax, show=False)
+sc.pl.umap(adata_7, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
-sc.pl.umap(adata, color=["ALB", "GPM6B"], cmap="inferno")
-
-# %%
-adata2 = adata.copy()
-
-
-# %%
-adata2.obs["cell_type"] = adata.obs["cell_type"]
-
-cell_type_map = {
-    "Hemoglobin+": ["11-2"],
-    "tumor cell": [2, 3, 8, 6, 5, 4, 16, 17, 18, 14, "11-1"],
-    "Alevolar cell type 2": [12, 19, 13],
-    "Neuronal cells": [17],
-    "Hepatocytes": [20],
-}
-for ct in set(adata2.obs["cell_type"]) - set(
-    map(str, itertools.chain.from_iterable(cell_type_map.values()))
-):
-    cell_type_map[ct] = cell_type_map.get(ct, []) + [ct]
-
 ah.annotate_cell_types(
-    adata2,
-    cell_type_map,
-    column="cell_type",
+    adata_7,
+    {"Goblet": [6, 1, 0, 9, 10], "tumor cells": [7, 8, 2, 5, 3, 4]},
 )
 
 # %%
-adata = adata2
+ah.integrate_back(adata, adata_7)
 
 # %% [markdown]
 # ## Tumor cells
 
 # %%
-adata_tumor = adata[adata.obs["cell_type"] == "tumor cell", :].copy()
+adata_tumor = adata[adata.obs["cell_type"] == "tumor cells", :].copy()
 
 # %%
 ah.reprocess_adata_subset_scvi(adata_tumor, leiden_res=0.5)
@@ -339,7 +224,7 @@ del adata_tumor.uns["leiden_colors"]
 sc.tl.paga(adata_tumor, "leiden")
 
 # %%
-sc.pl.paga(adata_tumor, color="leiden", threshold=0.2)
+sc.pl.paga(adata_tumor, color="leiden", threshold=0.25)
 
 # %%
 sc.tl.umap(adata_tumor, init_pos="paga")
@@ -350,11 +235,16 @@ ah.plot_umap(
 )
 
 # %%
+print("confounders")
+sc.pl.umap(adata_tumor, color=["ALB", "HBB", "HBA1", "GPM6B"])
+
+# %%
 print("general")
 sc.pl.umap(
     adata_tumor,
     color=["EPCAM", "CDK1", "NEAT1", "MSLN", "origin", "condition", "dataset"],
     cmap="inferno",
+    wspace=0.5,
 )
 
 print("LUSC")
@@ -388,16 +278,17 @@ adata_tumor_copy = adata_tumor.copy()
 ah.annotate_cell_types(
     adata_tumor,
     cell_type_map={
-        "Tumor cells metastasic MSLN+": [13],
+        "Club": [9],
+        "Tumor cells metastasic MSLN+": [14],
         "Tumor cells LSCC mitotic": [3],
-        "Tumor cells LSCC": [0, 6, 16, 10],
-        "Tumor cells LUAD mitotic": [14, 12],
-        "Tumor cells LUAD": [2, 1, 7, 9],
-        "Tumor cells EMT": [4, 15],
-        "Tumor cells C8": [8],
-        "Tumor cells C5": [5],
-        "Tumor cells C11": [11],
-        "Tumor cells C17": [17],
+        "Tumor cells LSCC": [4, 1],
+        "Tumor cells LUAD mitotic": [8],
+        "Tumor cells LUAD": [6, 0, 10, 17, 18, 12],
+        "Tumor cells EMT": [5],
+        "Tumor cells undifferentiated": [7, 11],
+        "Tumor cells C2": [2],
+        "Tumor cells C13": [13, 15],
+        "Tumor cells C16": [16, 19],
     },
 )
 
@@ -405,98 +296,8 @@ ah.annotate_cell_types(
 ah.integrate_back(adata, adata_tumor)
 
 # %% [markdown]
-# ## In-depth characterization of tumor clusters
-
-# %%
-sc.tl.rank_genes_groups(adata_tumor, groupby="cell_type")
-
-# %%
-fig = sc.pl.rank_genes_groups_dotplot(adata_tumor, dendrogram=False, return_fig=True)
-fig.savefig(f"{artifact_dir}/marker_dotplot_tumor.pdf", bbox_inches="tight")
-
-# %% [markdown] tags=[]
-# ### Dorothea/progeny
-
-# %%
-# regulons = dorothea.load_regulons(
-#     [
-#         "A",
-#         "B",
-#     ],  # Which levels of confidence to use (A most confident, E least confident)
-#     organism="Human",  # If working with mouse, set to Mouse
-# )
-
-# %%
-# dorothea.run(
-#     adata_tumor,  # Data to use
-#     regulons,  # Dorothea network
-#     center=True,  # Center gene expression by mean per cell
-#     num_perm=100,  # Simulate m random activities
-#     norm=True,  # Normalize by number of edges to correct for large regulons
-#     scale=True,  # Scale values per feature so that values can be compared across cells
-#     use_raw=True,  # Use raw adata, where we have the lognorm gene expression
-#     min_size=5,  # TF with less than 5 targets will be ignored
-# )
-
-# %%
-# model = progeny.load_model(
-#     organism="Human",  # If working with mouse, set to Mouse
-#     top=1000,  # For sc we recommend ~1k target genes since there are dropouts
-# )
-
-# %%
-# progeny.run(
-#     adata_tumor,  # Data to use
-#     model,  # PROGENy network
-#     center=True,  # Center gene expression by mean per cell
-#     num_perm=100,  # Simulate m random activities
-#     norm=True,  # Normalize by number of edges to correct for large regulons
-#     scale=True,  # Scale values per feature so that values can be compared across cells
-#     use_raw=True,  # Use raw adata, where we have the lognorm gene expression
-# )
-
-# %%
-# adata_progeny = progeny.extract(adata_tumor)
-# adata_dorothea = dorothea.extract(adata_tumor)
-
-# %%
-# fig =sc.pl.matrixplot(
-#     adata_progeny,
-#     var_names=adata_progeny.var_names,
-#     groupby="cell_type",
-#     cmap="coolwarm",
-#     vmax=2,
-#     vmin=-2,
-#     dendrogram=True,
-#     return_fig=True
-# )
-# fig.savefig(f"{artifact_dir}/progeny_tumor.pdf", bbox_inches="tight")
-
-# %%
-# for i, var_names in enumerate(
-#     [
-#         adata_dorothea.var_names[:40],
-#         adata_dorothea.var_names[40:80],
-#         adata_dorothea.var_names[80:],
-#     ]
-# ):
-#     fig = sc.pl.matrixplot(
-#         adata_dorothea,
-#         var_names=var_names,
-#         groupby="cell_type",
-#         cmap="coolwarm",
-#         vmax=2,
-#         vmin=-2,
-#         dendrogram=True,
-#         return_fig=True
-#     )
-#     fig.savefig(f"{artifact_dir}/dorothea_tumor_{i}.pdf", bbox_inches="tight")
-
-# %% [markdown]
 # ## Write output file
 
 # %%
 adata.write_h5ad(f"{artifact_dir}/adata_epithelial.h5ad")
 adata_tumor.write_h5ad(f"{artifact_dir}/adata_tumor.h5ad")
-
-# %%
