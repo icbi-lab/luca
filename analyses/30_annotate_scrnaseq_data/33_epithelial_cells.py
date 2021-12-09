@@ -28,7 +28,7 @@ import numpy as np
 from natsort import natsorted
 import dorothea
 import progeny
-import hierarchical_bootstrapping as hb
+# import hierarchical_bootstrapping as hb
 from natsort import natsorted
 import itertools
 from threadpoolctl import threadpool_limits

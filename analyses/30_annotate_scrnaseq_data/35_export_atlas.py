@@ -29,7 +29,7 @@ path_adata_fine = nxfvars.get(
 )
 path_adata_epi = nxfvars.get(
     "adata_epi",
-    "../../data/20_integrate_scrnaseq_data/zz_epi/adata_epithelial.h5ad",
+    "../../data/20_integrate_scrnaseq_data/annotate_datasets/33_cell_types_epi/artifacts/adata_epithelial.h5ad",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/data/scratch/sturm/tmp/")
 
@@ -48,6 +48,9 @@ sc.pl.umap(adata_epi, color="cell_type")
 
 # %%
 ah.integrate_back(adata, adata_epi)
+
+# %%
+adata = adata[~adata.obs["cell_type"].isin(["Neuronal cells"]), :]
 
 # %%
 adata.obs.columns
