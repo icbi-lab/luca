@@ -101,8 +101,9 @@ infos1 <- Scissor(tcga_expr, sc_dataset, phenotype, alpha = 0.05,
 ```{r}
 Scissor_select <- rep(NA, ncol(sc_dataset))
 names(Scissor_select) <- colnames(sc_dataset)
-Scissor_select[infos1$Scissor_pos] <- "pos"
-Scissor_select[infos1$Scissor_neg] <- "neg"
+# it is a bit counterintuitive, but scissor+ -> worse survival, scissor- -> better survival
+Scissor_select[infos1$Scissor_pos] <- "worse survival"
+Scissor_select[infos1$Scissor_neg] <- "better survival"
 sc_dataset <- AddMetaData(sc_dataset, metadata = Scissor_select, col.name = "scissor")
 DimPlot(sc_dataset, reduction = 'umap', group.by = 'scissor', cols = c('royalblue','indianred1'), pt.size = 1.2, order = c(2,1))
 ```

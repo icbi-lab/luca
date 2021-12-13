@@ -15,6 +15,6 @@ workflow {
     integrate_datasets()
     annotate_dataset(integrate_datasets.out.adata_integrated)
     de_tumor_normal(annotate_dataset.out.final_atlas)
-    scissor(integrate_datasets.out.adata_integrated)
+    scissor(annotate_dataset.out.final_atlas)
 }
 

@@ -50,6 +50,14 @@ sc.pl.umap(adata_epi, color="cell_type")
 ah.integrate_back(adata, adata_epi)
 
 # %%
+adata.obs["cell_type_tumor"] = adata.obs["cell_type"]
+adata.obs["cell_type"] = ["Tumor cells" if x.startswith("Tumor") else x for x in adata.obs["cell_type_tumor"]]
+
+# %%
+adata_epi.obs["cell_type_tumor"] = adata.obs["cell_type_tumor"]
+adata_epi.obs["cell_type"] = adata.obs["cell_type"]
+
+# %%
 adata = adata[~adata.obs["cell_type"].isin(["Neuronal cells"]), :]
 
 # %%
@@ -160,6 +168,7 @@ adata_cellxgene_epi = sc.AnnData(
 
 # %%
 adata.write_h5ad(f"{artifact_dir}/full_atlas_annotated.h5ad")
+adata_epi.write_h5ad(f"{artifact_dir}/epithelial_cells_annotated.h5ad")
 
 # %%
 adata_cellxgene.write_h5ad(f"{artifact_dir}/full_atlas_{date_now}.h5ad")
