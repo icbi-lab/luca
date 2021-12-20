@@ -28,6 +28,7 @@ import numpy as np
 from natsort import natsorted
 import dorothea
 import progeny
+
 # import hierarchical_bootstrapping as hb
 from natsort import natsorted
 import itertools
@@ -227,6 +228,9 @@ sc.tl.paga(adata_tumor, "leiden")
 sc.pl.paga(adata_tumor, color="leiden", threshold=0.25)
 
 # %%
+sc.pl.umap(adata_tumor, color="leiden_1.00")
+
+# %%
 sc.tl.umap(adata_tumor, init_pos="paga")
 
 # %%
@@ -239,37 +243,47 @@ print("confounders")
 sc.pl.umap(adata_tumor, color=["ALB", "HBB", "HBA1", "GPM6B"])
 
 # %%
-print("general")
-sc.pl.umap(
-    adata_tumor,
-    color=["EPCAM", "CDK1", "NEAT1", "MSLN", "origin", "condition", "dataset"],
-    cmap="inferno",
-    wspace=0.5,
-)
-
-print("LUSC")
-sc.pl.umap(
-    adata_tumor,
-    color=["NTRK2", "KRT5", "TP63", "SOX2"],
-    cmap="inferno",
-)
-
-print("LUAD")
-sc.pl.umap(
-    adata_tumor,
-    color=["MUC1", "NKX2-1", "KRT7", "SFTA2"],
-    cmap="inferno",
-)
-
-print("EMT")
-sc.pl.umap(
-    adata_tumor,
-    color=["VIM", "NME2", "MIF", "MSLN", "CHGA"],
-    cmap="inferno",
-)
+markers = {
+    "Alveolar type I": ["AGER", "EMP2"],
+    "Alveolar type II": ["SFTPA1", "SFTPC"],
+    "Club/Goblet": ["SCGB1A1", "SCGB3A1"],
+    "Ciliated": ["CAPS", "SNTN"],
+    "LUSC": ["KRT5", "KRT6A", "TP63", "NTRK2", "SOX2", "KRT17"],
+    "LUAD": ["CD24", "MUC1", "NAPSA", "NKX2-1", "KRT7", "MSLN"],
+    "NE": ["CHGA", "SYP", "NCAM1", "TUBA1A"],
+    "EMT": ["VIM", "SERPINE1", "CDH1"],
+    "Ki67": ["MKI67", "TOP2A"],
+    "undifferentiated": ["TACSTD2", "AGR2"],
+    "control": ["EPCAM", "B2M"],
+}
 
 # %%
-sc.pl.umap(adata_tumor, color="leiden", legend_loc="on data", legend_fontoutline=2)
+sc.pl.umap(
+        adata_tumor,
+        color=["origin", "condition", "dataset"],
+        cmap="inferno",
+        wspace=0.5,
+    )
+
+# %%
+for name, genes in markers.items():
+    print(name)
+    sc.pl.umap(
+        adata_tumor,
+        color=genes,
+        cmap="inferno",
+        wspace=0.5,
+    )
+
+# %%
+sc.tl.leiden(adata_tumor, resolution=1, key_added="leiden_1.00")
+
+# %%
+sc.pl.dotplot(adata_tumor, groupby="leiden_1.00", var_names=markers)
+
+# %%
+with plt.rc_context({"figure.figsize": (6, 6)}):
+    sc.pl.umap(adata_tumor, color="leiden_1.00", legend_loc="on data", legend_fontoutline=2, size=3)
 
 # %%
 adata_tumor_copy = adata_tumor.copy()
@@ -278,18 +292,19 @@ adata_tumor_copy = adata_tumor.copy()
 ah.annotate_cell_types(
     adata_tumor,
     cell_type_map={
-        "Club": [9],
-        "Tumor cells metastasic MSLN+": [14],
-        "Tumor cells LSCC mitotic": [3],
-        "Tumor cells LSCC": [4, 1],
-        "Tumor cells LUAD mitotic": [8],
-        "Tumor cells LUAD": [6, 0, 10, 17, 18, 12],
-        "Tumor cells EMT": [5],
-        "Tumor cells undifferentiated": [7, 11],
-        "Tumor cells C2": [2],
-        "Tumor cells C13": [13, 15],
-        "Tumor cells C16": [16, 19],
+        "Club": [12],
+        "LUAD": [5, 25, 9, 7, 4, 1, 26, 15, 20, 27, 24, 22, 29, 2, 30, 13],
+        "LUAD EMT": [6, 18, 23],
+        "LUAD MSLN": [21],
+        "LUAD NE": [31],
+        "LUAD dedifferentiated": [17],
+        "LUAD mitotic": [14, 19],
+        "LUSC": [0, 8, 28, 16],
+        "LUSC mitotic": [3,11],
+        "Hepatocytes": [32],
+        "Hemoglobin+": [10]
     },
+    column = "leiden_1.00"
 )
 
 # %%
