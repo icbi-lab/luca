@@ -37,7 +37,7 @@ workflow de_tumor_normal {
         SPLIT_ANNDATA.out.adata.flatten().map{it -> [it.baseName, it]},
         "patient",
         "origin",
-        10
+        [10, false]
     )
     DE_EDGER_TUMOR_NORMAL(
         // only consider cell-types with at least three case/control samples

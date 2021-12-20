@@ -21,13 +21,19 @@ workflow scissor {
                 'id': id,
                  'sce_path': sce.name,
                  'survival_path': 'mmc1.xlsx',
+                 'kras_mutation': 'kras_mutated.tsv',
+                 'egfr_mutation': 'egfr_mutated.tsv',
+                 'braf_mutation': 'braf_mutated.tsv',
                  'tcga_tpm_path': 'tcga-lung-primary.rds'
             ]
         },
         ch_sce.map{
             id, sce -> [
                 sce,
-                file("$baseDir/tables/mmc1.xlsx", checkIfExists: true),
+                file("$baseDir/tables/tcga/mmc1.xlsx", checkIfExists: true),
+                file("$baseDir/tables/tcga/kras_mutated.tsv", checkIfExists: true),
+                file("$baseDir/tables/tcga/braf_mutated.tsv", checkIfExists: true),
+                file("$baseDir/tables/tcga/egfr_mutated.tsv", checkIfExists: true),
                 file("$baseDir/data/13_tcga/tcga-lung-primary.rds")
             ]
         }
