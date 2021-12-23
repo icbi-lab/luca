@@ -16,7 +16,7 @@ workflow de_tumor_normal {
             file("${baseDir}/analyses/40_de_tumor_normal/41_prepare_de_analysis.py")
         ]),
         [
-            "input_adata": "full_atlas_annotated.h5ad",
+            "input_adata": adata_annotated.name,
         ],
         adata_annotated
     )

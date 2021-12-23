@@ -3,7 +3,7 @@ include { check_samplesheet } from '../modules/local/check_samplesheet'
 include { SCQC } from "../modules/local/scqc/main"
 include { SCQC_MERGE_STATS } from "../modules/local/scqc_merge_stats/main.nf"
 include { SCVI as SCVI_SEED } from "../modules/local/scvi/main.nf"
-include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_SEED } from "../subworkflows/neighbors_leiden_umap/main.nf"
+include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_SEED } from "./neighbors_leiden_umap.nf"
 include { JUPYTERNOTEBOOK as ANNOTATE_SEED } from "../modules/local/jupyternotebook/main.nf"
 
 
@@ -11,9 +11,9 @@ include { JUPYTERNOTEBOOK as MERGE_ALL } from "../modules/local/jupyternotebook/
 include { SCVI } from "../modules/local/scvi/main.nf"
 include { SCANVI } from "../modules/local/scvi/main.nf"
 include { SOLO } from "../modules/local/solo/main.nf"
-include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_DOUBLET } from "../subworkflows/neighbors_leiden_umap/main.nf"
+include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_DOUBLET } from "./neighbors_leiden_umap.nf"
 include { JUPYTERNOTEBOOK as MERGE_SOLO }  from "../modules/local/jupyternotebook/main.nf"
-include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_NODOUBLET } from "../subworkflows/neighbors_leiden_umap/main.nf"
+include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_NODOUBLET } from "./neighbors_leiden_umap.nf"
 
 
 /**

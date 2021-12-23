@@ -3,10 +3,10 @@ include { H5AD_TO_SCE }  from "../modules/local/scconversion/main.nf"
 include { RMARKDOWNNOTEBOOK as SCISSOR } from "../modules/local/rmarkdownnotebook/main.nf"
 
 workflow scissor {
-    take: adata_integrated
+    take: adata_annotated
 
     main:
-    ch_adata_integrated = adata_integrated.map{ it -> [it.baseName, it]}
+    ch_adata_integrated = Channel.value([adata_annotated.baseName, adata_annotated])
     SPLIT_ANNDATA(ch_adata_integrated, "patient")
     H5AD_TO_SCE(SPLIT_ANNDATA.out.adata.flatten().map{ it -> [it.baseName, it]})
 
