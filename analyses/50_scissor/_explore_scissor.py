@@ -172,15 +172,15 @@ pd.__version__
 
 
 # %%
-def scissor_by_group(adata, *, groupby="cell_type", scissor_col, adatas_for_gini = None):
+def scissor_by_group(adata, *, groupby="cell_type", scissor_col, adatas_for_gini=None):
     """Aggregate scissor scores first by patient, then by a grouping variable
-    
+
     Parameters
     ----------
     adatas_for_gini
         Set this to a dict {groupby: adata} with an AnnData object
-        for each group with a `leiden` clustering. This will 
-        be used to obtain gini index. 
+        for each group with a `leiden` clustering. This will
+        be used to obtain gini index.
     """
     obs = adata_primary.obs.copy()
     # convert to str that nans are counted
@@ -316,7 +316,7 @@ for col, df in scissor_dfs.items():
 adata_neutro = adata[adata.obs["cell_type"] == "Granulocytes", :].copy()
 
 # %%
-sc.settings.set_figure_params(figsize=(5,5))
+sc.settings.set_figure_params(figsize=(5, 5))
 
 # %%
 sc.pp.neighbors(adata_neutro, use_rep="X_scANVI")
@@ -324,17 +324,65 @@ sc.tl.leiden(adata_neutro, resolution=0.5)
 sc.tl.umap(adata_neutro)
 
 # %%
-sc.pl.umap(adata_neutro, color=["origin", "leiden", "dataset"], wspace=.5)
+sc.pl.umap(adata_neutro, color=["origin", "leiden", "dataset"], wspace=0.5)
 
 # %%
-sc.pl.umap(adata_neutro, color=adata.obs.columns[adata.obs.columns.str.startswith("scissor")], wspace=.5, ncols=3)
+sc.pl.umap(
+    adata_neutro,
+    color=adata.obs.columns[adata.obs.columns.str.startswith("scissor")],
+    wspace=0.5,
+    ncols=3,
+)
 
 # %%
-with plt.rc_context({"figure.figsize": (4,4)}):
+neutro_ukimv = adata_neutro[adata_neutro.obs["dataset"] == "UKIM-V", :]
+
+# %%
+sc.pl.umap(
+    neutro_ukimv,
+    color=["origin", "leiden", "patient", "dataset", "VEGFA"],
+    wspace=0.5,
+    ncols=2,
+)
+
+# %%
+sc.pl.dotplot(
+    neutro_ukimv,
+    groupby=["patient", "origin"],
+    var_names="VEGFA",
+    title="tumor_primary",
+    vmin=0, 
+    vmax=1
+)
+
+# %%
+sc.pl.dotplot(
+    neutro_ukimv[neutro_ukimv.obs["origin"] == "normal_adjacent", :],
+    groupby="patient",
+    var_names="VEGFA",
+    title="normal_adjacent",
+    vmin=0, 
+    vmax=1
+)
+
+# %%
+with plt.rc_context({"figure.figsize": (4, 4)}):
     sc.pl.umap(adata_neutro, color=["VEGFA"], cmap="inferno")
 
 # %%
-adata_neutro.obs.groupby(["dataset", "patient", "origin"], observed=True).size().reset_index(name="n")
+sc.pl.dotplot(
+    adata,
+    groupby=["patient", "origin"],
+    var_names="VEGFA",
+    title="tumor_primary",
+    vmin=0, 
+    vmax=1
+)
+
+# %%
+adata_neutro.obs.groupby(
+    ["dataset", "patient", "origin"], observed=True
+).size().reset_index(name="n")
 
 # %%
 sc.pl.umap(adata_neutro, color=["origin", "dataset"])
