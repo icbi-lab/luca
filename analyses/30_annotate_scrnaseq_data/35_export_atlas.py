@@ -58,7 +58,7 @@ adata_epi.obs["cell_type_tumor"] = adata.obs["cell_type_tumor"]
 adata_epi.obs["cell_type"] = adata.obs["cell_type"]
 
 # %%
-adata = adata[~adata.obs["cell_type"].isin(["Neuronal cells"]), :]
+adata = adata[~adata.obs["cell_type"].isin(["Neuronal cells", "Hepatocytes", "Hemoglobin+"]), :]
 
 # %%
 adata.obs.columns
