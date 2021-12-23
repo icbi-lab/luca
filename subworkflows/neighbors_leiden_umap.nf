@@ -1,7 +1,7 @@
 
 
 process NEIGHBORS {
-    container = "containers/pircher-sc-integrate2_centos7.sif"
+    container = "${baseDir}/containers/pircher-sc-integrate2_centos7.sif"
     cpus 8
 
     input:
@@ -28,7 +28,7 @@ process NEIGHBORS {
 }
 
 process UMAP {
-    container = "containers/pircher-sc-integrate2_centos7.sif"
+    container = "${baseDir}/containers/pircher-sc-integrate2_centos7.sif"
     cpus 8
 
     input:
@@ -54,7 +54,7 @@ process UMAP {
 }
 
 process LEIDEN {
-    container = "containers/pircher-sc-integrate2_centos7.sif"
+    container = "${baseDir}/containers/pircher-sc-integrate2_centos7.sif"
     cpus 1
 
     input:
@@ -81,7 +81,7 @@ process LEIDEN {
 }
 
 process MERGE_UMAP_LEIDEN {
-    container = "containers/pircher-sc-integrate2_centos7.sif"
+    container = "${baseDir}/containers/pircher-sc-integrate2_centos7.sif"
     cpus 1
 
     input:

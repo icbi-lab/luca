@@ -30,8 +30,8 @@ workflow integrate_datasets {
 
     SCQC(
         [
-            file('modules/local/scqc/scqc-notebook.py', checkIfExists: true),
-            file('modules/local/scqc/qc_plots.py', checkIfExists: true)
+            file("${baseDir}/modules/local/scqc/scqc-notebook.py", checkIfExists: true),
+            file("${baseDir}/modules/local/scqc/qc_plots.py", checkIfExists: true)
         ],
         ch_samples
     )
