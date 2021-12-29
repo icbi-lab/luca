@@ -5,6 +5,7 @@ nextflow.enable.dsl = 2
 include { de_tumor_normal } from "../subworkflows/de_tumor_normal.nf"
 include { scissor } from "../subworkflows/scissor.nf"
 include { cell2cell } from "../subworkflows/cell2cell.nf"
+include { infercnv } from "../subworkflows/infercnv.nf"
 
 workflow downstream_analyses {
     assert params.atlas: "Atlas h5ad file not specified!"
@@ -13,6 +14,7 @@ workflow downstream_analyses {
     de_tumor_normal(final_atlas)
     scissor(final_atlas)
     cell2cell(final_atlas)
+    infercnv(final_atlas)
 }
 
 
