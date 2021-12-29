@@ -61,3 +61,5 @@ np.savetxt("ithcna.txt", [ithcna])
 
 cnv.pl.chromosome_heatmap(adata, groupby="cell_type", save="cnv_cell_type.png")
 cnv.pl.chromosome_heatmap(adata, groupby="origin", save="cnv_origin.png")
+
+adata.write_h5ad(arg1.replace(".h5ad", ".infercnvpy.h5ad"))

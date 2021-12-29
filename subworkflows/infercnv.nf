@@ -3,7 +3,7 @@ include { H5AD_TO_SCE }  from "../modules/local/scconversion/main.nf"
 
 process RUN_SCEVAN {
     input:
-    path input_file
+    tuple val(id), path(input_file)
 
     output:
     path "*", emit: output_file
@@ -12,7 +12,7 @@ process RUN_SCEVAN {
 
     script:
     """
-   scevan_parallel.R ${input_file} ${task.cpus} ${input_file.baseName}
+    scevan_parallel.R ${input_file} ${task.cpus} ${input_file.baseName}
     """
 }
 
@@ -33,7 +33,7 @@ process RUN_SCEVAN {
 
 process RUN_INFERCNVPY {
     input:
-    path input_file
+    tuple val(id), path(input_file)
 
     output:
     path "*", emit: output_file
@@ -52,9 +52,11 @@ workflow infercnv {
     main:
     ch_adata_annotated = Channel.value([adata_annotated.baseName, adata_annotated])
     SPLIT_ANNDATA(ch_adata_annotated, "patient")
-    H5AD_TO_SCE(SPLIT_ANNDATA.out.adata.flatten().map{ it -> [it.baseName, it]})
 
-    RUN_INFERCNVPY(SPLIT_ANNDATA.out.adata.flatten())
+    ch_adatas_by_patient = SPLIT_ANNDATA.out.adata.flatten().map{ it -> [it.baseName, it]}
+    H5AD_TO_SCE(ch_adatas_by_patient)
+
+    RUN_INFERCNVPY(ch_adatas_by_patient)
     RUN_SCEVAN(H5AD_TO_SCE.out.sce)
 }
 
