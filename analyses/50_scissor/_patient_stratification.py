@@ -53,7 +53,7 @@ ah = AnnotationHelper()
 # %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/20_integrate_scrnaseq_data/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
+    "../../data/20_build_atlas//annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
 )
 
 # %%
@@ -61,12 +61,12 @@ adata = sc.read_h5ad(path_adata)
 
 # %%
 adata_epi = sc.read_h5ad(
-    "../../data/20_integrate_scrnaseq_data/annotate_datasets/33_cell_types_epi/artifacts/adata_epithelial.h5ad"
+    "../../data/20_build_atlas/annotate_datasets/33_cell_types_epi/artifacts/adata_epithelial.h5ad"
 )
 
 # %%
 adata_tumor = sc.read_h5ad(
-    "../../data/20_integrate_scrnaseq_data/annotate_datasets/33_cell_types_epi/artifacts/adata_tumor.h5ad"
+    "../../data/20_build_atlas/annotate_datasets/33_cell_types_epi/artifacts/adata_tumor.h5ad"
 )
 
 # %%
@@ -140,7 +140,6 @@ ad_tumor_subtypes = sc.AnnData(
     )
     .pivot_table(values="n", columns="cell_type_tumor", index="patient", fill_value=0)
 )
-# ad_tumor_subtypes.obs["patient"] = ad_tumor_subtypes.obs_names
 
 # %%
 sc.pp.normalize_total(ad_tumor_subtypes, target_sum=1)
@@ -376,167 +375,11 @@ sc.pl.matrixplot(
     # standard_scale="var",
 )
 
-# %%
-sc.pp.neighbors(ad_immune)
-
-# %%
-sc.tl.umap(ad_immune)
-
-# %%
-sc.tl.leiden(ad_immune)
-
-# %%
-sc.pl.umap(ad_immune, color=["leiden"] + ad_immune.var_names.tolist(), cmap="bwr")
+# %% [markdown]
+# ## Clustering and stratification
 
 # %% [markdown]
-# ## Pathways
-
-# %%
-adata_tumor_pb = hb.tl.pseudobulk(adata_tumor, groupby=["dataset", "patient"])
-
-# %%
-sc.pp.normalize_total(adata_tumor_pb, target_sum=1e6)
-sc.pp.log1p(adata_tumor_pb)
-
-# %%
-model = progeny.load_model(
-    organism="Human",  # If working with mouse, set to Mouse
-    top=1000,  # For sc we recommend ~1k target genes since there are dropouts
-)
-
-# %%
-progeny.run(
-    adata_tumor_pb,  # Data to use
-    model,  # PROGENy network
-    center=True,  # Center gene expression by mean per cell
-    num_perm=1000,  # Simulate m random activities
-    norm=True,  # Normalize by number of edges to correct for large regulons
-    scale=False,  # Scale values per feature so that values can be compared across cells
-    use_raw=False,  # Use raw adata, where we have the lognorm gene expression
-    min_size=5,  # Pathways with less than 5 targets will be ignored
-)
-
-# %%
-adata_tumor_progeny = progeny.extract(adata_tumor_pb)
-
-# %%
-sc.pp.regress_out(adata_tumor_progeny, "dataset")
-
-# %%
-adata_tumor_progeny.obs["patient"] = pd.Categorical(adata_tumor_progeny.obs["patient"])
-
-# %%
-sc.tl.dendrogram(
-    adata_tumor_progeny, groupby="patient", use_rep="X", optimal_ordering=True
-)
-
-# %%
-sc.pl.matrixplot(
-    adata_tumor_progeny,
-    var_names=adata_tumor_progeny.var_names,
-    groupby="patient",
-    cmap="bwr",
-    vmin=-2,
-    vmax=2,
-    swap_axes=True,
-    dendrogram=True,
-)
-
-# %%
-sc.pp.neighbors(adata_tumor_progeny)
-
-# %%
-sc.tl.umap(adata_tumor_progeny)
-
-# %%
-sc.pl.umap(
-    adata_tumor_progeny, color=["dataset"] + adata_tumor_progeny.var_names.tolist()
-)
-
-# %% [markdown]
-# ### Multi-Omics
-
-# %%
-ad_tumor_subtypes.obs
-
-# %%
-ad_ti_ratio.obs
-
-# %%
-ad_immune.obs
-
-# %%
-adata_tumor_progeny.obs_names = adata_tumor_progeny.obs["patient"]
-
-# %%
-mdata = mu.MuData(
-    {
-        # "cancer type": ad_tumor_subtypes,
-        "infiltration patterns": ad_ti_ratio,
-        "immune": ad_immune,
-        # 'pw': adata_tumor_progeny
-    }
-)
-
-# %%
-mu.pp.intersect_obs(mdata)
-
-# %%
-for idx, ad in mdata.mod.items():
-    # sc.tl.pca(ad)
-    sc.pp.neighbors(ad)
-
-# %%
-mu.tl.leiden(mdata, resolution=1.5)
-
-# %%
-mdata.obs["leiden"]
-
-# %%
-ad_tumor_subtypes.obs["leiden"] = mdata.obs["leiden"]
-
-# %%
-sc.pl.heatmap(
-    ad_tumor_subtypes,
-    groupby="leiden",
-    var_names=ad_tumor_subtypes.var_names,
-    swap_axes=True,
-)
-
-# %%
-adata_tumor_progeny.obs["leiden"] = mdata.obs["leiden"]
-
-# %%
-sc.pl.heatmap(
-    adata_tumor_progeny,
-    var_names=adata_tumor_progeny.var_names,
-    groupby="leiden",
-    cmap="bwr",
-    vmin=-2,
-    vmax=2,
-    swap_axes=True,
-)
-
-# %%
-ad_ti_ratio.obs["leiden"] = mdata.obs["leiden"]
-
-# %%
-sc.pp.neighbors(ad_ti_ratio, n_neighbors=25, metric="cosine")
-
-# %%
-sc.tl.leiden(ad_ti_ratio, resolution=0.25)
-
-# %%
-sc.pl.heatmap(
-    ad_ti_ratio,
-    groupby="leiden",
-    var_names=ad_ti_ratio.var_names,
-    swap_axes=True,
-    cmap="bwr",
-    vmin=-7,
-    vmax=7
-    # vcenter=0
-)
+# ### Immune/structural ratio
 
 # %%
 imm = ad_ti_ratio[:, "immune_tumor_ratio"].X > 0
@@ -545,9 +388,9 @@ structural = ad_ti_ratio[:, "structural_tumor_ratio"].X > 0
 
 def get_state(i, s):
     res = []
-    res.append("I+" if i else "I-")
-    res.append("S+" if s else "S-")
-    return "".join(res)
+    res.append("I" if i else "-")
+    res.append("S" if s else "-")
+    return "/".join(res)
 
 
 ad_ti_ratio.obs["group"] = [get_state(i, s) for i, s in zip(imm, structural)]
@@ -564,8 +407,8 @@ sc.pl.heatmap(
     # vcenter=0
 )
 
-# %%
-ad_ti_ratio.obs["group"].str.contains("I+", regex=False)
+# %% [markdown]
+# ### immune-cell infiltration patterns
 
 # %%
 ad_immune.obs_names = ad_immune.obs_names.values.astype(str)
@@ -575,7 +418,7 @@ ad_immune_sub = ad_immune[
     list(
         set(
             ad_ti_ratio[
-                ad_ti_ratio.obs["group"].str.contains("I+", regex=False), :
+                ad_ti_ratio.obs["group"].str.contains("I", regex=False), :
             ].obs_names
         )
         & set(ad_immune.obs_names)
@@ -584,17 +427,10 @@ ad_immune_sub = ad_immune[
 ]
 
 # %%
-sc.pp.neighbors(
-    ad_immune_sub,
-    metric="cosine",
-    n_neighbors=10,
-)
+sc.pp.neighbors(ad_immune_sub, use_rep="X")
 
 # %%
 sc.tl.leiden(ad_immune_sub, resolution=0.5)
-
-# %%
-# ad_immune.obs["leiden"] = mdata.obs["leiden"]
 
 # %%
 sc.pl.heatmap(
@@ -611,44 +447,15 @@ sc.pl.heatmap(
 )
 
 # %%
-
-# %%
-ad_immune_sub[ad_immune_sub.obs["leiden"] == "4", :].obs
-
-# %%
-ad_ti_ratio.obs["immune_type"] = ad_immune_sub.obs["leiden"]
-ad_ti_ratio.obs["immune_type"] = [{"0": "T", "1": "M", "2": "B"}.get(x, "") for x in ad_ti_ratio.obs["immune_type"]]
-
-# %%
-
-# %%
-ad_immune2 = ad_immune[ad_tumor_subtypes.obs.index, :]
-ad_immune2.obs["immune_type"] =  ad_ti_ratio.obs["immune_type"] 
-ad_immune2.obs["group"] =  ad_ti_ratio.obs["group"] 
-ad_tumor_subtypes.obs["immune_type"] =  ad_ti_ratio.obs["immune_type"] 
-ad_tumor_subtypes.obs["group"] =  ad_ti_ratio.obs["group"] 
+ad_immune_sub.obs["immune_type"] = [
+    {"0": "T", "1": "B", "2": "M"}.get(x, "") for x in ad_immune_sub.obs["leiden"]
+]
 
 # %%
 sc.pl.heatmap(
-    ad_tumor_subtypes,
-    groupby=["group", "immune_type"],
-    var_names=ad_tumor_subtypes.var_names,
-    swap_axes=True,
-)
-sc.pl.heatmap(
-    ad_ti_ratio[ad_tumor_subtypes.obs.index, :],
-    groupby=["group", "immune_type"],
-    var_names=ad_ti_ratio.var_names,
-    swap_axes=True,
-    cmap="bwr",
-    vmin=-7,
-    vmax=7,
-    # vcenter=0
-)
-sc.pl.heatmap(
-    ad_immune2,
+    ad_immune_sub,
     var_names=ad_immune.var_names,
-    groupby=["group", "immune_type"],
+    groupby="immune_type",
     swap_axes=True,
     cmap="bwr",
     vmin=-0.5,
@@ -658,6 +465,207 @@ sc.pl.heatmap(
     # standard_scale="var",
 )
 
-# %%
+# %% [markdown]
+# ## Make figure
 
 # %%
+# Patients with "primary tumor" samples
+adata_primary_tumor.obs["patient"].nunique()
+
+# %%
+# Minus 4 patients with no "tumor cells" in primary tumor samplese
+adata_tumor_cells.obs["patient"].nunique()
+
+# %%
+ad_tumor_subtypes.obs
+
+# %%
+ad_ti_ratio.obs["patient"].nunique()
+
+
+# %%
+def get_stratum(infiltration_group, immune_type):
+    stratum = ["-", "-"]
+    if "I" in infiltration_group:
+        stratum[0] = immune_type
+    if "S" in infiltration_group:
+        stratum[1] = "S"
+    return "/".join(stratum)
+
+
+# %%
+patient_info = (
+    adata.obs.loc[:, ["patient", "condition"]].drop_duplicates().set_index("patient")
+)
+
+# %%
+plot_df = ad_tumor_subtypes.obs.join(patient_info).join(
+    ad_ti_ratio.obs.loc[:, ["group"]]
+)
+plot_df["immune_type"] = ad_immune_sub.obs["immune_type"].astype(str)
+plot_df.loc[plot_df["immune_type"].isnull(), "immune_type"] = "-"
+plot_df["stratum"] = [
+    get_stratum(infil, imm)
+    for infil, imm in zip(plot_df["group"], plot_df["immune_type"])
+]
+plot_df.rename(
+    columns={
+        "condition": "tumor_type_annotated",
+        "predominant_tumor_subtype": "tumor_type_inferred",
+        "group": "infiltration_state",
+        "immune_type": "immune_infiltration",
+        "stratum": "TMIG",  # tumor micro environment stratum
+    },
+    inplace=True,
+)
+plot_df.sort_values(["TMIG", "tumor_type_inferred"], inplace=True)
+
+# %%
+plot_df = plot_df.reset_index()
+
+# %%
+plot_df
+
+# %%
+cmaps = {
+    "TMIG": {  # tumor microenvironment infiltration group
+        "-/-": "#CCCCCC",
+        "-/S": "#999999",
+        "T/S": "#1f78b4",
+        "T/-": "#a6cee3",
+        "M/S": "#33a02c",
+        "M/-": "#b2df8a",
+        "B/S": "#ff7f00",
+        "B/-": "#fdbf6f",
+    },
+    "immune_infiltration": {
+        "B": "#ff7f00",
+        "T": "#1f78b4",
+        "M": "#33a02c",
+        "-": "#999999",
+    },
+    "infiltration_state": {
+        "I/S": "#6a3d9a",
+        "I/-": "#cab2d6",
+        "-/S": "#999999",
+        "-/-": "#CCCCCC",
+    },
+    "tumor_type_annotated": {
+        "LUAD": "#7fc97f",
+        "NSCLC": "#999999",
+        "LSCC": "#f0027f",
+        "LUSC": "#f0027f",
+        "LUAD": "#7fc97f",
+        "LUAD EMT": "#beaed4",
+        "LUAD NE": "#fdc086",
+        "LUAD dedifferentiated": "#ffff99",
+    },
+}
+cmaps["tumor_type_inferred"] = cmaps["tumor_type_annotated"]
+
+
+# %%
+def get_scale(col):
+    return alt.Scale(domain=list(cmaps[col].keys()), range=list(cmaps[col].values()))
+
+
+# %%
+def get_row(col):
+    return (
+        alt.Chart(plot_df.assign(ylab=col))
+        .mark_rect()
+        .encode(
+            x=alt.X(
+                "patient:N",
+                axis=alt.Axis(labels=False, ticks=False, title=None),
+                sort=plot_df["patient"].values,
+            ),
+            y=alt.Y("ylab", axis=alt.Axis(title=None)),
+            color=alt.Color(col, scale=get_scale(col), legend=alt.Legend(columns=3)),
+        )
+        .properties(width=800)
+    )
+
+
+p0 = alt.vconcat(
+    get_row("tumor_type_annotated") & get_row("tumor_type_inferred"),
+    # get_row("infiltration_state"),
+    # get_row("immune_infiltration"),
+    get_row("TMIG"),
+).resolve_scale("independent").resolve_legend("shared")
+p0
+
+
+# %%
+def scale_range(a):
+    return a / max(np.abs(np.max(a)), np.abs(np.min(a)))
+
+
+# %%
+tmp_ad = ad_ti_ratio[plot_df["patient"], :]
+heatmap_df = (
+    pd.DataFrame(scale_range(tmp_ad.X) * -1, columns=tmp_ad.var_names, index=tmp_ad.obs_names)
+    .reset_index()
+    .rename(columns={"index": "patient"})
+    .melt(id_vars="patient")
+)
+p1 = (
+    alt.Chart(heatmap_df)
+    .mark_rect()
+    .encode(
+        x=alt.X(
+            "patient:N",
+            sort=plot_df["patient"].values,
+            axis=alt.Axis(ticks=False, labels=False, title=None),
+        ),
+        y=alt.Y("cell_type_group:N", axis=alt.Axis(title=None)),
+        color=alt.Color("value", scale=alt.Scale(scheme="redblue", domain=[-1, 1])),
+    )
+    .properties(width=800, height=20)
+)
+
+# %%
+tmp_ad = ad_immune_sub[
+    plot_df.loc[plot_df["patient"].isin(ad_immune_sub.obs_names), "patient"], :
+]
+heatmap_df = (
+    pd.DataFrame(scale_range(tmp_ad.X) * -1, columns=tmp_ad.var_names, index=tmp_ad.obs_names)
+    .reset_index()
+    .rename(columns={"index": "patient"})
+    .melt(id_vars="patient")
+)
+p2 = (
+    alt.Chart(heatmap_df)
+    .mark_rect()
+    .encode(
+        x=alt.X(
+            "patient:N",
+            sort=plot_df["patient"].values,
+            axis=alt.Axis(ticks=False, labels=False),
+        ),
+        y=alt.Y(
+            "cell_type:N",
+            sort=[
+                "B cell",
+                "Plasma cell",
+                "Mast cell",
+                "Macrophage",
+                "Macrophage FABP4+",
+                "Monocyte",
+                "NK cell",
+                "T cell CD4",
+                "T cell CD8",
+                "T cell regulatory",
+                "DC mature",
+                "cDC2",
+                "pDC",
+            ],
+            axis=alt.Axis(title=None)
+        ),
+        color=alt.Color("value", scale=alt.Scale(scheme="redblue", domain=[-1, 1])),
+    )
+    .properties(width=800, height=120)
+)
+
+# %%
+p0 & (p1 & p2).resolve_scale(x="shared")
