@@ -32,23 +32,23 @@ sc.set_figure_params(figsize=(5, 5))
 gene_sets = {
     "C-type Lectins": (
         """
-        CLEC7A 
+        CLEC7A
         CLEC1A
         CLEC14A
         CLEC4E
-        CLEC6A 
-        CLEC4C 
+        CLEC6A
+        CLEC4C
         CLEC5A
-        CD209 
+        CD209
         CLEC4A
         CLEC12A
         CLEC9A
         CLEC12B
-        OPRL1 
+        OPRL1
         CLEC3B
-        CLEC4A 
+        CLEC4A
         CLEC2D
-        KLRB1 
+        KLRB1
         MRC1
         KLRD1
         WDFY4
@@ -217,10 +217,10 @@ cell_types_coarse = {
     "Epithelial cell": [
         "Epithelial cell other (benign)",
         "Club/Goblet",
-        "Alevolar cell type 1",
-        "Alevolar cell type 2",
+        "Alveolar cell type 1",
+        "Alveolar cell type 2",
     ],
-    "Fibroblast": ["Fibroblast adventitial", "Fibroblast", "Fibroblast alevolar"],
+    "Fibroblast": ["Fibroblast adventitial", "Fibroblast", "Fibroblast alveolar"],
     "stromal (non-Fibroblast)": [
         "Smooth muscle cell",
         "Pericyte",
