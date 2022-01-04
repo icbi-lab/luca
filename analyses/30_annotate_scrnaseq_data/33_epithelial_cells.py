@@ -100,7 +100,7 @@ with plt.rc_context({"figure.figsize": (4, 4)}):
         adata,
         filter_cell_type=[
             "Ciliated",
-            "Alevolar",
+            "Alveolar",
             "Basal",
             "Club",
             "Dividing",
@@ -121,8 +121,8 @@ with plt.rc_context({"figure.figsize": (6, 6)}):
 
 # %%
 cell_type_map = {
-    "Alevolar cell type 1": [10],
-    "Alevolar cell type 2": [1, 14, 8, 12],
+    "Alveolar cell type 1": [10],
+    "Alveolar cell type 2": [1, 14, 8, 12],
     "Ciliated": [6, 15],
     "Club": [3],
     "tumor cells": [2, 9, 13, 17, 11, 4, 0, 16],
@@ -168,7 +168,7 @@ sc.pl.umap(adata_5, color="leiden", legend_loc="on data", legend_fontoutline=2)
 ah.annotate_cell_types(
     adata_5,
     {
-        "Alevolar cell type 2": [9],
+        "Alveolar cell type 2": [9],
         "Club": [0, 5, 6],
         "ROS1+ healthy epithelial": [2],
         "tumor cells": [8, 4, 3, 1, 7],
@@ -259,11 +259,11 @@ markers = {
 
 # %%
 sc.pl.umap(
-        adata_tumor,
-        color=["origin", "condition", "dataset"],
-        cmap="inferno",
-        wspace=0.5,
-    )
+    adata_tumor,
+    color=["origin", "condition", "dataset"],
+    cmap="inferno",
+    wspace=0.5,
+)
 
 # %%
 for name, genes in markers.items():
@@ -283,7 +283,13 @@ sc.pl.dotplot(adata_tumor, groupby="leiden_1.00", var_names=markers)
 
 # %%
 with plt.rc_context({"figure.figsize": (6, 6)}):
-    sc.pl.umap(adata_tumor, color="leiden_1.00", legend_loc="on data", legend_fontoutline=2, size=3)
+    sc.pl.umap(
+        adata_tumor,
+        color="leiden_1.00",
+        legend_loc="on data",
+        legend_fontoutline=2,
+        size=3,
+    )
 
 # %%
 adata_tumor_copy = adata_tumor.copy()
@@ -300,11 +306,11 @@ ah.annotate_cell_types(
         "Tumor cells LUAD dedifferentiated": [17],
         "Tumor cells LUAD mitotic": [14, 19],
         "Tumor cells LUSC": [0, 8, 28, 16],
-        "Tumor cells LUSC mitotic": [3,11],
+        "Tumor cells LUSC mitotic": [3, 11],
         "Hepatocytes": [32],
-        "Hemoglobin+": [10]
+        "Hemoglobin+": [10],
     },
-    column = "leiden_1.00"
+    column="leiden_1.00",
 )
 
 # %%

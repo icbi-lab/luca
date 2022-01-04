@@ -80,7 +80,7 @@ cell_type_map = {
     "T cell CD8": [13, 10, 8, 6, 12, 14, 9],
     "T cell regulatory": [2],
     "B cell dividing": [18],
-    "other (T assoc.)": [11]
+    "other (T assoc.)": [11],
 }
 
 # %%
@@ -117,7 +117,7 @@ ct_map = {
     "Pericyte": [4],
     "Smooth muscle cell": [6],
     "Fibroblast adventitial": [0],
-    "Fibroblast alevolar": [2],
+    "Fibroblast alveolar": [2],
     "Fibroblast": [1, 7, 5, 3, 9],
 }
 
@@ -139,7 +139,7 @@ ah.plot_umap(
 )
 
 # %%
-ah.plot_umap(adata_m, filter_cell_type=["Alevolar"], cmap="inferno", size=2)
+ah.plot_umap(adata_m, filter_cell_type=["Alveolar"], cmap="inferno", size=2)
 
 # %%
 adata_m.obs["leiden"] = adata_m.obs["leiden_0.75"]
@@ -158,7 +158,7 @@ ct_map = {
     "Monocyte": [1, 14, 8, 17],
     "cDC2": [4],
     "other (myeloid-assoc.)": [18],
-    "cDC1/mature": [13]
+    "cDC1/mature": [13],
 }
 
 # %%
@@ -177,7 +177,9 @@ ah.plot_umap(adata_dc, filter_cell_type=["DC"], cmap="inferno")
 sc.pl.umap(adata_dc, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
-ah.annotate_cell_types(adata_dc, {"DC mature": [2, 0, 8, 9], "cDC1": [5, 3, 6, 4, 1, 7]})
+ah.annotate_cell_types(
+    adata_dc, {"DC mature": [2, 0, 8, 9], "cDC1": [5, 3, 6, 4, 1, 7]}
+)
 
 # %%
 ah.integrate_back(adata_m, adata_dc)

@@ -202,7 +202,7 @@ ah.reprocess_adata_subset_scvi(adata_epi)
 ah.plot_umap(
     adata_epi,
     filter_cell_type=[
-        "Alevolar",
+        "Alveolar",
         "Basal",
         "Club",
         "Dividing",
@@ -221,8 +221,8 @@ sc.pl.umap(adata_epi, color=["origin"])
 
 # %%
 ct_map = {
-    "Alevolar cell type 1": [2],
-    "Alevolar cell type 2": [1, 0, 13],
+    "Alveolar cell type 1": [2],
+    "Alveolar cell type 2": [1, 0, 13],
     "Epithelial cell malignant": [3, 10, 5, 8, 9, 14, 6, 7, 12, 4, 11],
 }
 

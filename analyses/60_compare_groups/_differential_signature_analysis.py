@@ -68,7 +68,11 @@ adata = sc.read_h5ad(path_adata)
 
 # %%
 patient_strat.set_index("patient", inplace=True)
-patient_strat["dataset"] = adata.obs.loc[:, ["patient", "dataset"]].drop_duplicates().set_index("patient")["dataset"]
+patient_strat["dataset"] = (
+    adata.obs.loc[:, ["patient", "dataset"]]
+    .drop_duplicates()
+    .set_index("patient")["dataset"]
+)
 patient_strat.reset_index(inplace=True)
 
 
@@ -128,14 +132,14 @@ def run_cytosig(adata):
 adata.obs["cell_type2"] = [
     {
         "Tumor cells": "tumor cells",
-        "Alevolar cell type 1": "healthy epithelial",
-        "Alevolar cell type 2": "healthy epithelial",
+        "Alveolar cell type 1": "healthy epithelial",
+        "Alveolar cell type 2": "healthy epithelial",
         "Goblet": "healthy epithelial",
         "Club": "healthy epithelial",
         "Ciliated": "healthy epithelial",
         "Fibroblast": "stromal",
         "Fibroblast adventitial": "stromal",
-        "Fibroblast alevolar": "stromal",
+        "Fibroblast alveolar": "stromal",
         "Smooth muscle cell": "stromal",
         "Pericyte": "stromal",
         "Endothelial cell": "endothelial",
@@ -154,7 +158,12 @@ adata_primary_tumor = adata[
 # %%
 adata_primary_tumor.obs = (
     adata_primary_tumor.obs.reset_index()
-    .merge(patient_strat, how="left", left_on=["patient", "dataset"], right_on=["patient", "dataset"])
+    .merge(
+        patient_strat,
+        how="left",
+        left_on=["patient", "dataset"],
+        right_on=["patient", "dataset"],
+    )
     .set_index("index")
 )
 
@@ -343,7 +352,7 @@ mk_matrixplot("tumor cells", adatas_progeny[0].var_names)
 
 # %%
 # TODO: compare to SCEVAN
-# TODO: regress out dataset-specific effects, or at least include dataset in linear model. 
+# TODO: regress out dataset-specific effects, or at least include dataset in linear model.
 
 # %%
 ithcna_res_files = list(

@@ -64,10 +64,10 @@ adata.obs["cell_type"].value_counts()
 cell_types = {
     "tumor": set(adata.obs["cell_type_tumor"]) - set(adata.obs["cell_type"]),
     "healthy epithelial": [
-        "Alevolar cell type 2",
+        "Alveolar cell type 2",
         "Club",
         "Ciliated",
-        "Alevolar cell type 1",
+        "Alveolar cell type 1",
         "Goblet",
     ],
     "immune": [
@@ -90,7 +90,7 @@ cell_types = {
         "Endothelial cell",
         "Fibroblast",
         "Fibroblast adventitial",
-        "Fibroblast alevolar",
+        "Fibroblast alveolar",
         "Smooth muscle cell",
         "Pericyte",
     ],
@@ -295,7 +295,7 @@ sc.pl.matrixplot(
 
 # %% [markdown]
 # ## immune cell patterns
-# (only immune cells) 
+# (only immune cells)
 
 # %%
 ad_immune = sc.AnnData(
@@ -572,12 +572,16 @@ def get_row(col):
     )
 
 
-p0 = alt.vconcat(
-    get_row("tumor_type_annotated") & get_row("tumor_type_inferred"),
-    # get_row("infiltration_state"),
-    # get_row("immune_infiltration"),
-    get_row("TMIG"),
-).resolve_scale("independent").resolve_legend("shared")
+p0 = (
+    alt.vconcat(
+        get_row("tumor_type_annotated") & get_row("tumor_type_inferred"),
+        # get_row("infiltration_state"),
+        # get_row("immune_infiltration"),
+        get_row("TMIG"),
+    )
+    .resolve_scale("independent")
+    .resolve_legend("shared")
+)
 p0
 
 
@@ -589,7 +593,9 @@ def scale_range(a):
 # %%
 tmp_ad = ad_ti_ratio[plot_df["patient"], :]
 heatmap_df = (
-    pd.DataFrame(scale_range(tmp_ad.X) * -1, columns=tmp_ad.var_names, index=tmp_ad.obs_names)
+    pd.DataFrame(
+        scale_range(tmp_ad.X) * -1, columns=tmp_ad.var_names, index=tmp_ad.obs_names
+    )
     .reset_index()
     .rename(columns={"index": "patient"})
     .melt(id_vars="patient")
@@ -614,7 +620,9 @@ tmp_ad = ad_immune_sub[
     plot_df.loc[plot_df["patient"].isin(ad_immune_sub.obs_names), "patient"], :
 ]
 heatmap_df = (
-    pd.DataFrame(scale_range(tmp_ad.X) * -1, columns=tmp_ad.var_names, index=tmp_ad.obs_names)
+    pd.DataFrame(
+        scale_range(tmp_ad.X) * -1, columns=tmp_ad.var_names, index=tmp_ad.obs_names
+    )
     .reset_index()
     .rename(columns={"index": "patient"})
     .melt(id_vars="patient")
@@ -645,7 +653,7 @@ p2 = (
                 "cDC2",
                 "pDC",
             ],
-            axis=alt.Axis(title=None)
+            axis=alt.Axis(title=None),
         ),
         color=alt.Color("value", scale=alt.Scale(scheme="redblue", domain=[-1, 1])),
     )
@@ -659,4 +667,8 @@ p0 & (p1 & p2).resolve_scale(x="shared")
 # # Write output
 
 # %%
-plot_df.to_csv("{}/patient_stratification.csv".format(nxfvars.get("artifact_dir", "/home/sturm/Downloads")))
+plot_df.to_csv(
+    "{}/patient_stratification.csv".format(
+        nxfvars.get("artifact_dir", "/home/sturm/Downloads")
+    )
+)
