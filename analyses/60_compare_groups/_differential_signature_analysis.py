@@ -75,6 +75,9 @@ patient_strat["dataset"] = (
 )
 patient_strat.reset_index(inplace=True)
 
+# %%
+patient_strat
+
 
 # %% [markdown]
 # ## Run differential signature analysis
@@ -132,14 +135,14 @@ def run_cytosig(adata):
 adata.obs["cell_type2"] = [
     {
         "Tumor cells": "tumor cells",
-        "Alveolar cell type 1": "healthy epithelial",
-        "Alveolar cell type 2": "healthy epithelial",
+        "Alevolar cell type 1": "healthy epithelial",
+        "Alevolar cell type 2": "healthy epithelial",
         "Goblet": "healthy epithelial",
         "Club": "healthy epithelial",
         "Ciliated": "healthy epithelial",
         "Fibroblast": "stromal",
         "Fibroblast adventitial": "stromal",
-        "Fibroblast alveolar": "stromal",
+        "Fibroblast alevolar": "stromal",
         "Smooth muscle cell": "stromal",
         "Pericyte": "stromal",
         "Endothelial cell": "endothelial",
@@ -226,7 +229,7 @@ all_adatas = {
 
 
 # %%
-def test_lm(pseudobulk, formula):
+def test_lm(pseudobulk, formula, column, progress=False):
     """
     Use a linear model to find differences between groups
 
@@ -235,21 +238,17 @@ def test_lm(pseudobulk, formula):
 
     tmp_adata is a pseudobulk anndata object"""
     var_names = pseudobulk.var_names
-
+    
     df = pseudobulk.obs.join(
         pd.DataFrame(pseudobulk.X, index=pseudobulk.obs_names, columns=var_names)
     )
 
-    pseudobulk.obs["infiltration_state"] = pd.Categorical(
-        pseudobulk.obs["infiltration_state"]
-    )
-    all_groups = pseudobulk.obs["infiltration_state"].unique()
-
+    pseudobulk.obs[column] = pd.Categorical(pseudobulk.obs[column])
+    all_groups = pseudobulk.obs[column].unique()
+    
     def test_all_params(res, all_groups):
         # only using the categories gets rid of NAN
-        keys = [
-            f"C(infiltration_state, Sum)[S.{g}]" for g in all_groups.categories.values
-        ]
+        keys = [f"C({column}, Sum)[S.{g}]" for g in all_groups.categories.values]
         # print(keys)
         # print(res.params)
         coefs = res.params[keys[:-1]].to_dict()
@@ -263,10 +262,9 @@ def test_lm(pseudobulk, formula):
 
     results = []
     lms = []
-    for col in var_names:
+    var_iter = tqdm(var_names) if progress else var_names
+    for col in var_iter:
         group_results = []
-        # there must be a better way to get all pvalues instead of re-training the LM for each group!
-        # I can get n-1 pvalues from the model, there must be a way to get the last one!
         mod = smf.ols(formula=formula.format(col=col), data=df)
         res = mod.fit()
         coefs, pvals = test_all_params(res, all_groups)
@@ -288,18 +286,19 @@ def test_lm(pseudobulk, formula):
 
 # %%
 res_per_cell_type = {}
+column = "immune_infiltration"
 for signature, adatas in all_adatas.items():
     tmp_res = []
     for ct, tmp_adata in zip(tqdm(cell_types), adatas):
         tmp_bdata = hb.tl.pseudobulk(
             tmp_adata,
-            groupby=["dataset", "patient", "infiltration_state"],
+            groupby=["dataset", "patient", column],
             aggr_fun=np.mean,
         )
-        if tmp_bdata.obs["infiltration_state"].nunique() < 3:
+        if tmp_bdata.obs[column].nunique() < 3:
             continue
         _, res_df = test_lm(
-            tmp_bdata, "Q('{col}') ~ 0 + C(infiltration_state, Sum) + dataset"
+            tmp_bdata, f"Q('{{col}}') ~ 0 + C({column}, Sum) + dataset", column
         )
         res_df = res_df.reset_index(drop=True).assign(cell_type=ct)
         tmp_res.append(res_df)
@@ -323,28 +322,34 @@ res_per_cell_type["dorothea"].sort_values("pvalue").groupby("group").apply(
 )
 
 # %%
-res_per_cell_type["cytosig"].sort_values("pvalue").groupby("group").apply(
-    lambda x: x.query("fdr < 0.1")
+res_cytosig = (
+    res_per_cell_type["cytosig"]
+    .sort_values("pvalue")
+    .groupby("group")
+    .apply(lambda x: x.query("fdr < 0.1"))
 )
-
-# %%
-d_progeny = {ct: ad for ct, ad in zip(cell_types, adatas_progeny)}
+res_cytosig
 
 
 # %%
-def mk_matrixplot(cell_type, features):
+def mk_matrixplot(cell_type, features, adatas, column):
+    ad_lookup = {ct: ad for ct, ad in zip(cell_types, adatas)}
     tmp_bulk = hb.tl.pseudobulk(
-        d_progeny[cell_type],
-        groupby=["patient", "immune_infiltration"],
+        ad_lookup[cell_type],
+        groupby=["patient", column],
         aggr_fun=np.mean,
     )
-    sc.pl.matrixplot(
-        tmp_bulk, var_names=features, groupby="immune_infiltration", title=cell_type
-    )
+    sc.pl.matrixplot(tmp_bulk, var_names=features, groupby=column, title=cell_type)
 
 
 # %%
-mk_matrixplot("tumor cells", adatas_progeny[0].var_names)
+for cell_type in res_cytosig["cell_type"].unique():
+    mk_matrixplot(
+        cell_type,
+        res_cytosig.loc[lambda x: x["cell_type"] == cell_type, "variable"],
+        adatas_cytosig,
+        "immune_infiltration",
+    )
 
 # %% [markdown]
 # ---
@@ -358,6 +363,31 @@ mk_matrixplot("tumor cells", adatas_progeny[0].var_names)
 ithcna_res_files = list(
     Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/ithcna.txt")
 )
+ithgex_res_files = list(
+    Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/ithgex.txt")
+)
+cnvscore_res_files = list(
+    Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/cnv_score.txt")
+)
+scevan_res_files = list(
+    Path("../../data/30_downstream_analyses/infercnv/scevan/").glob("**/scevan_result.csv")
+)
+adatas_infercnvpy = list(
+    Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/*.h5ad")
+)
+
+# %%
+adatas_cnv = {}
+for f in tqdm(adatas_infercnvpy):
+    patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
+    adatas_cnv[patient] = sc.read_h5ad(f)
+
+# %%
+cnvsum_res = {}
+for dataset, ad in tqdm(adatas_cnv.items()):
+    x = ad[ad.obs["cell_type"] == "Tumor cells", :].obsm["X_cnv"].copy()
+    x[x < 0] = 0
+    cnvsum_res[dataset] = np.mean(np.sum(x, axis=1))
 
 # %%
 ithcna_res = {}
@@ -365,55 +395,81 @@ for f in ithcna_res_files:
     patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
     ithcna = np.loadtxt(f)
     ithcna_res[patient] = float(ithcna)
+    
+ithgex_res = {}
+for f in ithgex_res_files:
+    patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
+    ithgex = np.loadtxt(f)
+    ithgex_res[patient] = float(ithgex)
+    
+cnvscore_res = {}
+for f in cnvscore_res_files:
+    patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
+    cnvscore = np.loadtxt(f)
+    cnvscore_res[patient] = float(cnvscore)
+    
+n_subclones = {}
+for f in scevan_res_files:
+    patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
+    df = pd.read_csv(f, index_col=0)
+    if "subclone" in df.columns:
+        n_subclones[patient] = np.max(df["subclone"].dropna())
 
 # %%
 patient_strat["patient_lc"] = patient_strat["patient"].str.lower()
-
-# %%
-# adata_primary_tumor.obs = adata_primary_tumor.obs.reset_index().merge(
-#     pd.Series(ithcna_res, name="ithcna").reset_index().rename(columns={"index": "patient_lc"}), on="patient_lc"
-# ).set_index("index")
 
 # %%
 patient_strat.set_index("patient_lc", inplace=True)
 
 # %%
 patient_strat["ithcna"] = pd.Series(ithcna_res)
+patient_strat["ithgex"] = pd.Series(ithgex_res)
+patient_strat["cnvscore"] = pd.Series(cnvscore_res)
+patient_strat["n_subclones"] = pd.Series(n_subclones)
+patient_strat["cnvsum"] = pd.Series(cnvsum_res)
 
 # %%
-patient_strat
+pat_t = patient_strat["immune_infiltration"][lambda x: x == "T"].index.values.copy()
+pat_none = patient_strat["immune_infiltration"][lambda x: x == "-"].index.values.copy()
+np.random.shuffle(pat_t)
+np.random.shuffle(pat_none)
 
 # %%
-fig, ax = plt.subplots()
-sns.swarmplot(x="TMIG", y="ithcna", data=patient_strat, ax=ax, color="black")
-sns.boxplot(x="TMIG", y="ithcna", data=patient_strat, ax=ax, width=0.2)
+import infercnvpy as cnv
 
 # %%
-fig, ax = plt.subplots()
-sns.swarmplot(
-    x="infiltration_state", y="ithcna", data=patient_strat, ax=ax, color="black"
-)
-sns.boxplot(x="infiltration_state", y="ithcna", data=patient_strat, ax=ax, width=0.2)
-
-# %%
-fig, ax = plt.subplots()
-sns.swarmplot(
-    x="tumor_type_inferred", y="ithcna", data=patient_strat, ax=ax, color="black"
-)
-sns.boxplot(x="tumor_type_inferred", y="ithcna", data=patient_strat, ax=ax, width=0.2)
-
-# %%
-fig, ax = plt.subplots()
-sns.swarmplot(
-    x="immune_infiltration", y="ithcna", data=patient_strat, ax=ax, hue="dataset"
-)
-sns.boxplot(x="immune_infiltration", y="ithcna", data=patient_strat, ax=ax, width=0.8)
-ax.get_legend().remove()
+# TODO use linear model to check for confounding effects: dataset and number of cells! 
+for var in ["ithcna", "ithgex", "cnvscore", "n_subclones"]:
+# for var in ["cnvsum"]:
+    print(var)
+    fig, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(22, 5))
+    sns.swarmplot(x="TMIG", y=var, data=patient_strat, ax=ax1, hue="dataset")
+    sns.boxplot(x="TMIG", y=var, data=patient_strat, ax=ax1, width=0.2)
+    ax1.get_legend().remove()
+    
+    sns.swarmplot(
+        x="infiltration_state", y=var, data=patient_strat, ax=ax2, hue="dataset"
+    )
+    sns.boxplot(x="infiltration_state", y=var, data=patient_strat, ax=ax2, width=0.2)
+    ax2.get_legend().remove()
+    
+    sns.swarmplot(
+        x="tumor_type_inferred", y=var, data=patient_strat, ax=ax3, hue="dataset"
+    )
+    sns.boxplot(x="tumor_type_inferred", y=var, data=patient_strat, ax=ax3, width=0.2)
+    ax3.get_legend().remove()
+    
+    sns.swarmplot(
+        x="immune_infiltration", y=var, data=patient_strat, ax=ax4, hue="dataset"
+    )
+    sns.boxplot(x="immune_infiltration", y=var, data=patient_strat, ax=ax4, width=0.8)
+    ax4.get_legend().remove()
+    plt.show()
 
 # %%
 scipy.stats.mannwhitneyu(
-    patient_strat.loc[lambda x: x["immune_infiltration"] == "T", "ithcna"],
-    patient_strat.loc[lambda x: x["immune_infiltration"] == "-", "ithcna"],
+    patient_strat.loc[lambda x: x["immune_infiltration"] == "-", "cnvscore"],
+    patient_strat.loc[lambda x: x["immune_infiltration"] == "B", "cnvscore"],
 )
 
 # %% [markdown]
@@ -425,8 +481,6 @@ for f in Path("../../data/30_downstream_analyses/cell2cell/squidpy/").glob("*.pk
     sample = f.name.replace("full_atlas_annotated_", "").replace(".pkl", "")
     with open(f, "rb") as fh:
         cpdb_res[sample] = pickle.load(fh)
-
-# %%
 
 # %%
 dfs_melt = {}
@@ -469,11 +523,8 @@ for k, df in tqdm(dfs_melt.items()):
 ad_cpdb = sc.AnnData(var=var.iloc[:, :4], X=var.iloc[:, 4:].T.fillna(0))
 
 # %%
-ad_cpdb.X = scipy.sparse.csr_matrix(ad_cpdb.X)
-
-# %%
 sample_info = (
-    adata.obs.loc[:, ["sample", "patient", "tissue", "origin", "condition", "dataset"]]
+    adata.obs.loc[:, ["sample", "patient", "tissue", "origin", "condition"]]
     .assign(sample_lc=lambda x: x["sample"].str.lower())
     .drop_duplicates()
     .merge(patient_strat, on="patient", how="left")
@@ -484,41 +535,61 @@ sample_info = (
 ad_cpdb.obs = ad_cpdb.obs.join(sample_info)
 
 # %%
-ad_cpdb.X
+ad_cpdb = ad_cpdb[:, ad_cpdb.var["cluster_1"] != ad_cpdb.var["cluster_2"]].copy()
 
 # %%
-ad_cpdb_nsclc = ad_cpdb[~ad_cpdb.obs["TMIG"].isnull(), :].copy()
+ad_cpdb.shape
 
 # %%
-ad_cpdb_nsclc = ad_cpdb_nsclc[:, np.sum(ad_cpdb_nsclc.X != 0, axis=0) > 5].copy()
+# ad_cpdb_nsclc = ad_cpdb[~ad_cpdb.obs["TMIG"].isnull(), :].copy()
+ad_cpdb_primary = ad_cpdb[
+    adata_primary_tumor.obs["sample"].str.lower().unique(), :
+].copy()
 
 # %%
-sc.tl.pca(ad_cpdb_nsclc)
+ad_cpdb_primary = ad_cpdb_primary[:, np.sum(ad_cpdb_primary.X != 0, axis=0) > 10].copy()
 
 # %%
-sc.pp.neighbors(ad_cpdb_nsclc)
+ad_cpdb_primary.shape
 
 # %%
-sc.tl.umap(ad_cpdb_nsclc)
+ad_cpdb_primary.obs
+
 
 # %%
-ad_cpdb_nsclc.obs
+def chunk_adatas(ad, chunksize=200):
+    for i in range(0, ad.shape[1], chunksize):
+        yield ad[:, i:i+chunksize].copy()
+
 
 # %%
-sc.pl.umap(
-    ad_cpdb_nsclc,
-    color=[
-        "dataset",
-        "origin",
-        "condition",
-        "tumor_type_inferred",
-        "infiltration_state",
-        "immune_infiltration",
+def do_test(adata):
+    lms, df = test_lm(
+        adata,
+        "Q('{col}') ~ 0 + C(TMIG, Sum) + dataset",
         "TMIG",
-        "ithcna",
-    ],
-    ncols=3,
-    wspace=0.5,
+        progress=True,
+    )
+    return df
+
+
+# %%
+res_df = pd.concat(process_map(do_test, list(chunk_adatas(ad_cpdb_primary)), max_workers=32))
+
+# %%
+_, res_df["fdr"] = statsmodels.stats.multitest.fdrcorrection(res_df["pvalue"].values)
+
+# %%
+pd.set_option("display.max_rows", None)
+
+# %%
+res_df.query("fdr < 0.1").set_index("variable").join(ad_cpdb_primary.var).sort_values(
+    ["group", "pvalue"]
+)
+
+# %%
+res_df.query("fdr < 0.1").set_index("variable").join(ad_cpdb_primary.var).sort_values(
+    ["group", "cluster_1", "cluster_2"]
 )
 
 # %%

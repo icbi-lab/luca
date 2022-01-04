@@ -24,7 +24,7 @@ if __name__ == "__main__":
     res = sq.gr.ligrec(
         adata_sample,
         n_perms=1000,
-        cluster_key="cell_type",
+        cluster_key="cell_type_coarse",
         copy=True,
         use_raw=False,
         transmitter_params={"categories": "ligand"},
