@@ -54,7 +54,10 @@ cnv.tl.infercnv(
     step=1,
 )
 
-pcorr = np.corrcoef(adata.obsm["X_cnv"].todense(), rowvar=False)
+pcorr = np.corrcoef(
+    adata[adata.obs["cell_type"] == "Tumor cells", :].obsm["X_cnv"].todense(),
+    rowvar=False,
+)
 q75, q25 = np.percentile(pcorr, [75, 25])
 ithcna = q75 - q25
 np.savetxt("ithcna.txt", [ithcna])
