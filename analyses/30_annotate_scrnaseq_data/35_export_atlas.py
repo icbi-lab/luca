@@ -18,18 +18,20 @@ import scanpy as sc
 from nxfvars import nxfvars
 from scanpy_helpers.annotation import AnnotationHelper
 from datetime import datetime
+import pandas as pd
+import numpy as np
 
 # %%
-sc.settings.set_figure_params(figsize=(6,6))
+sc.settings.set_figure_params(figsize=(6, 6))
 
 # %%
 path_adata_fine = nxfvars.get(
     "adata_annotated_fine",
-    "../../data/20_integrate_scrnaseq_data/annotate_datasets/32_cell_types_fine/artifacts/adata_annotated_fine.h5ad",
+    "../../data/20_build_atlas/annotate_datasets/32_cell_types_fine/artifacts/adata_annotated_fine.h5ad",
 )
 path_adata_epi = nxfvars.get(
     "adata_epi",
-    "../../data/20_integrate_scrnaseq_data/annotate_datasets/33_cell_types_epi/artifacts/adata_epithelial.h5ad",
+    "../../data/20_build_atlas/annotate_datasets/33_cell_types_epi/artifacts/adata_epithelial.h5ad",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/data/scratch/sturm/tmp/")
 
@@ -39,6 +41,9 @@ ah = AnnotationHelper()
 # %%
 adata_epi = sc.read_h5ad(path_adata_epi)
 adata = sc.read_h5ad(path_adata_fine)
+
+# %% [markdown]
+# # Merge cell-type annotations
 
 # %%
 sc.pl.umap(adata, color="cell_type")
@@ -51,14 +56,18 @@ ah.integrate_back(adata, adata_epi)
 
 # %%
 adata.obs["cell_type_tumor"] = adata.obs["cell_type"]
-adata.obs["cell_type"] = ["Tumor cells" if x.startswith("Tumor") else x for x in adata.obs["cell_type_tumor"]]
+adata.obs["cell_type"] = [
+    "Tumor cells" if x.startswith("Tumor") else x for x in adata.obs["cell_type_tumor"]
+]
 
 # %%
 adata_epi.obs["cell_type_tumor"] = adata.obs["cell_type_tumor"]
 adata_epi.obs["cell_type"] = adata.obs["cell_type"]
 
 # %%
-adata = adata[~adata.obs["cell_type"].isin(["Neuronal cells", "Hepatocytes", "Hemoglobin+"]), :]
+adata = adata[
+    ~adata.obs["cell_type"].isin(["Neuronal cells", "Hepatocytes", "Hemoglobin+"]), :
+]
 
 # %%
 adata.obs.columns
@@ -67,11 +76,126 @@ adata.obs.columns
 for col in adata.obs.columns:
     if col.startswith("_"):
         del adata.obs[col]
-        
+
 del adata.obs["leiden_1.00"]
 
 # %%
 adata.obs.columns
+
+# %% [markdown]
+# # Add missing dataset metadata
+
+# %%
+wu = pd.read_excel(
+    "../../tables/additional_patient_metadata/wu_et_al_additional_patient_metadata.xlsx"
+)
+
+# %%
+wu2 = (
+    wu.loc[:, ["Patient", "FINAL"]]
+    .rename(columns={"Patient": "patient", "FINAL": "pathology"})
+    .assign(patient=lambda x: [f"Wu_Zhou_2021_NSCLC_{p}" for p in x["patient"]])
+)
+
+# %%
+mayn = pd.read_csv(
+    "../../tables/additional_patient_metadata/cell_metadata_maynard.csv.gz"
+)
+
+# %%
+pd.set_option("display.max_columns", 200)
+
+# %%
+mayn2 = (
+    mayn.loc[
+        :,
+        ["patient_id", "gender", "smokingHx", "histolgy", "stage.at.dx", "driver_gene"],
+    ]
+    .drop_duplicates(ignore_index=True)
+    .rename(
+        columns={
+            "patient_id": "patient",
+            "gender": "sex",
+            "smokingHx": "ever_smoker",
+            "histolgy": "pathology",
+            "stage.at.dx": "uicc_stage",
+            "driver_gene": "driver_genes",
+        }
+    )
+    .assign(
+        ever_smoker=lambda x: [
+            {"Never": "no", "Former": "yes", "Current": "yes"}[s]
+            for s in x["ever_smoker"]
+        ],
+        patient=lambda x: [f"Maynard_Bivona_2020_NSCLC_{p}" for p in x["patient"]],
+    )
+)
+
+# %%
+add_meta = (
+    pd.concat(
+        [
+            pd.read_excel(
+                "../../tables/additional_patient_metadata/additional_metadata.xlsx"
+            ),
+            mayn2,
+            wu2,
+        ]
+    )
+    .drop_duplicates()
+    .rename(columns={"pathology": "condition"})
+    .assign(
+        condition= lambda x: [
+            {
+                "control": "healthy_control",
+                "copd": "COPD",
+                "squamous": "LSCC",
+                "large cell": "LCLC",
+                "adeno": "LUAD",
+                "pleomorphic": "PPC",
+                "adenocarcinoma": "LUAD",
+                "lusc": "LSCC",
+                "luad": "LUAD",
+                "nsclc": "NSCLC",
+            }[c.lower()] if not pd.isnull(c) else None for c in x["condition"]
+        ],
+        sex = lambda x: x.sex.str.lower().str.strip()
+    )
+)
+
+# %%
+add_meta.sex.unique()
+
+# %%
+add_meta.condition.unique()
+
+# %%
+add_meta
+
+# %%
+add_meta.loc[~add_meta["patient"].isin(adata.obs["patient"]), :]
+
+# %%
+meta_from_adata = adata.obs.loc[:, ["patient", "sex", "condition"]].drop_duplicates(
+    ignore_index=True
+)
+
+# %%
+meta_from_adata
+
+# %%
+pd.set_option("display.max_rows", 200)
+
+# %%
+meta_from_adata.set_index("patient").join(
+    add_meta.set_index("patient"), how="outer", lsuffix="_atlas", rsuffix="_new"
+).sort_index(axis="columns").sort_index().to_excel("../../tables/additional_patient_metadata/patient_metadata.xlsx")
+
+# %%
+meta_from_adata.loc[~meta_from_adata["patient"].isin(add_meta["patient"]), :]
+
+# %% [markdown]
+# # Dataset overview
 
 # %% [markdown]
 # ### Overview of celltypes
