@@ -86,113 +86,60 @@ adata.obs.columns
 # # Add missing dataset metadata
 
 # %%
-wu = pd.read_excel(
-    "../../tables/additional_patient_metadata/wu_et_al_additional_patient_metadata.xlsx"
+additional_patient_metadata = pd.read_excel(
+    "../../tables/additional_patient_metadata/patient_metadata_corrected.xlsx"
+).assign(
+    ever_smoker = lambda x: x["ever_smoker"].str.strip().str.lower()
+)
+additional_patient_metadata
+
+# %%
+for col in additional_patient_metadata.columns[2:]:
+    print(additional_patient_metadata[col].unique().tolist())
+
+# %%
+additional_metadata_by_cell = (
+    adata.obs.drop(["condition", "sex"], axis="columns")
+    .reset_index()
+    .merge(additional_patient_metadata, on="patient")
+    .set_index("index")
 )
 
 # %%
-wu2 = (
-    wu.loc[:, ["Patient", "FINAL"]]
-    .rename(columns={"Patient": "patient", "FINAL": "pathology"})
-    .assign(patient=lambda x: [f"Wu_Zhou_2021_NSCLC_{p}" for p in x["patient"]])
-)
+adata.obs.drop(["condition", "sex"], axis="columns", inplace=True)
+for col in additional_patient_metadata.columns:
+    if col != "patient":
+        adata.obs.insert(1, col, additional_metadata_by_cell[col])
+
+# %% [markdown]
+# ### Simplify dataset names
 
 # %%
-mayn = pd.read_csv(
-    "../../tables/additional_patient_metadata/cell_metadata_maynard.csv.gz"
-)
+remap_datasets = {
+    d: "_".join(d.split("_")[:-1]) for d in adata.obs["dataset"].unique()
+}
+remap_datasets["UKIM-V"] = "UKIM-V"
+remap_datasets["Travaglini_Krasnow_2020_Lung_SS2"] = "Travaglini_Krasnow_2020"
+remap_datasets["Lambrechts_2018_LUAD_6149v1"] = "Lambrechts_Thienpont_2018_6149v1"
+remap_datasets["Lambrechts_2018_LUAD_6149v2"] = "Lambrechts_Thienpont_2018_6149v2"
+remap_datasets["Lambrechts_2018_LUAD_6653"] = "Lambrechts_Thienpont_2018_6653"
+
+# %%
+pd.DataFrame().from_dict(remap_datasets, orient='index', columns=["new"])
+
+# %%
+adata.obs.drop("batch", axis="columns", inplace=True)
 
 # %%
 pd.set_option("display.max_columns", 200)
 
 # %%
-mayn2 = (
-    mayn.loc[
-        :,
-        ["patient_id", "gender", "smokingHx", "histolgy", "stage.at.dx", "driver_gene"],
-    ]
-    .drop_duplicates(ignore_index=True)
-    .rename(
-        columns={
-            "patient_id": "patient",
-            "gender": "sex",
-            "smokingHx": "ever_smoker",
-            "histolgy": "pathology",
-            "stage.at.dx": "uicc_stage",
-            "driver_gene": "driver_genes",
-        }
-    )
-    .assign(
-        ever_smoker=lambda x: [
-            {"Never": "no", "Former": "yes", "Current": "yes"}[s]
-            for s in x["ever_smoker"]
-        ],
-        patient=lambda x: [f"Maynard_Bivona_2020_NSCLC_{p}" for p in x["patient"]],
-    )
-)
+for col in ["sample", "patient", "dataset"]:
+    for old, new in remap_datasets.items():
+        adata.obs[col] = adata.obs[col].str.replace(old, new, regex=False)
 
 # %%
-add_meta = (
-    pd.concat(
-        [
-            pd.read_excel(
-                "../../tables/additional_patient_metadata/additional_metadata.xlsx"
-            ),
-            mayn2,
-            wu2,
-        ]
-    )
-    .drop_duplicates()
-    .rename(columns={"pathology": "condition"})
-    .assign(
-        condition= lambda x: [
-            {
-                "control": "healthy_control",
-                "copd": "COPD",
-                "squamous": "LSCC",
-                "large cell": "LCLC",
-                "adeno": "LUAD",
-                "pleomorphic": "PPC",
-                "adenocarcinoma": "LUAD",
-                "lusc": "LSCC",
-                "luad": "LUAD",
-                "nsclc": "NSCLC",
-            }[c.lower()] if not pd.isnull(c) else None for c in x["condition"]
-        ],
-        sex = lambda x: x.sex.str.lower().str.strip()
-    )
-)
-
-# %%
-add_meta.sex.unique()
-
-# %%
-add_meta.condition.unique()
-
-# %%
-add_meta
-
-# %%
-add_meta.loc[~add_meta["patient"].isin(adata.obs["patient"]), :]
-
-# %%
-meta_from_adata = adata.obs.loc[:, ["patient", "sex", "condition"]].drop_duplicates(
-    ignore_index=True
-)
-
-# %%
-meta_from_adata
-
-# %%
-pd.set_option("display.max_rows", 200)
-
-# %%
-meta_from_adata.set_index("patient").join(
-    add_meta.set_index("patient"), how="outer", lsuffix="_atlas", rsuffix="_new"
-).sort_index(axis="columns").sort_index().to_excel("../../tables/additional_patient_metadata/patient_metadata.xlsx")
-
-# %%
-meta_from_adata.loc[~meta_from_adata["patient"].isin(add_meta["patient"]), :]
+adata.obs
 
 # %% [markdown]
 # # Dataset overview
@@ -213,7 +160,7 @@ sc.pl.umap(
 
 # %%
 sc.set_figure_params(figsize=(6, 6))
-sc.pl.umap(adata, color=["condition", "origin", "dataset"], wspace=0.3)
+sc.pl.umap(adata, color=["condition", "origin", "dataset", "sex", "ever_smoker", "uicc_stage"], wspace=0.3, ncols=3)
 
 # %% [markdown]
 # ### Dimensions (number of cells, number of genes)
