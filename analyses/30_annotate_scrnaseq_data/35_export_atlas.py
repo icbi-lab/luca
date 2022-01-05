@@ -33,6 +33,10 @@ path_adata_epi = nxfvars.get(
     "adata_epi",
     "../../data/20_build_atlas/annotate_datasets/33_cell_types_epi/artifacts/adata_epithelial.h5ad",
 )
+path_patient_metadata = nxfvars.get(
+    "patient_metadata",
+    "../../tables/additional_patient_metadata/patient_metadata_corrected.xlsx"
+)
 artifact_dir = nxfvars.get("artifact_dir", "/data/scratch/sturm/tmp/")
 
 # %%
@@ -87,7 +91,7 @@ adata.obs.columns
 
 # %%
 additional_patient_metadata = pd.read_excel(
-    "../../tables/additional_patient_metadata/patient_metadata_corrected.xlsx"
+    path_patient_metadata
 ).assign(ever_smoker=lambda x: x["ever_smoker"].str.strip().str.lower())
 additional_patient_metadata
 
