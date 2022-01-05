@@ -61,6 +61,7 @@ sc.pl.umap(adata, color=["cell_type", "origin"], ncols=1)
 adata.obs["cell_type"].value_counts()
 
 # %%
+# TODO cDC1 is missing; maybe use the new "cell_type_major" annotation
 cell_types = {
     "tumor": set(adata.obs["cell_type_tumor"]) - set(adata.obs["cell_type"]),
     "healthy epithelial": [

@@ -36,11 +36,11 @@ ah = AnnotationHelper()
 # %%
 input_dir = nxfvars.get(
     "input_dir",
-    "../../data/20_integrate_scrnaseq_data/annotate_datasets/31_cell_types_coarse/by_cell_type/",
+    "../../data/20_build_atlas//annotate_datasets/31_cell_types_coarse/by_cell_type/",
 )
 main_adata = nxfvars.get(
     "main_adata",
-    "../../data/20_integrate_scrnaseq_data/annotate_datasets/31_cell_types_coarse/artifacts/adata_cell_type_coarse.h5ad",
+    "../../data/20_build_atlas/annotate_datasets/31_cell_types_coarse/artifacts/adata_cell_type_coarse.h5ad",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
@@ -52,6 +52,25 @@ sc.pl.umap(adata, color="cell_type")
 
 # %%
 adata.obs["cell_type_coarse"] = adata.obs["cell_type"]
+
+# %% [markdown]
+# ## Endothelial cell subclustering
+
+# %%
+adata_endo = sc.read_h5ad(f"{input_dir}/adata_cell_type_coarse_endothelial_cell.umap_leiden.h5ad")
+adata_endo.obs["leiden"] = adata_endo.obs["leiden_0.50"]
+
+# %%
+ah.plot_umap(adata_endo, filter_cell_type=["Endo"], cmap="inferno", size=2)
+
+# %%
+sc.pl.umap(adata_endo, color="leiden", legend_loc="on data", legend_fontoutline=2)
+
+# %%
+ah.annotate_cell_types(adata_endo, {"Endothelial cell lymphatic": [4], "Endothelial cell": [ 0, 1, 8, 3, 5, 2, 6, 7]})
+
+# %%
+ah.integrate_back(adata, adata_endo)
 
 # %% [markdown]
 # ## T cell subclustering

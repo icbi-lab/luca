@@ -88,9 +88,7 @@ adata.obs.columns
 # %%
 additional_patient_metadata = pd.read_excel(
     "../../tables/additional_patient_metadata/patient_metadata_corrected.xlsx"
-).assign(
-    ever_smoker = lambda x: x["ever_smoker"].str.strip().str.lower()
-)
+).assign(ever_smoker=lambda x: x["ever_smoker"].str.strip().str.lower())
 additional_patient_metadata
 
 # %%
@@ -115,9 +113,7 @@ for col in additional_patient_metadata.columns:
 # ### Simplify dataset names
 
 # %%
-remap_datasets = {
-    d: "_".join(d.split("_")[:-1]) for d in adata.obs["dataset"].unique()
-}
+remap_datasets = {d: "_".join(d.split("_")[:-1]) for d in adata.obs["dataset"].unique()}
 remap_datasets["UKIM-V"] = "UKIM-V"
 remap_datasets["Travaglini_Krasnow_2020_Lung_SS2"] = "Travaglini_Krasnow_2020"
 remap_datasets["Lambrechts_2018_LUAD_6149v1"] = "Lambrechts_Thienpont_2018_6149v1"
@@ -125,7 +121,7 @@ remap_datasets["Lambrechts_2018_LUAD_6149v2"] = "Lambrechts_Thienpont_2018_6149v
 remap_datasets["Lambrechts_2018_LUAD_6653"] = "Lambrechts_Thienpont_2018_6653"
 
 # %%
-pd.DataFrame().from_dict(remap_datasets, orient='index', columns=["new"])
+pd.DataFrame().from_dict(remap_datasets, orient="index", columns=["new"])
 
 # %%
 adata.obs.drop("batch", axis="columns", inplace=True)
@@ -142,6 +138,60 @@ for col in ["sample", "patient", "dataset"]:
 adata.obs
 
 # %% [markdown]
+# # Adjust cell-type annotations
+
+# %%
+adata.obs["cell_type_coarse"] = (
+    adata.obs["cell_type_coarse"].str.replace("Granulocytes", "Neutrophils")
+).astype(str)
+adata.obs["cell_type"] = adata.obs["cell_type"].str.replace(
+    "Granulocytes", "Neutrophils"
+)
+
+# %%
+adata.obs.loc[adata.obs["cell_type"] == "NK cell", "cell_type_coarse"] = "NK cell"
+
+# %%
+adata.obs.loc[
+    adata.obs["cell_type"].isin(
+        ["Macrophage FABP4+", "Macrophage", "Monocyte", "myeloid dividing"]
+    ),
+    "cell_type_coarse",
+] = "Macrophage/Monocyte"
+adata.obs.loc[
+    adata.obs["cell_type"].isin(["cDC1", "cDC2", "DC mature"]), "cell_type_coarse"
+] = "cDC"
+
+# %% [markdown]
+# ### cell_type_major
+#
+# an annotation that is more fine-grained than coarse, more coarse grained than fine, and ignore some special categories, such as dividing cells. 
+# This may be useful for some downstream analyses. 
+
+# %%
+adata.obs["cell_type_major"] = adata.obs["cell_type"].astype(str)
+adata.obs.loc[
+    adata.obs["cell_type_coarse"] == "Stromal",
+    "cell_type_major",
+] = "Stromal"
+adata.obs.loc[
+    adata.obs["cell_type_coarse"] == "Endothelial cell",
+    "cell_type_major",
+] = "Endothelial cell"
+adata.obs.loc[
+    adata.obs["cell_type_major"].isin(
+        [
+            "other (T assoc.)",
+            "T cell dividing",
+            "B cell dividing",
+            "myeloid dividing",
+            "ROS1+ healthy epithelial",
+        ]
+    ),
+    "cell_type_major",
+] = "other"
+
+# %% [markdown]
 # # Dataset overview
 
 # %% [markdown]
@@ -151,7 +201,7 @@ adata.obs
 sc.set_figure_params(figsize=(10, 10))
 sc.pl.umap(
     adata,
-    color=["cell_type_coarse", "cell_type"],
+    color=["cell_type_coarse", "cell_type", "cell_type_major"],
     legend_loc="on data",
     legend_fontoutline=2,
     legend_fontsize=8,
@@ -160,7 +210,12 @@ sc.pl.umap(
 
 # %%
 sc.set_figure_params(figsize=(6, 6))
-sc.pl.umap(adata, color=["condition", "origin", "dataset", "sex", "ever_smoker", "uicc_stage"], wspace=0.3, ncols=3)
+sc.pl.umap(
+    adata,
+    color=["condition", "origin", "dataset", "sex", "ever_smoker", "uicc_stage"],
+    wspace=0.3,
+    ncols=3,
+)
 
 # %% [markdown]
 # ### Dimensions (number of cells, number of genes)
@@ -244,5 +299,3 @@ adata_epi.write_h5ad(f"{artifact_dir}/epithelial_cells_annotated.h5ad")
 # %%
 adata_cellxgene.write_h5ad(f"{artifact_dir}/full_atlas_{date_now}.h5ad")
 adata_cellxgene_epi.write_h5ad(f"{artifact_dir}/epithelial_cells_{date_now}.h5ad")
-
-# %%
