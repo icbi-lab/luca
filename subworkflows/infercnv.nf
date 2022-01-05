@@ -8,11 +8,12 @@ process RUN_SCEVAN {
     output:
     path "*", emit: output_file
 
-    errorStrategy 'ignore'
-
     script:
+    // using this instead of `errorStrategy` in order to also cache failed processes
+    // (they will always fail due to characteristics of the data, e.g. too few cells)
+    ignore_exit_code = task.ext.ignore_error ? "|| true" : ""
     """
-    scevan_parallel.R ${input_file} ${task.cpus} ${input_file.baseName}
+    scevan_parallel.R ${input_file} ${task.cpus} ${input_file.baseName} > ${id}.log 2>&1 $ignore_exit_code
     """
 }
 
@@ -38,11 +39,12 @@ process RUN_INFERCNVPY {
     output:
     path "*", emit: output_file
 
-    errorStrategy 'ignore'
-
     script:
+    // using this instead of `errorStrategy` in order to also cache failed processes
+    // (they will always fail due to characteristics of the data, e.g. too few cells)
+    ignore_exit_code = task.ext.ignore_error ? "|| true" : ""
     """
-    infercnvpy_parallel.py ${input_file}
+    infercnvpy_parallel.py ${input_file} > ${id}.log 2>&1 $ignore_exit_code
     """
 }
 

@@ -1,0 +1,54 @@
+```{r, include=FALSE}
+library(conflicted)
+library(Scissor)
+library(readxl)
+library(SingleCellExperiment)
+library(readxl)
+library(dplyr)
+conflict_prefer("filter", "dplyr")
+library(readr)
+library(stringr)
+# library(RhpcBLASctl)
+```
+
+```{r}
+lusc = read_tsv("../../data/13_tcga/TCGA-LUSC-PrimaryTumor-TPM.txt.gz")
+luad = read_tsv("../../data/13_tcga/TCGA-LUAD-PrimaryTumor-TPM.txt.gz")
+tcga_lung = luad %>%
+  inner_join(lusc, by=c("ENSGID", "GeneName")) %>%
+  select(-ENSGID) %>%
+  group_by(GeneName) %>%
+  summarise_all(sum) %>%
+  tibble::column_to_rownames("GeneName") %>%
+  as.matrix()
+
+colnames_new = sapply(colnames(tcga_lung), function(x) {paste(str_split(x, pattern="-")[[1]][1:3], collapse="-")}, USE.NAMES = FALSE)
+colnames(tcga_lung) = colnames_new
+
+# for now, exclude duplicates
+tcga_lung = tcga_lung[, !duplicated(colnames(tcga_lung))]
+
+saveRDS(tcga_lung, "../../data/13_tcga/tcga-lung-primary.rds", compress=FALSE)
+```
+
+```{r}
+set.seed(0)
+clinical_data = read_excel("../../tables/tcga/mmc1.xlsx", guess_max=1000000, na=c("", "[Not Available]")) %>%
+  filter(type %in% c("LUAD", "LUSC")) %>%
+  select(TCGA_patient_barcode=bcr_patient_barcode, time=OS.time, status=OS, ajcc_pathologic_tumor_stage, type) %>%
+  mutate(tumor_stage = if_else(
+    ajcc_pathologic_tumor_stage %in% c("Stage I", "Stage IA", "Stage IB", "Stage II", "Stage IIA", "Stage IIB"),
+    0,
+    ifelse(ajcc_pathologic_tumor_stage %in% c("Stage III", "Stage IIIA", "Stage IIIB", "Stage IV"), 1, NA))) %>%
+  mutate(
+    kras_mutation = if_else(TCGA_patient_barcode %in% read_tsv("../../tables/tcga/kras_mutated.tsv")$case_submitter_id, 1, 0),
+    braf_mutation = if_else(TCGA_patient_barcode %in% read_tsv("../../tables/tcga/braf_mutated.tsv")$case_submitter_id, 1, 0),
+    egfr_mutation = if_else(TCGA_patient_barcode %in% read_tsv("../../tables/tcga/egfr_mutated.tsv")$case_submitter_id, 1, 0),
+    tumor_type = if_else(type == "LUAD", 0, 1),
+    random = if_else(runif(nrow(.)) < 0.25, 1, 0)
+  )
+```
+
+```{r}
+write_tsv(clinical_data, "../../tables/tcga/clinical_data_for_scissor.tsv")
+```

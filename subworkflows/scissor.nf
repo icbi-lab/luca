@@ -1,6 +1,27 @@
 include { SPLIT_ANNDATA }  from "../modules/local/scconversion/main.nf"
 include { H5AD_TO_SCE }  from "../modules/local/scconversion/main.nf"
-include { RMARKDOWNNOTEBOOK as SCISSOR } from "../modules/local/rmarkdownnotebook/main.nf"
+
+process SCISSOR {
+    input:
+    tuple val(id), path(sce)
+    path(bulk_tpm)
+    path(metadata)
+    each options
+
+    output:
+    path "scissor*.tsv", emit: scissor_cells, optional: true
+    path "*.log", emit: log
+
+    script:
+    // using this instead of `errorStrategy` in order to also cache failed processes
+    // (they will always fail due to characteristics of the data, e.g. too few cells)
+    ignore_exit_code = task.ext.ignore_error ? "|| true" : ""
+    """
+    scissor_single_sample.R --bulk_tpm $bulk_tpm --sce $sce --metadata $metadata \\
+        --sample_col=TCGA_patient_barcode \\
+        $options > ${id}.log 2>&1 $ignore_exit_code
+    """
+}
 
 workflow scissor {
     take: adata_annotated
@@ -12,30 +33,18 @@ workflow scissor {
 
     ch_sce = H5AD_TO_SCE.out.sce
     SCISSOR(
-        Channel.value([
-            [id: 'scissor'],
-            file("${baseDir}/analyses/50_scissor/51_scissor_single_sample.Rmd")
-        ]),
-        ch_sce.map{
-            id, sce -> [
-                'id': id,
-                 'sce_path': sce.name,
-                 'survival_path': 'mmc1.xlsx',
-                 'kras_mutation': 'kras_mutated.tsv',
-                 'egfr_mutation': 'egfr_mutated.tsv',
-                 'braf_mutation': 'braf_mutated.tsv',
-                 'tcga_tpm_path': 'tcga-lung-primary.rds'
+        ch_sce,
+        file("$baseDir/data/13_tcga/tcga-lung-primary.rds", checkIfExists: true),
+        file("$baseDir/tables/tcga/clinical_data_for_scissor.tsv", checkIfExists: true),
+        Channel.from(
+            [
+                "--column tumor_stage",
+                "--column kras_mutation",
+                "--column braf_mutation",
+                "--column egfr_mutation",
+                "--column tumor_type",
+                "--surv_time time --surv_status status"
             ]
-        },
-        ch_sce.map{
-            id, sce -> [
-                sce,
-                file("$baseDir/tables/tcga/mmc1.xlsx", checkIfExists: true),
-                file("$baseDir/tables/tcga/kras_mutated.tsv", checkIfExists: true),
-                file("$baseDir/tables/tcga/braf_mutated.tsv", checkIfExists: true),
-                file("$baseDir/tables/tcga/egfr_mutated.tsv", checkIfExists: true),
-                file("$baseDir/data/13_tcga/tcga-lung-primary.rds")
-            ]
-        }
+        )
     )
 }
