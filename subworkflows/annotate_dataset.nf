@@ -68,9 +68,14 @@ workflow annotate_dataset {
         ]),
         [
             "adata_annotated_fine": "adata_annotated_fine.h5ad",
-            "adata_epi": "adata_epithelial.h5ad"
+            "adata_epi": "adata_epithelial.h5ad",
+            "patient_metadata": "patient_metadata_corrected.xlsx"
         ],
-        ANNOTATE_CELL_TYPES_FINE.out.artifacts.mix(ANNOTATE_CELL_TYPES_EPI.out.artifacts).collect()
+        ANNOTATE_CELL_TYPES_FINE.out.artifacts.mix(
+            ANNOTATE_CELL_TYPES_EPI.out.artifacts
+        ).mix(
+            Channel.fromPath("$baseDir/tables/additional_patient_metadata/patient_metadata_corrected.xlsx")
+        ).collect()
     )
     ch_atlas = EXPORT_ATLAS.out.artifacts.flatten().filter{ it -> it.baseName.equals("full_atlas_annotated") }
 
