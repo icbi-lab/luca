@@ -71,7 +71,7 @@ adata_epi.obs["cell_type"] = adata.obs["cell_type"]
 # %%
 adata = adata[
     ~adata.obs["cell_type"].isin(["Neuronal cells", "Hepatocytes", "Hemoglobin+"]), :
-]
+].copy()
 
 # %%
 adata.obs.columns
@@ -112,6 +112,12 @@ adata.obs.drop(["condition", "sex"], axis="columns", inplace=True)
 for col in additional_patient_metadata.columns:
     if col != "patient":
         adata.obs.insert(1, col, additional_metadata_by_cell[col])
+
+# %%
+adata.obs["tumor_stage"] = np.nan
+adata.obs.loc[adata.obs["uicc_stage"].isin(["I", "II", "IA"]), "tumor_stage"] = "early"
+adata.obs.loc[adata.obs["uicc_stage"].isin(["III", "IV", "IIIA", "IIIB", "III or IV"]), "tumor_stage"] = "late"
+assert np.all(pd.isnull(adata.obs["uicc_stage"]) == pd.isnull(adata.obs["tumor_stage"]))
 
 # %% [markdown]
 # ### Simplify dataset names
@@ -216,7 +222,7 @@ sc.pl.umap(
 sc.set_figure_params(figsize=(6, 6))
 sc.pl.umap(
     adata,
-    color=["condition", "origin", "dataset", "sex", "ever_smoker", "uicc_stage"],
+    color=["condition", "origin", "dataset", "sex", "ever_smoker", "uicc_stage", "tumor_stage"],
     wspace=0.3,
     ncols=3,
 )
