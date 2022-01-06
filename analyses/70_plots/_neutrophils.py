@@ -15,22 +15,41 @@
 # %%
 import scanpy as sc
 import pandas as pd
+from scanpy_helpers.annotation import AnnotationHelper
+
+# %%
+sc.settings.set_figure_params(figsize=(5, 5))
+
+# %%
+ah = AnnotationHelper()
 
 # %%
 adata = sc.read_h5ad(
-    "../../data/20_integrate_scrnaseq_data/28_annotate_cell_types_coarse_umap/adata_granulocytes.umap_leiden.h5ad"
+    "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad"
 )
 
 # %%
-pd.set_option("display.max_rows", 1000)
+adata_t = adata[adata.obs["cell_type_coarse"] == "Tumor cells", :].copy()
+adata_n = adata[adata.obs["cell_type_coarse"] == "Neutrophils", :].copy()
+
+# %%
+ah.reprocess_adata_subset_scvi(adata_n, use_rep="X_scANVI")
+
+# %%
+sc.pl.umap(adata_n, color=["cell_type",  "origin", "condition", "tumor_stage", "sex", "dataset"], wspace=0.5)
+
+# %% [markdown]
+# ### Compare cytosig and progeny
+#
+# ### Compare DE genes using pair plots
+
+# %% [markdown]
+# ---
 
 # %%
 adata.obs.groupby(["dataset", "patient", "sample", "origin"], observed=True).size().reset_index(
     name="n_cells"
 ).sort_values("n_cells", ascending=False).to_csv("./granulocyte_count_per_patient.tsv", sep="\t")
-
-# %%
-sc.pl.umap(adata, color=["cell_type", "dataset"])
 
 # %%
 sc.pp.highly_variable_genes(adata, flavor="seurat_v3", n_top_genes=2000)
@@ -59,9 +78,6 @@ adata
 
 # %%
 adata_neutro = adata[adata.obs["cell_type"] == "Granulocytes", :].copy()
-
-# %%
-sc.settings.set_figure_params(figsize=(5, 5))
 
 # %%
 sc.pp.neighbors(adata_neutro, use_rep="X_scANVI")
