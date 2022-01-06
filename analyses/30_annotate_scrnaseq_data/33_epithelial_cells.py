@@ -19,19 +19,13 @@
 # %%
 import scanpy as sc
 from nxfvars import nxfvars
-import infercnvpy as cnv
 from scanpy_helpers.annotation import AnnotationHelper
-from scanpy_helpers import de
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 from natsort import natsorted
-import dorothea
-import progeny
 
-# import hierarchical_bootstrapping as hb
 from natsort import natsorted
-import itertools
 from threadpoolctl import threadpool_limits
 import numba
 from toolz.functoolz import reduce

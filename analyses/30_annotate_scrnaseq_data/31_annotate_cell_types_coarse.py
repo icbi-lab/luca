@@ -19,7 +19,6 @@
 # %%
 import scanpy as sc
 from scanpy_helpers.annotation import AnnotationHelper
-import scvi
 import warnings
 import numpy as np
 from nxfvars import nxfvars
@@ -90,7 +89,7 @@ ct_map = {
     "T cell": [7, 1, 4, 3, 10, 24],
     "pDC": [26],
     # they come from brain metastases
-    "Neuronal cells": [29]
+    "Neuronal cells": [29],
 }
 
 # %%

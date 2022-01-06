@@ -19,11 +19,9 @@
 # %%
 import scanpy as sc
 from scanpy_helpers.annotation import AnnotationHelper
-import scvi
 import warnings
 import numpy as np
 from nxfvars import nxfvars
-import infercnvpy as cnv
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -57,7 +55,9 @@ adata.obs["cell_type_coarse"] = adata.obs["cell_type"]
 # ## Endothelial cell subclustering
 
 # %%
-adata_endo = sc.read_h5ad(f"{input_dir}/adata_cell_type_coarse_endothelial_cell.umap_leiden.h5ad")
+adata_endo = sc.read_h5ad(
+    f"{input_dir}/adata_cell_type_coarse_endothelial_cell.umap_leiden.h5ad"
+)
 adata_endo.obs["leiden"] = adata_endo.obs["leiden_0.50"]
 
 # %%
@@ -67,7 +67,10 @@ ah.plot_umap(adata_endo, filter_cell_type=["Endo"], cmap="inferno", size=2)
 sc.pl.umap(adata_endo, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
-ah.annotate_cell_types(adata_endo, {"Endothelial cell lymphatic": [4], "Endothelial cell": [ 0, 1, 8, 3, 5, 2, 6, 7]})
+ah.annotate_cell_types(
+    adata_endo,
+    {"Endothelial cell lymphatic": [4], "Endothelial cell": [0, 1, 8, 3, 5, 2, 6, 7]},
+)
 
 # %%
 ah.integrate_back(adata, adata_endo)
