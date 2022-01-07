@@ -101,7 +101,7 @@ cell_types = {
 adata_primary_tumor = adata[
     (adata.obs["origin"] == "tumor_primary")
     # exclude datasets that only contain a single cell-type
-    & ~adata.obs["dataset"].isin(["Guo_Zhang_2018_NSCLC", "Maier_Merad_2020_NSCLC"]),
+    & ~adata.obs["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"]),
     :,
 ]
 
@@ -124,18 +124,21 @@ ad_tumor_subtypes = sc.AnnData(
         .str.replace("Tumor cells ", "")
         .str.replace(" mitotic", "")
     )
-    .pivot_table(values="n", columns="cell_type_tumor", index="patient", fill_value=0)
+    .pivot_table(values="n", columns="cell_type_tumor", index="patient", fill_value=0),
 )
+ad_tumor_subtypes.obs = ad_tumor_subtypes.obs.join(adata_tumor_cells.obs.loc[:, ["patient", "condition"]].drop_duplicates().set_index("patient"))
+
 
 # %%
 sc.pp.normalize_total(ad_tumor_subtypes, target_sum=1)
 
 # %%
-sc.pl.matrixplot(
+sc.pl.heatmap(
     ad_tumor_subtypes,
-    groupby="patient",
+    groupby="condition",
     var_names=ad_tumor_subtypes.var_names,
     swap_axes=True,
+    figsize=(14, 1.5)
 )
 
 # %%
@@ -673,3 +676,5 @@ plot_df.to_csv(
         nxfvars.get("artifact_dir", "/home/sturm/Downloads")
     )
 )
+
+# %%
