@@ -26,7 +26,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
 
-
 # %%
 sc.settings.set_figure_params(figsize=(5, 5))
 
@@ -39,7 +38,7 @@ adata = sc.read_h5ad(
 )
 
 # %%
-adata_t = adata[adata.obs["cell_type_coarse"] == "Tumor cells", :].copy()
+adata_t = adata[adata.obs["cell_type"] == "Tumor cells", :].copy()
 adata_n = adata[adata.obs["cell_type_coarse"] == "Neutrophils", :].copy()
 
 # %%
@@ -79,6 +78,8 @@ tumor_normal_cytosig.loc[lambda x: x["cell_type"] == "Neutrophils", :].query(
 
 # %% [markdown]
 # ### Compare DE genes using pair plots
+#
+# All pvalues are unadjusted
 
 # %%
 top_up_normal = [
@@ -149,6 +150,13 @@ sc.pp.log1p(adata_tumor_normal)
 adata_tumor_normal.obs.query("dataset == 'UKIM-V'")
 
 # %%
+deseq2_res_tumor_normal = pd.read_csv(
+    "../../data/30_downstream_analyses/de_analysis/tumor_normal/de_deseq2/adata_tumor_normal_neutrophils_DESeq2_result.tsv",
+    sep="\t",
+    index_col=0,
+).set_index("gene_id.1")
+
+# %%
 sc.pl.matrixplot(
     adata_tumor_normal, var_names=top_up_normal, groupby="origin", title="top up normal"
 )
@@ -159,13 +167,48 @@ sc.pl.matrixplot(
 )
 
 # %%
+deseq2_res_tumor_normal
+
+# %%
 sh.pairwise.plot_paired(
-    adata_tumor_normal, groupby="origin", paired_by="patient", var_names=tumor_vs_normal
+    adata_tumor_normal,
+    groupby="origin",
+    paired_by="patient",
+    var_names=tumor_vs_normal,
+    pvalues=deseq2_res_tumor_normal.loc[tumor_vs_normal, "pvalue"],
+    pvalue_template="DESeq2 p={:.2f}"
 )
 
 # %%
 sh.pairwise.plot_paired(
-    adata_tumor_normal, groupby="origin", var_names=tumor_vs_normal, hue="dataset", show_legend=False
+    adata_tumor_normal,
+    groupby="origin",
+    var_names=tumor_vs_normal,
+    hue="dataset",
+    show_legend=False,
+    size=5,
+)
+
+# %% [markdown]
+# ## Top DE genes as determined by DESeq2
+
+# %%
+sc.pl.matrixplot(
+    adata_tumor_normal,
+    var_names=deseq2_res_tumor_normal.index.values[:20],
+    groupby="origin",
+    title="top DE genes",
+)
+
+# %%
+tmp_top10 = deseq2_res_tumor_normal.index.values[:10]
+sh.pairwise.plot_paired(
+    adata_tumor_normal,
+    groupby="origin",
+    paired_by="patient",
+    var_names=tmp_top10,
+    pvalues=deseq2_res_tumor_normal.loc[tmp_top10, "pvalue"],
+    pvalue_template="DESeq2 p={:.4f}"
 )
 
 # %% [markdown]
@@ -211,13 +254,17 @@ fig, ax = plt.subplots()
 neutro_subset["condition"] = neutro_subset["condition"].astype(str)
 neutro_subset["dataset"] = neutro_subset["dataset"].astype(str)
 
-sns.stripplot(data=neutro_subset, x="condition", y="fraction", hue="dataset", ax=ax, size=7, linewidth=2)
-sns.boxplot(
+sns.stripplot(
     data=neutro_subset,
     x="condition",
     y="fraction",
+    hue="dataset",
     ax=ax,
-    width=0.5
+    size=7,
+    linewidth=2,
+)
+sns.boxplot(
+    data=neutro_subset, x="condition", y="fraction", ax=ax, width=0.5, fliersize=0
 )
 ax.legend(bbox_to_anchor=(1.1, 1.05))
 
@@ -236,111 +283,62 @@ res.pvalues["C(condition)[T.LUAD]"]
 # (LSCC vs. LUAD) 
 
 # %%
-# TODO maybe best to also run DESeq2 for this
-
-# %% [markdown]
-# ---
+recruitment_genes = [
+    "SOX2",
+    "NKX2-1",
+    "CXCL1",
+    "CXCL2",
+    "CXCL5",
+    "CXCL6",
+    "CXCL8",
+    "IL6",
+    # "IL17A", (<10 reads)
+    "TNF",
+    "LTA",
+    "CSF2",
+    "CSF3",
+    "CCL2",
+    "CCL3",
+    "CCL4",
+    "CCL5",
+    "CXCL12",
+]
 
 # %%
-adata.obs.groupby(
-    ["dataset", "patient", "sample", "origin"], observed=True
-).size().reset_index(name="n_cells").sort_values("n_cells", ascending=False).to_csv(
-    "./granulocyte_count_per_patient.tsv", sep="\t"
+deseq2_res_luad_lscc = pd.read_csv(
+    "../../data/30_downstream_analyses/de_analysis/luad_lscc/de_deseq2/adata_luad_lscc_tumor_cells_DESeq2_result.tsv",
+    sep="\t",
+    index_col=0,
+).set_index("gene_id.1")
+
+# %%
+tumor_cells_by_origin = sh.pseudobulk.pseudobulk(
+    adata_t[
+        (adata_t.obs["origin"] == "tumor_primary")
+        & adata_t.obs["condition"].isin(["LUAD", "LSCC"]),
+        :,
+    ].copy(),
+    groupby=["patient", "condition", "dataset"],
+)
+sc.pp.normalize_total(tumor_cells_by_origin, target_sum=1000)
+sc.pp.log1p(tumor_cells_by_origin)
+
+# %%
+sc.pl.matrixplot(
+    tumor_cells_by_origin, var_names=recruitment_genes, groupby="condition"
 )
 
 # %%
-sc.pp.highly_variable_genes(adata, flavor="seurat_v3", n_top_genes=2000)
-
-# %%
-sc.tl.pca(adata, use_highly_variable=True)
-
-# %%
-sc.pp.neighbors(adata)
-
-# %%
-sc.tl.umap(adata)
-
-# %%
-sc.pl.umap(adata, color=["cell_type", "dataset"])
-
-# %%
-adata
-
-# %%
-
-# %% [markdown] tags=[]
-# ---
-#
-# # Neutrophils
-
-# %%
-adata_neutro = adata[adata.obs["cell_type"] == "Granulocytes", :].copy()
-
-# %%
-sc.pp.neighbors(adata_neutro, use_rep="X_scANVI")
-sc.tl.leiden(adata_neutro, resolution=0.5)
-sc.tl.umap(adata_neutro)
-
-# %%
-sc.pl.umap(adata_neutro, color=["origin", "leiden", "dataset"], wspace=0.5)
-
-# %%
-sc.pl.umap(
-    adata_neutro,
-    color=adata.obs.columns[adata.obs.columns.str.startswith("scissor")],
-    wspace=0.5,
-    ncols=3,
+sh.pairwise.plot_paired(
+    tumor_cells_by_origin,
+    groupby="condition",
+    var_names=recruitment_genes,
+    hue="dataset",
+    show_legend=False,
+    size=5,
+    ylabel="log norm counts",
+    pvalues=deseq2_res_luad_lscc.loc[recruitment_genes, "padj"],
+    pvalue_template="DESeq2 FDR={:.3f}"
 )
 
 # %%
-neutro_ukimv = adata_neutro[adata_neutro.obs["dataset"] == "UKIM-V", :]
-
-# %%
-sc.pl.umap(
-    neutro_ukimv,
-    color=["origin", "leiden", "patient", "dataset", "VEGFA"],
-    wspace=0.5,
-    ncols=2,
-)
-
-# %%
-sc.pl.dotplot(
-    neutro_ukimv,
-    groupby=["patient", "origin"],
-    var_names="VEGFA",
-    title="tumor_primary",
-    vmin=0,
-    vmax=1,
-)
-
-# %%
-sc.pl.dotplot(
-    neutro_ukimv[neutro_ukimv.obs["origin"] == "normal_adjacent", :],
-    groupby="patient",
-    var_names="VEGFA",
-    title="normal_adjacent",
-    vmin=0,
-    vmax=1,
-)
-
-# %%
-with plt.rc_context({"figure.figsize": (4, 4)}):
-    sc.pl.umap(adata_neutro, color=["VEGFA"], cmap="inferno")
-
-# %%
-sc.pl.dotplot(
-    adata,
-    groupby=["patient", "origin"],
-    var_names="VEGFA",
-    title="tumor_primary",
-    vmin=0,
-    vmax=1,
-)
-
-# %%
-adata_neutro.obs.groupby(
-    ["dataset", "patient", "origin"], observed=True
-).size().reset_index(name="n")
-
-# %%
-sc.pl.umap(adata_neutro, color=["origin", "dataset"])
