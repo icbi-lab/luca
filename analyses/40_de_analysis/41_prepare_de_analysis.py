@@ -25,7 +25,7 @@ from nxfvars import nxfvars
 adata = sc.read_h5ad(
     nxfvars.get(
         "input_adata",
-        "../../data/20_integrate_scrnaseq_data/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
+        "../../data/20_build_atlas//annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
     )
 )
 
@@ -49,7 +49,7 @@ obs
 pd.set_option("display.max_rows", 1000)
 
 # %% [markdown]
-# ### Comparison 1: paired tumor vs normal
+# # Comparison 1: paired tumor vs normal
 
 # %%
 patients_w_normal = set(
@@ -88,5 +88,26 @@ adata_tumor_normal
 # %%
 sc.pl.umap(adata_tumor_normal, color="cell_type")
 
+# %% [markdown]
+# # Comparison 2: LUAD vs LSCC
+#
+# primary tumor samples from LUAD and LSCC patients
+
+# %%
+adata_luad_lusc = adata[
+    adata.obs["condition"].isin(["LUAD", "LSCC"])
+    & (adata.obs["origin"] == "tumor_primary"),
+    :,
+].copy()
+
+# %%
+sc.pl.umap(adata_luad_lusc, color="cell_type")
+
+# %% [markdown]
+# # Write output
+
 # %%
 adata_tumor_normal.write_h5ad(f"{artifact_dir}/adata_tumor_normal.h5ad")
+
+# %%
+adata_luad_lusc.write_h5ad(f"{artifact_dir}/adata_luad_lscc.h5ad")

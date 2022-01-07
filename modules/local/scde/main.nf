@@ -160,13 +160,12 @@ process MAKE_PSEUDOBULK {
 
 }
 
-
-process DE_EDGER {
+process DE_DESEQ2 {
     /**
-     * For a standard pseudobulk analysis
+     * For standard pseudobulk analysis
      */
-    cpus 4
-    conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
+    cpus 2
+    conda "/data/scratch/sturm/conda/envs/2020-pircher-deseq2"
 
     input:
     tuple val(id), path(counts), path(samplesheet)
@@ -174,43 +173,20 @@ process DE_EDGER {
     val(covariate_formula)
 
     output:
-    path("*.tsv"), emit: de_res
+    path("*_DESeq2_result.tsv"), emit: de_res
 
     script:
     """
-    #!/usr/bin/env Rscript
-
-    options(mc.cores=${task.cpus})
-    RhpcBLASctl::blas_set_num_threads(1)
-
-    library(readr)
-    library(edgeR)
-    library(tibble)
-
-    counts = read_csv("${counts}")
-    samplesheet = read_csv("${samplesheet}")
-
-    # Run edgeR QLF test or LRT Test as descirbed in their vignette
-    design = model.matrix(~ ${condition_col} ${covariate_formula}, data=samplesheet)
-    dge = DGEList(
-        counts = column_to_rownames(counts, "gene_id"),
-        samples = column_to_rownames(samplesheet, "sample")
-    )
-
-    dge = calcNormFactors(dge, design = design)
-    dge = estimateDisp(dge, design = design)
-    fit = glmQLFit(dge, design = design)
-
-    qlf = glmQLFTest(fit)
-    de_res = as_tibble(
-        topTags(qlf, n=Inf, adjust.method="BH")\$table,
-        rownames="gene_id"
-    )
-
-    write_tsv(de_res, "${id}_de_res_${condition_col}_edger.tsv")
+    run_deseq2.R $counts $samplesheet \\
+        --cond_col $condition_col \\
+        --c1 case \\
+        --c2 control \\
+        --resDir "." \\
+        --prefix $id \\
+        --covariate_formula "$covariate_formula" \\
+        --cpus $task.cpus > ${id}_deseq2.log
     """
 }
-
 
 process DE_DREAM {
     /**
@@ -263,6 +239,7 @@ process DE_DREAM {
     """
 
 }
+
 
 
 process DE_MAST_MIXED_EFFECTS {

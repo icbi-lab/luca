@@ -78,6 +78,7 @@ process SEURAT_TO_SCE {
 
 
 process SPLIT_ANNDATA {
+    container "${baseDir}/containers/pircher-sc-integrate2_centos7.sif"
     input:
         tuple val(id), path(input_adata)
         val(split_variable)
