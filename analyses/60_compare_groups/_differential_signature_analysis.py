@@ -17,9 +17,6 @@
 # %autoreload 2
 
 # %%
-from hierarchical_bootstrapping.util import gini_index
-
-# %%
 import scanpy as sc
 import pandas as pd
 from nxfvars import nxfvars
@@ -27,11 +24,11 @@ from nxfvars import nxfvars
 sc.settings.set_figure_params(figsize=(5, 5))
 from pathlib import Path
 from scanpy_helpers.annotation import AnnotationHelper
+import scanpy_helpers as sh
 import progeny
 import dorothea
 import matplotlib.pyplot as plt
 from threadpoolctl import threadpool_limits
-import hierarchical_bootstrapping as hb
 import altair as alt
 import re
 import statsmodels.stats
@@ -44,9 +41,17 @@ from tqdm.contrib.concurrent import process_map
 import itertools
 import seaborn as sns
 import pickle
+import warnings
+import anndata
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
+warnings.simplefilter(action="ignore", category=anndata.ImplicitModificationWarning)
 
 # %%
 ah = AnnotationHelper()
+
+# %%
+artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 
 # %%
 path_adata = nxfvars.get(
@@ -78,11 +83,32 @@ patient_strat.reset_index(inplace=True)
 # %%
 patient_strat
 
-
 # %% [markdown]
 # ## Run differential signature analysis
 
 # %%
+cytosig_signature = pd.read_csv(
+    "../../tables/cytosig_signature_matrix.tsv", sep="\t", index_col=0
+)
+
+# %%
+regulons = dorothea.load_regulons(
+    [
+        "A",
+        "B",
+    ],  # Which levels of confidence to use (A most confident, E least confident)
+    organism="Human",  # If working with mouse, set to Mouse
+)
+
+# %%
+model = progeny.load_model(
+    organism="Human",  # If working with mouse, set to Mouse
+    top=1000,  # For sc we recommend ~1k target genes since there are dropouts
+)
+
+
+# %%
+@sh.util.supress_stdout
 def run_progeny(adata):
     tmp_adata = adata.copy()
     progeny.run(
@@ -99,6 +125,7 @@ def run_progeny(adata):
 
 
 # %%
+@sh.util.supress_stdout
 def run_dorothea(adata):
     tmp_adata = adata.copy()
     dorothea.run(
@@ -115,6 +142,7 @@ def run_dorothea(adata):
 
 
 # %%
+@sh.util.supress_stdout
 def run_cytosig(adata):
     tmp_adata = adata.copy()
     progeny.run(
@@ -132,17 +160,17 @@ def run_cytosig(adata):
 
 
 # %%
-adata.obs["cell_type2"] = [
+adata.obs["cell_type_structural"] = [
     {
         "Tumor cells": "tumor cells",
-        "Alevolar cell type 1": "healthy epithelial",
-        "Alevolar cell type 2": "healthy epithelial",
+        "Alveolar cell type 1": "healthy epithelial",
+        "Alveolar cell type 2": "healthy epithelial",
         "Goblet": "healthy epithelial",
         "Club": "healthy epithelial",
         "Ciliated": "healthy epithelial",
         "Fibroblast": "stromal",
         "Fibroblast adventitial": "stromal",
-        "Fibroblast alevolar": "stromal",
+        "Fibroblast alveolar": "stromal",
         "Smooth muscle cell": "stromal",
         "Pericyte": "stromal",
         "Endothelial cell": "endothelial",
@@ -172,154 +200,203 @@ adata_primary_tumor.obs = (
 
 # %%
 sc.pl.umap(
-    adata_primary_tumor, color=["cell_type_coarse", "cell_type", "cell_type2"], ncols=1
+    adata_primary_tumor,
+    color=["cell_type_coarse", "cell_type", "cell_type_structural", "cell_type_major"],
+    ncols=2,
+    wspace=1,
 )
 
 # %%
-adatas_by_cell_type = []
-cell_types = [x for x in adata_primary_tumor.obs["cell_type2"].unique() if x != "other"]
-for cell_type in cell_types:
-    adatas_by_cell_type.append(
-        adata_primary_tumor[
-            adata_primary_tumor.obs["cell_type2"] == cell_type, :
-        ].copy()
-    )
-
-# %%
-regulons = dorothea.load_regulons(
-    [
-        "A",
-        "B",
-    ],  # Which levels of confidence to use (A most confident, E least confident)
-    organism="Human",  # If working with mouse, set to Mouse
+adatas_by_cell_type = sh.util.split_anndata(
+    adata_primary_tumor[adata_primary_tumor.obs["cell_type_structural"] != "other", :],
+    "cell_type_structural",
 )
 
 # %%
-model = progeny.load_model(
-    organism="Human",  # If working with mouse, set to Mouse
-    top=1000,  # For sc we recommend ~1k target genes since there are dropouts
-)
-
-# %%
-cytosig_signature = pd.read_csv(
-    "../../tables/cytosig_signature_matrix.tsv", sep="\t", index_col=0
-)
-
-# %%
-adatas_dorothea = list(
-    tqdm(map(run_dorothea, adatas_by_cell_type), total=len(adatas_by_cell_type))
-)
-
-# %%
-adatas_progeny = list(
-    tqdm(map(run_progeny, adatas_by_cell_type), total=len(adatas_by_cell_type))
-)
-
-# %%
-adatas_cytosig = list(
-    tqdm(map(run_cytosig, adatas_by_cell_type), total=len(adatas_by_cell_type))
-)
-
-# %%
-all_adatas = {
-    "progeny": adatas_progeny,
-    "cytosig": adatas_cytosig,
-    "dorothea": adatas_dorothea,
+all_adatas_tumor = {
+    tool: {ct: f(tmp_adata) for ct, tmp_adata in tqdm(adatas_by_cell_type.items())}
+    for tool, f in {
+        "progeny": run_progeny,
+        "cytosig": run_cytosig,
+        # "dorothea": run_dorothea,
+    }.items()
 }
 
+# %%
+all_results = {tool: {} for tool in all_adatas_tumor}
+
+# %% [markdown]
+# ## immune infiltration
 
 # %%
-def test_lm(pseudobulk, formula, column, progress=False):
-    """
-    Use a linear model to find differences between groups
-
-    In this case we use sum-to-zero or deviation coding to find
-    deviations from the mean of means
-
-    tmp_adata is a pseudobulk anndata object"""
-    var_names = pseudobulk.var_names
-    
-    df = pseudobulk.obs.join(
-        pd.DataFrame(pseudobulk.X, index=pseudobulk.obs_names, columns=var_names)
-    )
-
-    pseudobulk.obs[column] = pd.Categorical(pseudobulk.obs[column])
-    all_groups = pseudobulk.obs[column].unique()
-    
-    def test_all_params(res, all_groups):
-        # only using the categories gets rid of NAN
-        keys = [f"C({column}, Sum)[S.{g}]" for g in all_groups.categories.values]
-        # print(keys)
-        # print(res.params)
-        coefs = res.params[keys[:-1]].to_dict()
-        pvals = res.pvalues[keys[:-1]].to_dict()
-        # test the level that was omitted for redundancy
-        coefs[keys[-1]] = -sum(coefs.values())
-        pvals[keys[-1]] = float(
-            res.f_test(" + ".join([f"{k}" for k in keys[:-1]]) + " = 0").pvalue
-        )
-        return coefs, pvals
-
-    results = []
-    lms = []
-    var_iter = tqdm(var_names) if progress else var_names
-    for col in var_iter:
-        group_results = []
-        mod = smf.ols(formula=formula.format(col=col), data=df)
-        res = mod.fit()
-        coefs, pvals = test_all_params(res, all_groups)
-        res_df = (
-            pd.DataFrame.from_dict(coefs, orient="index", columns=["coef"])
-            .join(pd.DataFrame.from_dict(pvals, orient="index", columns=["pvalue"]))
-            .assign(
-                variable=col,
-                group=lambda x: [
-                    re.search("\[S\.(.*)\]", k).groups()[0] for k in x.index
-                ],
-            )
-        )
-        results.append(res_df)
-        lms.append(res)
-
-    return lms, pd.concat(results)
-
-
-# %%
-res_per_cell_type = {}
-column = "immune_infiltration"
-for signature, adatas in all_adatas.items():
-    tmp_res = []
-    for ct, tmp_adata in zip(tqdm(cell_types), adatas):
-        tmp_bdata = hb.tl.pseudobulk(
-            tmp_adata,
-            groupby=["dataset", "patient", column],
-            aggr_fun=np.mean,
-        )
-        if tmp_bdata.obs[column].nunique() < 3:
-            continue
-        _, res_df = test_lm(
-            tmp_bdata, f"Q('{{col}}') ~ 0 + C({column}, Sum) + dataset", column
-        )
-        res_df = res_df.reset_index(drop=True).assign(cell_type=ct)
-        tmp_res.append(res_df)
-
-    res_per_cell_type[signature] = pd.concat(tmp_res).dropna(how="any")
-
-# %%
-for tmp_df in res_per_cell_type.values():
-    _, tmp_df["fdr"] = statsmodels.stats.multitest.fdrcorrection(
-        tmp_df["pvalue"].values
+for tool, adatas in all_adatas_tumor.items():
+    all_results[tool]["immune_infiltration"] = sh.lm.lm_test_all(
+        adatas,
+        groupby=["dataset", "patient", "sex"],
+        column_to_test="immune_infiltration",
+        lm_covariate_str=" + dataset",
     )
 
 # %%
-res_per_cell_type["progeny"].sort_values("pvalue").groupby("group").apply(
+all_results["progeny"]["immune_infiltration"].sort_values("pvalue").groupby("group").apply(
     lambda x: x.query("fdr < 0.1")
 )
 
 # %%
-res_per_cell_type["dorothea"].sort_values("pvalue").groupby("group").apply(
+all_results["progeny"]["immune_infiltration"].sort_values("pvalue").groupby("group").apply(
     lambda x: x.query("fdr < 0.1")
 )
+
+# %% [markdown]
+# ## tumor/normal
+
+# %%
+adata.obs["origin"].unique()
+
+# %%
+adata_tumor_normal = adata[
+    adata.obs["origin"].isin(["normal_adjacent", "normal", "tumor_primary"]),
+    :,
+].copy()
+
+# %%
+adata_tumor_normal.obs["origin"] = [
+    "normal" if "normal" in x else x for x in adata_tumor_normal.obs["origin"]
+]
+
+# %%
+adata_tumor_normal.obs["origin"].unique()
+
+# %%
+adatas_by_cell_type = sh.util.split_anndata(
+    adata_tumor_normal[adata_tumor_normal.obs["cell_type_major"] != "other", :],
+    "cell_type_major",
+)
+all_adatas = {
+    tool: {ct: f(tmp_adata) for ct, tmp_adata in tqdm(adatas_by_cell_type.items())}
+    for tool, f in {
+        "progeny": run_progeny,
+        "cytosig": run_cytosig,
+        # "dorothea": run_dorothea,
+    }.items()
+}
+
+# %%
+for tool, adatas in all_adatas.items():
+    col = "origin"
+    res = sh.lm.lm_test_all(
+        adatas,
+        groupby=["dataset", "patient"],
+        column_to_test=col,
+        lm_covariate_str="+ dataset",
+    )
+    all_results[tool][col] = res
+    res.to_csv(f"{artifact_dir}/differential_signature_{col}_{tool}.tsv", sep="\t")
+
+# %% [markdown]
+# ---
+
+# %%
+pseudobulk = sh.pseudobulk.pseudobulk(
+    all_adatas["progeny"]["Macrophage"], groupby=["dataset", "patient", "origin"]
+)
+
+# %%
+df = pseudobulk.obs.join(
+    pd.DataFrame(pseudobulk.X, index=pseudobulk.obs_names, columns=pseudobulk.var_names)
+)
+
+# %%
+
+# %%
+pseudobulk.obs["origin"] = pd.Categorical(pseudobulk.obs["origin"])
+all_groups = pseudobulk.obs["origin"].unique()
+
+# %%
+mod = smf.ols(
+    formula="Q('WNT') ~ 0 + C(origin, Sum) + patient",
+    data=df.loc[lambda x: x["patient"].isin(matched_patients), :],
+)
+res = mod.fit()
+
+# %%
+res.wald_test("C(origin, Sum)[S.normal] = 0")
+
+# %%
+res.t_test("C(origin, Sum)[S.normal] = 0")
+
+# %%
+res.f_test("C(origin, Sum)[S.normal] = 0")
+
+# %%
+res.summary()
+
+# %%
+res.summary()
+
+# %%
+res.summary()
+
+# %%
+pd.set_option("display.max_rows", 300)
+
+# %%
+mask_tumor = bdata.obs["origin"] == "tumor_primary"
+mask_normal = bdata.obs["origin"] == "normal"
+
+# %%
+x = bdata[:, "WNT"].X[:, 0]
+
+# %%
+np.mean(x[mask_tumor]) - np.mean(x[mask_normal])
+
+# %%
+matched_patients = (
+    bdata.obs.groupby("patient")
+    .apply(
+        lambda x: "tumor_primary" in x["origin"].values
+        and "normal" in x["origin"].values
+    )
+    .where(lambda x: x)
+    .dropna()
+    .index.values
+)
+
+# %%
+matched_patients
+
+# %%
+mask_matched = bdata.obs["patient"].isin(matched_patients)
+
+# %%
+scipy.stats.ttest_ind(x[mask_tumor], x[mask_normal])
+
+# %%
+scipy.stats.ttest_rel(x[mask_tumor & mask_matched], x[mask_normal & mask_matched])
+
+# %%
+all_results["progeny"]["origin"]
+
+# %%
+all_results["progeny"]["origin"]
+
+# %%
+wihtout_covariate = all_results["progeny"]["origin"]
+
+# %%
+wihtout_covariate
+
+# %% [markdown]
+# ---
+
+# %%
+for tool, adatas in all_adatas.items():
+    all_results[tool]["immune_infiltration"] = sh.lm.lm_test_all(
+        adatas,
+        groupby=["dataset", "patient", "sex"],
+        column_to_test=column,
+        lm_covariate_str="+ dataset + sex",
+    )
 
 # %%
 res_cytosig = (
@@ -367,10 +444,14 @@ ithgex_res_files = list(
     Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/ithgex.txt")
 )
 cnvscore_res_files = list(
-    Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/cnv_score.txt")
+    Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob(
+        "**/cnv_score.txt"
+    )
 )
 scevan_res_files = list(
-    Path("../../data/30_downstream_analyses/infercnv/scevan/").glob("**/scevan_result.csv")
+    Path("../../data/30_downstream_analyses/infercnv/scevan/").glob(
+        "**/scevan_result.csv"
+    )
 )
 adatas_infercnvpy = list(
     Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/*.h5ad")
@@ -395,19 +476,19 @@ for f in ithcna_res_files:
     patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
     ithcna = np.loadtxt(f)
     ithcna_res[patient] = float(ithcna)
-    
+
 ithgex_res = {}
 for f in ithgex_res_files:
     patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
     ithgex = np.loadtxt(f)
     ithgex_res[patient] = float(ithgex)
-    
+
 cnvscore_res = {}
 for f in cnvscore_res_files:
     patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
     cnvscore = np.loadtxt(f)
     cnvscore_res[patient] = float(cnvscore)
-    
+
 n_subclones = {}
 for f in scevan_res_files:
     patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
@@ -438,27 +519,27 @@ np.random.shuffle(pat_none)
 import infercnvpy as cnv
 
 # %%
-# TODO use linear model to check for confounding effects: dataset and number of cells! 
+# TODO use linear model to check for confounding effects: dataset and number of cells!
 for var in ["ithcna", "ithgex", "cnvscore", "n_subclones"]:
-# for var in ["cnvsum"]:
+    # for var in ["cnvsum"]:
     print(var)
     fig, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(22, 5))
     sns.swarmplot(x="TMIG", y=var, data=patient_strat, ax=ax1, hue="dataset")
     sns.boxplot(x="TMIG", y=var, data=patient_strat, ax=ax1, width=0.2)
     ax1.get_legend().remove()
-    
+
     sns.swarmplot(
         x="infiltration_state", y=var, data=patient_strat, ax=ax2, hue="dataset"
     )
     sns.boxplot(x="infiltration_state", y=var, data=patient_strat, ax=ax2, width=0.2)
     ax2.get_legend().remove()
-    
+
     sns.swarmplot(
         x="tumor_type_inferred", y=var, data=patient_strat, ax=ax3, hue="dataset"
     )
     sns.boxplot(x="tumor_type_inferred", y=var, data=patient_strat, ax=ax3, width=0.2)
     ax3.get_legend().remove()
-    
+
     sns.swarmplot(
         x="immune_infiltration", y=var, data=patient_strat, ax=ax4, hue="dataset"
     )
@@ -477,7 +558,7 @@ scipy.stats.mannwhitneyu(
 
 # %%
 cpdb_res = {}
-for f in Path("../../data/30_downstream_analyses/cell2cell/squidpy/").glob("*.pkl"):
+for f in Path("../../data/30_downstream_analyses/cell2cell/squidpy/").glob("**/*.pkl"):
     sample = f.name.replace("full_atlas_annotated_", "").replace(".pkl", "")
     with open(f, "rb") as fh:
         cpdb_res[sample] = pickle.load(fh)
@@ -541,6 +622,9 @@ ad_cpdb = ad_cpdb[:, ad_cpdb.var["cluster_1"] != ad_cpdb.var["cluster_2"]].copy(
 ad_cpdb.shape
 
 # %%
+ad_cpdb.obs
+
+# %%
 # ad_cpdb_nsclc = ad_cpdb[~ad_cpdb.obs["TMIG"].isnull(), :].copy()
 ad_cpdb_primary = ad_cpdb[
     adata_primary_tumor.obs["sample"].str.lower().unique(), :
@@ -559,7 +643,7 @@ ad_cpdb_primary.obs
 # %%
 def chunk_adatas(ad, chunksize=200):
     for i in range(0, ad.shape[1], chunksize):
-        yield ad[:, i:i+chunksize].copy()
+        yield ad[:, i : i + chunksize].copy()
 
 
 # %%
@@ -574,7 +658,9 @@ def do_test(adata):
 
 
 # %%
-res_df = pd.concat(process_map(do_test, list(chunk_adatas(ad_cpdb_primary)), max_workers=32))
+res_df = pd.concat(
+    process_map(do_test, list(chunk_adatas(ad_cpdb_primary)), max_workers=32)
+)
 
 # %%
 _, res_df["fdr"] = statsmodels.stats.multitest.fdrcorrection(res_df["pvalue"].values)
