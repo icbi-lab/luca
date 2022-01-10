@@ -13,19 +13,19 @@ workflow downstream_analyses {
 
     final_atlas = file(params.atlas, checkIfExists: true)
 
-    // STRATIFY_PATIENTS(
-    //     Channel.value([
-    //         [id: 'stratify_patients'],
-    //         file("${baseDir}/analyses/38_patient_stratification/38_patient_stratification.py")
-    //     ]),
-    //     ["adata_in": final_atlas.name],
-    //     final_atlas
-    // )
+    STRATIFY_PATIENTS(
+        Channel.value([
+            [id: 'stratify_patients'],
+            file("${baseDir}/analyses/38_patient_stratification/38_patient_stratification.py")
+        ]),
+        ["adata_in": final_atlas.name],
+        final_atlas
+    )
 
     de_analysis(final_atlas)
-    // scissor(final_atlas)
-    // cell2cell(final_atlas)
-    // infercnv(final_atlas)
+    scissor(final_atlas)
+    cell2cell(final_atlas)
+    infercnv(final_atlas)
 }
 
 

@@ -483,12 +483,7 @@ def get_stratum(infiltration_group, immune_type):
 
 
 # %%
-patient_info = (
-    adata.obs.loc[:, ["patient", "condition"]].drop_duplicates().set_index("patient")
-)
-
-# %%
-plot_df = ad_tumor_subtypes.obs.join(patient_info).join(
+plot_df = ad_tumor_subtypes.obs.join(
     ad_ti_ratio.obs.loc[:, ["group"]]
 )
 plot_df["immune_type"] = ad_immune_sub.obs["immune_type"].astype(str)
