@@ -32,9 +32,12 @@ sc.set_figure_params(figsize=(5, 5))
 ah = AnnotationHelper()
 
 # %%
+artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
+
+# %%
 main_adata = nxfvars.get(
     "main_adata",
-    "../../data/20_integrate_scrnaseq_data/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
+    "../../data/20_build_atlas//annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
 )
 
 # %%
@@ -42,12 +45,7 @@ adata = sc.read_h5ad(main_adata)
 
 # %%
 adata_epi = sc.read_h5ad(
-    "../../data/20_integrate_scrnaseq_data/annotate_datasets/35_final_atlas/artifacts/epithelial_cells_annotated.h5ad"
-)
-
-# %%
-adata_tumor = sc.read_h5ad(
-    "../../data/20_integrate_scrnaseq_data/annotate_datasets/33_cell_types_epi/artifacts/adata_tumor.h5ad"
+    "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/epithelial_cells_annotated.h5ad"
 )
 
 # %%
@@ -79,19 +77,6 @@ with plt.rc_context({"figure.figsize": (8, 8)}):
         size=4,
     )
 
-# %%
-with plt.rc_context({"figure.figsize": (8, 8)}):
-    sc.pl.umap(
-        adata_tumor,
-        color="cell_type",
-        legend_loc="on data",
-        legend_fontsize=12,
-        legend_fontoutline=2,
-        frameon=False,
-        add_outline=True,
-        size=12,
-    )
-
 
 # %%
 def process_subset(mask):
@@ -110,12 +95,14 @@ adatas = {
         "immune": adata.obs["cell_type_coarse"].isin(
             [
                 "T cell",
+                "NK cell",
+                "Neutrophils",
                 "Plasma cell",
                 "Mast cell",
-                "Granulocytes",
-                "Myeloid",
-                "pDC",
                 "B cell",
+                "pDC",
+                "cDC",
+                "Macrophage/Monocyte",
             ]
         ),
         "structural": adata.obs["cell_type_coarse"].isin(
@@ -140,7 +127,8 @@ with plt.rc_context({"figure.figsize": (8, 8)}):
 # %%
 with plt.rc_context({"figure.figsize": (8, 8)}):
     sc.pl.umap(
-        adatas["immune"], color="cell_type_coarse",
+        adatas["immune"],
+        color="cell_type_coarse",
         legend_loc="on data",
         legend_fontsize=12,
         legend_fontoutline=2,
@@ -152,7 +140,8 @@ with plt.rc_context({"figure.figsize": (8, 8)}):
 # %%
 with plt.rc_context({"figure.figsize": (8, 8)}):
     sc.pl.umap(
-        adatas["structural"], color="cell_type",
+        adatas["structural"],
+        color="cell_type",
         legend_loc="on data",
         legend_fontsize=12,
         legend_fontoutline=2,
@@ -165,13 +154,18 @@ with plt.rc_context({"figure.figsize": (8, 8)}):
 # ### By cell type
 
 # %%
-data = (
-    adata.obs.groupby(["dataset", "cell_type_coarse"], observed=True)
-    .size()
-    .reset_index(name="n_cells")
+count_by_cell_type = adata.obs.groupby(["dataset", "cell_type_coarse"]).agg(
+    n_cells=pd.NamedAgg("cell_type_coarse", "count")
 )
+count_by_cell_type["frac_cells"] = adata.obs.groupby("dataset")[
+    "cell_type_coarse"
+].value_counts(normalize=True)
+count_by_cell_type.reset_index(inplace=True)
+count_by_cell_type.to_csv(f"{artifact_dir}/cell_type_coarse_per_dataset.tsv", sep="\t")
+
+# %%
 c1 = (
-    alt.Chart(data)
+    alt.Chart(count_by_cell_type)
     .mark_bar()
     .encode(x="n_cells", color="cell_type_coarse", y="dataset")
 )
@@ -241,6 +235,29 @@ c3
 ).resolve_scale(color="independent")
 
 # %% [markdown]
+# ### cell-type composition (relative) by dataset
+
+# %%
+c1.encode(x=alt.X("n_cells", title="n_cells", stack="normalize"))
+
+# %% [markdown]
+# ### Comparison of cell-type composition between sample origin
+
+# %%
+adata.obs.groupby(["origin", "cell_type_coarse"]).size().reset_index(
+    name="n_cells"
+).loc[
+    lambda x: x["origin"].isin(["normal", "normal_adjacent", "tumor_primary"]), :
+].pipe(
+    lambda x: alt.Chart(x)
+    .mark_bar()
+    .encode(x=alt.X("n_cells", stack="normalize"), y="origin", color="cell_type_coarse")
+)
+
+# %% [markdown]
+# ---
+
+# %% [markdown]
 # ## Plots by sample
 
 # %%
@@ -251,26 +268,26 @@ assert sample_df.shape[0] == adata.obs["sample"].nunique()
 
 # %%
 (
-    sample_df
-    >> s.group_by("dataset")
-    >> s.count()
-    >> s.pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="dataset"))
+    sample_df.groupby("dataset")
+    .size()
+    .reset_index(name="n")
+    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="dataset"))
 )
 
 # %%
 (
-    sample_df
-    >> s.group_by("tissue")
-    >> s.count()
-    >> s.pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="tissue"))
+    sample_df.groupby("tissue")
+    .size()
+    .reset_index(name="n")
+    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="tissue"))
 )
 
 # %%
 (
-    sample_df
-    >> s.group_by("condition")
-    >> s.count()
-    >> s.pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="condition"))
+    sample_df.groupby("condition")
+    .size()
+    .reset_index(name="n")
+    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="condition"))
 )
 
 # %%
@@ -287,21 +304,17 @@ for ds, origin in origins.items():
 
 # %%
 (
-    sample_df
-    >> s.group_by("origin")
-    >> s.count()
-    >> s.pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="origin"))
+    sample_df.groupby("origin")
+    .size()
+    .reset_index(name="n")
+    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="origin"))
 )
 
-
-# %%
-# TODO by sequencing platform
 
 # %% [markdown]
 # ## Plots by patient
 
 # %%
-@s.siu.symbolic_dispatch
 def _group_origins(origins):
     origins = set(origins)
     if len(origins) == 1:
@@ -313,36 +326,44 @@ def _group_origins(origins):
         return "multiple"
 
 
-patient_df = (
-    adata.obs
-    >> s.group_by("patient", "dataset", "condition")
-    >> s.summarize(origin=_group_origins(_.origin))
+patient_df = adata.obs.groupby(["patient", "dataset", "condition"], observed=True).agg(
+    {"origin": _group_origins}
 )
+
 assert patient_df.shape[0] == adata.obs["patient"].nunique()
 
 # %%
+patient_df
+
+# %%
 (
-    patient_df
-    >> s.group_by("origin")
-    >> s.count()
-    >> s.pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="origin"))
+    patient_df.groupby("origin")
+    .size()
+    .reset_index(name="n")
+    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="origin"))
 )
 
 # %%
 (
-    patient_df
-    >> s.group_by("dataset")
-    >> s.count()
-    >> s.pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="dataset"))
+    patient_df.groupby("dataset")
+    .size()
+    .reset_index(name="n")
+    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="dataset"))
 )
 
 # %%
 (
-    patient_df
-    >> s.group_by("condition")
-    >> s.count()
-    >> s.pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="condition"))
+    patient_df.groupby("condition")
+    .size()
+    .reset_index(name="n")
+    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="condition"))
 )
+
+# %% [markdown]
+# ---
+
+# %%
+exit
 
 # %%
 adata.obs["cell_type_plot"] = [

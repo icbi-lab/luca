@@ -126,7 +126,11 @@ ad_tumor_subtypes = sc.AnnData(
     )
     .pivot_table(values="n", columns="cell_type_tumor", index="patient", fill_value=0),
 )
-ad_tumor_subtypes.obs = ad_tumor_subtypes.obs.join(adata_tumor_cells.obs.loc[:, ["patient", "condition"]].drop_duplicates().set_index("patient"))
+ad_tumor_subtypes.obs = ad_tumor_subtypes.obs.join(
+    adata_tumor_cells.obs.loc[:, ["patient", "condition"]]
+    .drop_duplicates()
+    .set_index("patient")
+)
 
 
 # %%
@@ -138,7 +142,7 @@ sc.pl.heatmap(
     groupby="condition",
     var_names=ad_tumor_subtypes.var_names,
     swap_axes=True,
-    figsize=(14, 1.5)
+    figsize=(14, 1.5),
 )
 
 # %%
@@ -419,7 +423,7 @@ ad_immune_sub = ad_immune[
 sc.pp.neighbors(ad_immune_sub, use_rep="X")
 
 # %%
-sc.tl.leiden(ad_immune_sub, resolution=0.5)
+sc.tl.leiden(ad_immune_sub, resolution=0.75)
 
 # %%
 sc.pl.heatmap(
@@ -483,8 +487,16 @@ def get_stratum(infiltration_group, immune_type):
 
 
 # %%
-plot_df = ad_tumor_subtypes.obs.join(
-    ad_ti_ratio.obs.loc[:, ["group"]]
+
+# %%
+plot_df = (
+    adata.obs.loc[
+        :, ["patient", "sex", "uicc_stage", "ever_smoker", "age", "tumor_stage"]
+    ]
+    .drop_duplicates()
+    .set_index("patient")
+    .join(ad_tumor_subtypes.obs, how="inner")
+    .join(ad_ti_ratio.obs.loc[:, ["group"]])
 )
 plot_df["immune_type"] = ad_immune_sub.obs["immune_type"].astype(str)
 plot_df.loc[plot_df["immune_type"].isnull(), "immune_type"] = "-"
@@ -512,6 +524,14 @@ plot_df
 
 # %%
 cmaps = {
+    "sex": {
+        "male": "#80b1d3",
+        "female": "#fccde5",
+    },
+    "tumor_stage": {
+        "early": "#b3de69",
+        "late": "#fdb462",
+    },
     "TMIG": {  # tumor microenvironment infiltration group
         "-/-": "#CCCCCC",
         "-/S": "#999999",
@@ -543,6 +563,9 @@ cmaps = {
         "LUAD EMT": "#beaed4",
         "LUAD NE": "#fdc086",
         "LUAD dedifferentiated": "#ffff99",
+        # TODO: probably just show those as NSCLC
+        "PPC": "#bf5b17",
+        "LCLC": "#bf5b17",
     },
 }
 cmaps["tumor_type_inferred"] = cmaps["tumor_type_annotated"]
@@ -574,12 +597,15 @@ def get_row(col):
 p0 = (
     alt.vconcat(
         get_row("tumor_type_annotated") & get_row("tumor_type_inferred"),
+        get_row("sex"),
+        get_row("tumor_stage"),
         # get_row("infiltration_state"),
         # get_row("immune_infiltration"),
         get_row("TMIG"),
     )
     .resolve_scale("independent")
     .resolve_legend("shared")
+    .configure_concat(spacing=0)
 )
 p0
 
@@ -587,6 +613,8 @@ p0
 # %%
 def scale_range(a):
     return a / max(np.abs(np.max(a)), np.abs(np.min(a)))
+def scale_01(a):
+    return (a - np.min(a))/np.ptp(a)
 
 
 # %%
@@ -609,18 +637,21 @@ p1 = (
             axis=alt.Axis(ticks=False, labels=False, title=None),
         ),
         y=alt.Y("cell_type_group:N", axis=alt.Axis(title=None)),
-        color=alt.Color("value", scale=alt.Scale(scheme="redblue", domain=[-1, 1])),
+        color=alt.Color("value", scale=alt.Scale(scheme="redblue", domain=[-0.9, 0.9])),
     )
     .properties(width=800, height=20)
 )
 
 # %%
-tmp_ad = ad_immune_sub[
-    plot_df.loc[plot_df["patient"].isin(ad_immune_sub.obs_names), "patient"], :
-]
+tmp_ad = ad_immune[
+    plot_df.loc[plot_df["patient"].isin(ad_immune.obs_names), "patient"], :
+].copy()
+# scale by tumor immune ratio
+tmp_ad.X = scale_range(tmp_ad.X) *  -scale_01(ad_ti_ratio[plot_df["patient"], "immune_tumor_ratio"].X)
+
 heatmap_df = (
     pd.DataFrame(
-        scale_range(tmp_ad.X) * -1, columns=tmp_ad.var_names, index=tmp_ad.obs_names
+        tmp_ad.X, columns=tmp_ad.var_names, index=tmp_ad.obs_names
     )
     .reset_index()
     .rename(columns={"index": "patient"})
@@ -654,7 +685,7 @@ p2 = (
             ],
             axis=alt.Axis(title=None),
         ),
-        color=alt.Color("value", scale=alt.Scale(scheme="redblue", domain=[-1, 1])),
+        color=alt.Color("value", scale=alt.Scale(scheme="redblue")),
     )
     .properties(width=800, height=120)
 )
