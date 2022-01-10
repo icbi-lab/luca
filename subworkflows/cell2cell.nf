@@ -6,6 +6,7 @@ process SQUIDPY {
 
     input:
     tuple val(id), val(in_file)
+    val(cell_type_key)
 
     output:
     path "*.pkl", emit: out_file, optional: true
@@ -16,7 +17,7 @@ process SQUIDPY {
     // (they will always fail due to characteristics of the data, e.g. too few cells)
     ignore_exit_code = task.ext.ignore_error ? "|| true" : ""
     """
-    squidpy_cpdb.py -i ${in_file} -o ./ > ${id}.log 2>&1 $ignore_exit_code
+    squidpy_cpdb.py -i ${in_file} -o ./ -c ${cell_type_key} > ${id}.log 2>&1 $ignore_exit_code
     """
 }
 
@@ -27,5 +28,5 @@ workflow cell2cell {
     main:
     ch_adata_annotated = Channel.value([adata_annotated.baseName, adata_annotated])
     SPLIT_ANNDATA(ch_adata_annotated, "sample")
-    SQUIDPY(SPLIT_ANNDATA.out.adata.flatten().map{it -> [it.baseName, it]})
+    SQUIDPY(SPLIT_ANNDATA.out.adata.flatten().map{it -> [it.baseName, it]}, "cell_type_major")
 }

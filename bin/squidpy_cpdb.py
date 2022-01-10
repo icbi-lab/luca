@@ -13,10 +13,17 @@ if __name__ == "__main__":
     )
     parser.add_argument("-i", "--InFile", help="H5AD sample file", required=True)
     parser.add_argument("-o", "--outDir", help="pickle output dir path", required=True)
+    parser.add_argument(
+        "-c",
+        "--cellTypeKey",
+        help="column in adata.obs holding cell-type information",
+        required=True,
+    )
 
     args = parser.parse_args()
 
     sample = args.InFile
+    ct_key = args.cellTypeKey
     s_name = sample.replace(".h5ad", "")
     outfile = args.outDir + os.path.basename(s_name) + ".pkl"
     adata_sample = anndata.read_h5ad(sample)
@@ -24,7 +31,7 @@ if __name__ == "__main__":
     res = sq.gr.ligrec(
         adata_sample,
         n_perms=1000,
-        cluster_key="cell_type_coarse",
+        cluster_key=ct_key,
         copy=True,
         use_raw=False,
         transmitter_params={"categories": "ligand"},

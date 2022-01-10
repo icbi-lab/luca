@@ -158,7 +158,12 @@ sample_info = (
 ad_cpdb.obs = ad_cpdb.obs.join(sample_info)
 
 # %%
-ad_cpdb = ad_cpdb[:, ad_cpdb.var["cluster_1"] != ad_cpdb.var["cluster_2"]].copy()
+ad_cpdb = ad_cpdb[
+    :,
+    (ad_cpdb.var["cluster_1"] != ad_cpdb.var["cluster_2"])
+    & (ad_cpdb.var["cluster_1"] != "other")
+    & (ad_cpdb.var["cluster_2"] != "other"),
+].copy()
 
 # %%
 ad_cpdb.shape
@@ -459,15 +464,6 @@ results = {
     id_: compare_signatures(id_, datasets[id_], **config)
     for id_, config in comparisons.items()
 }
-
-# %%
-ad_cpdb.var
-
-# %%
-ad_cpdb.obs
-
-# %%
-results["tumor_normal"]["cpdb"]
 
 # %%
 for id_, config in comparisons.items():
