@@ -130,7 +130,7 @@ top_up_tumor = [
 ]
 
 # %%
-tumor_vs_normal = ["PTGS2", "SELL", "CXCR2", "VEGFA", "OLR1", "CXCR4"]
+tumor_vs_normal = ["PTGS2", "SELL", "CXCR2", "VEGFA", "OLR1", "CXCR4", "CXCR1", "ICAM1", "FCGR3B"]
 
 # %%
 tmp_adata = adata_n[
@@ -179,6 +179,21 @@ sh.pairwise.plot_paired(
     pvalue_template="DESeq2 p={:.2f}"
 )
 
+# %% [markdown]
+# ### Using all samples (no pairing between tumor/normal) 
+#
+# This is a use-case of a linear mixed effects model
+
+# %%
+me_data = adata_tumor_normal.obs.join(pd.DataFrame(adata_tumor_normal.X, columns=adata_tumor_normal.var_names, index=adata_tumor_normal.obs_names))
+
+# %%
+me_pvalues = []
+for gene in tumor_vs_normal:
+    mod = smf.mixedlm(f"{gene} ~ origin", me_data, groups=me_data["dataset"])
+    res = mod.fit()
+    me_pvalues.append(res.pvalues["origin[T.tumor_primary]"])
+
 # %%
 sh.pairwise.plot_paired(
     adata_tumor_normal,
@@ -187,6 +202,8 @@ sh.pairwise.plot_paired(
     hue="dataset",
     show_legend=False,
     size=5,
+    pvalues=me_pvalues,
+    pvalue_template="LME p={:.3f}"
 )
 
 # %% [markdown]

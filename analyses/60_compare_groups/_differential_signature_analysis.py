@@ -17,6 +17,11 @@
 # %autoreload 2
 
 # %%
+from threadpoolctl import threadpool_limits, threadpool_info
+
+threadpool_limits(32)
+
+# %%
 import scanpy as sc
 import pandas as pd
 from nxfvars import nxfvars
@@ -45,10 +50,18 @@ import warnings
 import anndata
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
+
+# TODO remove those filters
+warnings.simplefilter(action="ignore", category=RuntimeWarning)
+warnings.simplefilter(action="ignore")
+
 warnings.simplefilter(action="ignore", category=anndata.ImplicitModificationWarning)
 
 # %%
 ah = AnnotationHelper()
+
+# %% [markdown]
+# # Load input data
 
 # %%
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
@@ -84,7 +97,74 @@ patient_strat.reset_index(inplace=True)
 patient_strat
 
 # %% [markdown]
-# ## Run differential signature analysis
+# ## Load squidpy results (cell2cell)
+#
+# Load the results obtained for each sample and 
+# load them into an anndata file (each obs is a sample and each var a pair of receptor/ligand)
+
+# %%
+cpdb_res = {}
+for f in Path("../../data/30_downstream_analyses/cell2cell/squidpy/").glob("**/*.pkl"):
+    sample = f.name.replace("full_atlas_annotated_", "").replace(".pkl", "")
+    with open(f, "rb") as fh:
+        cpdb_res[sample] = pickle.load(fh)
+
+# %%
+dfs_melt = {}
+for k in tqdm(cpdb_res):
+    dfs_melt[k] = (
+        cpdb_res[k]["means"]
+        .reset_index()
+        .melt(id_vars=["source", "target"], value_name=k)
+    )
+
+# %%
+var = pd.concat(
+    [
+        df.loc[lambda x: x[k] != 0, ["source", "target", "cluster_1", "cluster_2"]]
+        for k, df in tqdm(dfs_melt.items())
+    ]
+).drop_duplicates()
+
+# %%
+var = var.assign(idx=lambda x: ["_".join(t[1:]) for t in x.itertuples()]).set_index(
+    "idx"
+)
+
+# %%
+for k, df in tqdm(dfs_melt.items()):
+    tmp_series = (
+        df.loc[lambda x: x[k] != 0, :]
+        .assign(idx=lambda x: ["_".join(t[1:-1]) for t in x.itertuples()])
+        .set_index("idx")[k]
+    )
+    var[k] = tmp_series
+
+# %%
+ad_cpdb = sc.AnnData(var=var.iloc[:, :4], X=var.iloc[:, 4:].T.fillna(0))
+
+# %%
+sample_info = (
+    adata.obs.loc[
+        :, ["sample", "patient", "tissue", "origin", "condition", "tumor_stage"]
+    ]
+    .assign(sample_lc=lambda x: x["sample"].str.lower())
+    .drop_duplicates()
+    .merge(patient_strat, on="patient", how="left")
+    .set_index("sample_lc")
+)
+
+# %%
+ad_cpdb.obs = ad_cpdb.obs.join(sample_info)
+
+# %%
+ad_cpdb = ad_cpdb[:, ad_cpdb.var["cluster_1"] != ad_cpdb.var["cluster_2"]].copy()
+
+# %%
+ad_cpdb.shape
+
+# %% [markdown]
+# # Run differential signature analysis
 
 # %%
 cytosig_signature = pd.read_csv(
@@ -108,7 +188,7 @@ model = progeny.load_model(
 
 
 # %%
-@sh.util.supress_stdout
+@sh.util.suppress_stdout
 def run_progeny(adata):
     tmp_adata = adata.copy()
     progeny.run(
@@ -125,7 +205,7 @@ def run_progeny(adata):
 
 
 # %%
-@sh.util.supress_stdout
+@sh.util.suppress_stdout
 def run_dorothea(adata):
     tmp_adata = adata.copy()
     dorothea.run(
@@ -142,7 +222,7 @@ def run_dorothea(adata):
 
 
 # %%
-@sh.util.supress_stdout
+@sh.util.suppress_stdout
 def run_cytosig(adata):
     tmp_adata = adata.copy()
     progeny.run(
@@ -158,6 +238,17 @@ def run_cytosig(adata):
     )
     return progeny.extract(tmp_adata, obsm_key="cytosig")
 
+
+# %%
+def prepare_cpdb(adata):
+    tmp_ad = ad_cpdb[ad_cpdb.obs["sample"].isin(adata.obs["sample"].unique()), :]
+    # only keep interactions that a >0 in at least N samples
+    tmp_ad = tmp_ad[:, np.sum(tmp_ad.X != 0, axis=0) > 10].copy()
+    return tmp_ad
+
+
+# %% [markdown]
+# ## Prepare datasets
 
 # %%
 adata.obs["cell_type_structural"] = [
@@ -179,10 +270,32 @@ adata.obs["cell_type_structural"] = [
 ]
 
 # %%
+adata_tumor_normal = adata[
+    adata.obs["origin"].isin(["normal_adjacent", "normal", "tumor_primary"]),
+    :,
+].copy()
+
+# %%
+adata_tumor_normal.obs["origin"] = [
+    "normal" if "normal" in x else x for x in adata_tumor_normal.obs["origin"]
+]
+
+# %%
+adata_tumor_normal.obs["origin"].unique()
+
+# %%
+sc.pl.umap(
+    adata_tumor_normal,
+    color=["cell_type_major"],
+    ncols=2,
+    wspace=1,
+)
+
+# %%
 adata_primary_tumor = adata[
     (adata.obs["origin"] == "tumor_primary")
     # exclude datasets that only contain a single cell-type
-    & ~adata.obs["dataset"].isin(["Guo_Zhang_2018_NSCLC", "Maier_Merad_2020_NSCLC"]),
+    & ~adata.obs["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"]),
     :,
 ]
 
@@ -201,212 +314,169 @@ adata_primary_tumor.obs = (
 # %%
 sc.pl.umap(
     adata_primary_tumor,
-    color=["cell_type_coarse", "cell_type", "cell_type_structural", "cell_type_major"],
+    color=["cell_type_major", "cell_type_structural"],
     ncols=2,
     wspace=1,
 )
 
 # %%
-adatas_by_cell_type = sh.util.split_anndata(
-    adata_primary_tumor[adata_primary_tumor.obs["cell_type_structural"] != "other", :],
-    "cell_type_structural",
-)
-
-# %%
-all_adatas_tumor = {
-    tool: {ct: f(tmp_adata) for ct, tmp_adata in tqdm(adatas_by_cell_type.items())}
-    for tool, f in {
-        "progeny": run_progeny,
-        "cytosig": run_cytosig,
-        # "dorothea": run_dorothea,
-    }.items()
+comparisons = {
+    "tumor_normal": {
+        "dataset": adata_tumor_normal,
+        "cell_type_column": "cell_type_major",
+        "pseudobulk_group_by": ["dataset", "patient"],
+        "column_to_test": "origin",
+        # paired analysis
+        "lm_covariate_str": "+ patient",
+    },
+    "patient_immune_infiltration": {
+        "dataset": adata_primary_tumor,
+        "cell_type_column": "cell_type_structural",
+        "pseudobulk_group_by": ["dataset", "patient"],
+        "column_to_test": "immune_infiltration",
+        "lm_covariate_str": "+ dataset",
+    },
+    "luad_lscc": {
+        "dataset": adata_primary_tumor[
+            adata_primary_tumor.obs["condition"].isin(["LUAD", "LSCC"]), :
+        ],
+        "cell_type_column": "cell_type_major",
+        "pseudobulk_group_by": ["dataset", "patient"],
+        "column_to_test": "condition",
+        "lm_covariate_str": "+ dataset",
+    },
+    "early_advanced": {
+        "dataset": adata_primary_tumor,
+        "cell_type_column": "cell_type_major",
+        "pseudobulk_group_by": ["dataset", "patient"],
+        "column_to_test": "tumor_stage",
+        "lm_covariate_str": "+ dataset",
+    },
 }
-
-# %%
-all_results = {tool: {} for tool in all_adatas_tumor}
-
-# %% [markdown]
-# ## immune infiltration
-
-# %%
-for tool, adatas in all_adatas_tumor.items():
-    all_results[tool]["immune_infiltration"] = sh.lm.lm_test_all(
-        adatas,
-        groupby=["dataset", "patient", "sex"],
-        column_to_test="immune_infiltration",
-        lm_covariate_str=" + dataset",
-    )
-
-# %%
-all_results["progeny"]["immune_infiltration"].sort_values("pvalue").groupby("group").apply(
-    lambda x: x.query("fdr < 0.1")
-)
-
-# %%
-all_results["progeny"]["immune_infiltration"].sort_values("pvalue").groupby("group").apply(
-    lambda x: x.query("fdr < 0.1")
-)
-
-# %% [markdown]
-# ## tumor/normal
-
-# %%
-adata.obs["origin"].unique()
-
-# %%
-adata_tumor_normal = adata[
-    adata.obs["origin"].isin(["normal_adjacent", "normal", "tumor_primary"]),
-    :,
-].copy()
-
-# %%
-adata_tumor_normal.obs["origin"] = [
-    "normal" if "normal" in x else x for x in adata_tumor_normal.obs["origin"]
-]
-
-# %%
-adata_tumor_normal.obs["origin"].unique()
-
-# %%
-adatas_by_cell_type = sh.util.split_anndata(
-    adata_tumor_normal[adata_tumor_normal.obs["cell_type_major"] != "other", :],
-    "cell_type_major",
-)
-all_adatas = {
-    tool: {ct: f(tmp_adata) for ct, tmp_adata in tqdm(adatas_by_cell_type.items())}
-    for tool, f in {
-        "progeny": run_progeny,
-        "cytosig": run_cytosig,
-        # "dorothea": run_dorothea,
-    }.items()
-}
-
-# %%
-for tool, adatas in all_adatas.items():
-    col = "origin"
-    res = sh.lm.lm_test_all(
-        adatas,
-        groupby=["dataset", "patient"],
-        column_to_test=col,
-        lm_covariate_str="+ dataset",
-    )
-    all_results[tool][col] = res
-    res.to_csv(f"{artifact_dir}/differential_signature_{col}_{tool}.tsv", sep="\t")
 
 # %% [markdown]
 # ---
 
 # %%
-pseudobulk = sh.pseudobulk.pseudobulk(
-    all_adatas["progeny"]["Macrophage"], groupby=["dataset", "patient", "origin"]
-)
+TOOLS = {
+    "progeny": run_progeny,
+    "dorothea": run_dorothea,
+    "cytosig": run_cytosig,
+}
 
-# %%
-df = pseudobulk.obs.join(
-    pd.DataFrame(pseudobulk.X, index=pseudobulk.obs_names, columns=pseudobulk.var_names)
-)
 
-# %%
+def prepare_dataset(
+    id_, *, dataset, cell_type_column, tools=("progeny", "cytosig"), **kwargs
+):
+    """Split anndata by cell-type and run the different signature enrichment
+    methods"""
+    print(f"Preparing dataset for {id_}:")
+    dataset = dataset[dataset.obs[cell_type_column] != "other", :]
+    print(f"\tSplitting anndata by {cell_type_column}:")
+    adata_by_cell_type = sh.util.split_anndata(dataset, cell_type_column)
+    all_adatas = {}
+    for tool in tools:
+        print(f"\tRunning {tool}:")
+        all_adatas[tool] = {
+            ct: TOOLS[tool](tmp_adata)
+            for ct, tmp_adata in tqdm(adata_by_cell_type.items())
+        }
 
-# %%
-pseudobulk.obs["origin"] = pd.Categorical(pseudobulk.obs["origin"])
-all_groups = pseudobulk.obs["origin"].unique()
+    return all_adatas
 
-# %%
-mod = smf.ols(
-    formula="Q('WNT') ~ 0 + C(origin, Sum) + patient",
-    data=df.loc[lambda x: x["patient"].isin(matched_patients), :],
-)
-res = mod.fit()
 
-# %%
-res.wald_test("C(origin, Sum)[S.normal] = 0")
+def compare_signatures(
+    id_,
+    all_adatas,
+    *,
+    pseudobulk_group_by,
+    column_to_test,
+    lm_covariate_str,
+    **kwargs,
+):
+    """Compare signature enrichment using linear model"""
+    print(f"Performing comparison for {id_}:")
+    all_results = {}
+    for tool in all_adatas:
+        print(f"\tRunning tests for {tool}:")
+        tmp_res = sh.lm.lm_test_all(
+            all_adatas[tool],
+            groupby=pseudobulk_group_by,
+            column_to_test=column_to_test,
+            lm_covariate_str=lm_covariate_str,
+        )
+        tmp_res.to_csv(
+            f"{artifact_dir}/differential_signature_{id_}_{tool}.tsv", sep="\t"
+        )
+        all_results[tool] = tmp_res
 
-# %%
-res.t_test("C(origin, Sum)[S.normal] = 0")
+    return all_results
 
-# %%
-res.f_test("C(origin, Sum)[S.normal] = 0")
 
-# %%
-res.summary()
-
-# %%
-res.summary()
-
-# %%
-res.summary()
-
-# %%
-pd.set_option("display.max_rows", 300)
-
-# %%
-mask_tumor = bdata.obs["origin"] == "tumor_primary"
-mask_normal = bdata.obs["origin"] == "normal"
-
-# %%
-x = bdata[:, "WNT"].X[:, 0]
-
-# %%
-np.mean(x[mask_tumor]) - np.mean(x[mask_normal])
-
-# %%
-matched_patients = (
-    bdata.obs.groupby("patient")
-    .apply(
-        lambda x: "tumor_primary" in x["origin"].values
-        and "normal" in x["origin"].values
+def compare_cpdb(
+    id_,
+    *,
+    dataset,
+    column_to_test,
+    lm_covariate_str,
+    **kwargs,
+):
+    """
+    Perform test on cellphonedb samples.
+    The data is ALWAYS grouped on sample!
+    """
+    # filter cpdb anndata object to contain the same samples
+    tmp_ad = ad_cpdb[
+        ad_cpdb.obs["sample"].isin(dataset.obs["sample"].unique().tolist()), :
+    ].copy()
+    tmp_res = (
+        sh.lm.test_lm(
+            tmp_ad,
+            f"~ 0 + C({column_to_test}, Sum) {lm_covariate_str}",
+            column_to_test,
+            progress=True,
+            n_jobs=32,
+        )
+        .set_index("variable")
+        .join(ad_cpdb.var, how="left")
+        .sort_values("pvalue")
+        .dropna(how="any")
+        .assign(
+            fdr=lambda x: statsmodels.stats.multitest.fdrcorrection(x["pvalue"].values)[
+                1
+            ]
+        )
     )
-    .where(lambda x: x)
-    .dropna()
-    .index.values
-)
+    tmp_res.to_csv(f"{artifact_dir}/differential_signature_{id_}_cpdb.tsv", sep="\t")
+    return tmp_res
+
 
 # %%
-matched_patients
+datasets = {id_: prepare_dataset(id_, **config) for id_, config in comparisons.items()}
 
 # %%
-mask_matched = bdata.obs["patient"].isin(matched_patients)
+results = {
+    id_: compare_signatures(id_, datasets[id_], **config)
+    for id_, config in comparisons.items()
+}
 
 # %%
-scipy.stats.ttest_ind(x[mask_tumor], x[mask_normal])
+ad_cpdb.var
 
 # %%
-scipy.stats.ttest_rel(x[mask_tumor & mask_matched], x[mask_normal & mask_matched])
+ad_cpdb.obs
 
 # %%
-all_results["progeny"]["origin"]
+results["tumor_normal"]["cpdb"]
 
 # %%
-all_results["progeny"]["origin"]
+for id_, config in comparisons.items():
+    if "cpdb" in config.get("tools", ["cpdb"]):
+        results[id_]["cpdb"] = compare_cpdb(id_, **config)
 
-# %%
-wihtout_covariate = all_results["progeny"]["origin"]
-
-# %%
-wihtout_covariate
 
 # %% [markdown]
 # ---
-
-# %%
-for tool, adatas in all_adatas.items():
-    all_results[tool]["immune_infiltration"] = sh.lm.lm_test_all(
-        adatas,
-        groupby=["dataset", "patient", "sex"],
-        column_to_test=column,
-        lm_covariate_str="+ dataset + sex",
-    )
-
-# %%
-res_cytosig = (
-    res_per_cell_type["cytosig"]
-    .sort_values("pvalue")
-    .groupby("group")
-    .apply(lambda x: x.query("fdr < 0.1"))
-)
-res_cytosig
-
 
 # %%
 def mk_matrixplot(cell_type, features, adatas, column):
@@ -427,255 +497,3 @@ for cell_type in res_cytosig["cell_type"].unique():
         adatas_cytosig,
         "immune_infiltration",
     )
-
-# %% [markdown]
-# ---
-# # CNV
-
-# %%
-# TODO: compare to SCEVAN
-# TODO: regress out dataset-specific effects, or at least include dataset in linear model.
-
-# %%
-ithcna_res_files = list(
-    Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/ithcna.txt")
-)
-ithgex_res_files = list(
-    Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/ithgex.txt")
-)
-cnvscore_res_files = list(
-    Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob(
-        "**/cnv_score.txt"
-    )
-)
-scevan_res_files = list(
-    Path("../../data/30_downstream_analyses/infercnv/scevan/").glob(
-        "**/scevan_result.csv"
-    )
-)
-adatas_infercnvpy = list(
-    Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/*.h5ad")
-)
-
-# %%
-adatas_cnv = {}
-for f in tqdm(adatas_infercnvpy):
-    patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
-    adatas_cnv[patient] = sc.read_h5ad(f)
-
-# %%
-cnvsum_res = {}
-for dataset, ad in tqdm(adatas_cnv.items()):
-    x = ad[ad.obs["cell_type"] == "Tumor cells", :].obsm["X_cnv"].copy()
-    x[x < 0] = 0
-    cnvsum_res[dataset] = np.mean(np.sum(x, axis=1))
-
-# %%
-ithcna_res = {}
-for f in ithcna_res_files:
-    patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
-    ithcna = np.loadtxt(f)
-    ithcna_res[patient] = float(ithcna)
-
-ithgex_res = {}
-for f in ithgex_res_files:
-    patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
-    ithgex = np.loadtxt(f)
-    ithgex_res[patient] = float(ithgex)
-
-cnvscore_res = {}
-for f in cnvscore_res_files:
-    patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
-    cnvscore = np.loadtxt(f)
-    cnvscore_res[patient] = float(cnvscore)
-
-n_subclones = {}
-for f in scevan_res_files:
-    patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
-    df = pd.read_csv(f, index_col=0)
-    if "subclone" in df.columns:
-        n_subclones[patient] = np.max(df["subclone"].dropna())
-
-# %%
-patient_strat["patient_lc"] = patient_strat["patient"].str.lower()
-
-# %%
-patient_strat.set_index("patient_lc", inplace=True)
-
-# %%
-patient_strat["ithcna"] = pd.Series(ithcna_res)
-patient_strat["ithgex"] = pd.Series(ithgex_res)
-patient_strat["cnvscore"] = pd.Series(cnvscore_res)
-patient_strat["n_subclones"] = pd.Series(n_subclones)
-patient_strat["cnvsum"] = pd.Series(cnvsum_res)
-
-# %%
-pat_t = patient_strat["immune_infiltration"][lambda x: x == "T"].index.values.copy()
-pat_none = patient_strat["immune_infiltration"][lambda x: x == "-"].index.values.copy()
-np.random.shuffle(pat_t)
-np.random.shuffle(pat_none)
-
-# %%
-import infercnvpy as cnv
-
-# %%
-# TODO use linear model to check for confounding effects: dataset and number of cells!
-for var in ["ithcna", "ithgex", "cnvscore", "n_subclones"]:
-    # for var in ["cnvsum"]:
-    print(var)
-    fig, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(22, 5))
-    sns.swarmplot(x="TMIG", y=var, data=patient_strat, ax=ax1, hue="dataset")
-    sns.boxplot(x="TMIG", y=var, data=patient_strat, ax=ax1, width=0.2)
-    ax1.get_legend().remove()
-
-    sns.swarmplot(
-        x="infiltration_state", y=var, data=patient_strat, ax=ax2, hue="dataset"
-    )
-    sns.boxplot(x="infiltration_state", y=var, data=patient_strat, ax=ax2, width=0.2)
-    ax2.get_legend().remove()
-
-    sns.swarmplot(
-        x="tumor_type_inferred", y=var, data=patient_strat, ax=ax3, hue="dataset"
-    )
-    sns.boxplot(x="tumor_type_inferred", y=var, data=patient_strat, ax=ax3, width=0.2)
-    ax3.get_legend().remove()
-
-    sns.swarmplot(
-        x="immune_infiltration", y=var, data=patient_strat, ax=ax4, hue="dataset"
-    )
-    sns.boxplot(x="immune_infiltration", y=var, data=patient_strat, ax=ax4, width=0.8)
-    ax4.get_legend().remove()
-    plt.show()
-
-# %%
-scipy.stats.mannwhitneyu(
-    patient_strat.loc[lambda x: x["immune_infiltration"] == "-", "cnvscore"],
-    patient_strat.loc[lambda x: x["immune_infiltration"] == "B", "cnvscore"],
-)
-
-# %% [markdown]
-# # Cell2Cell
-
-# %%
-cpdb_res = {}
-for f in Path("../../data/30_downstream_analyses/cell2cell/squidpy/").glob("**/*.pkl"):
-    sample = f.name.replace("full_atlas_annotated_", "").replace(".pkl", "")
-    with open(f, "rb") as fh:
-        cpdb_res[sample] = pickle.load(fh)
-
-# %%
-dfs_melt = {}
-for k in tqdm(cpdb_res):
-    dfs_melt[k] = (
-        cpdb_res[k]["means"]
-        .reset_index()
-        .melt(id_vars=["source", "target"], value_name=k)
-    )
-
-# %%
-dfs_melt["maynard_bivona_2020_nsclc_lt_s01"]
-
-# %%
-var = pd.concat(
-    [
-        df.loc[lambda x: x[k] != 0, ["source", "target", "cluster_1", "cluster_2"]]
-        for k, df in tqdm(dfs_melt.items())
-    ]
-).drop_duplicates()
-
-# %%
-var = var.assign(idx=lambda x: ["_".join(t[1:]) for t in x.itertuples()]).set_index(
-    "idx"
-)
-
-# %%
-var
-
-# %%
-for k, df in tqdm(dfs_melt.items()):
-    tmp_series = (
-        df.loc[lambda x: x[k] != 0, :]
-        .assign(idx=lambda x: ["_".join(t[1:-1]) for t in x.itertuples()])
-        .set_index("idx")[k]
-    )
-    var[k] = tmp_series
-
-# %%
-ad_cpdb = sc.AnnData(var=var.iloc[:, :4], X=var.iloc[:, 4:].T.fillna(0))
-
-# %%
-sample_info = (
-    adata.obs.loc[:, ["sample", "patient", "tissue", "origin", "condition"]]
-    .assign(sample_lc=lambda x: x["sample"].str.lower())
-    .drop_duplicates()
-    .merge(patient_strat, on="patient", how="left")
-    .set_index("sample_lc")
-)
-
-# %%
-ad_cpdb.obs = ad_cpdb.obs.join(sample_info)
-
-# %%
-ad_cpdb = ad_cpdb[:, ad_cpdb.var["cluster_1"] != ad_cpdb.var["cluster_2"]].copy()
-
-# %%
-ad_cpdb.shape
-
-# %%
-ad_cpdb.obs
-
-# %%
-# ad_cpdb_nsclc = ad_cpdb[~ad_cpdb.obs["TMIG"].isnull(), :].copy()
-ad_cpdb_primary = ad_cpdb[
-    adata_primary_tumor.obs["sample"].str.lower().unique(), :
-].copy()
-
-# %%
-ad_cpdb_primary = ad_cpdb_primary[:, np.sum(ad_cpdb_primary.X != 0, axis=0) > 10].copy()
-
-# %%
-ad_cpdb_primary.shape
-
-# %%
-ad_cpdb_primary.obs
-
-
-# %%
-def chunk_adatas(ad, chunksize=200):
-    for i in range(0, ad.shape[1], chunksize):
-        yield ad[:, i : i + chunksize].copy()
-
-
-# %%
-def do_test(adata):
-    lms, df = test_lm(
-        adata,
-        "Q('{col}') ~ 0 + C(TMIG, Sum) + dataset",
-        "TMIG",
-        progress=True,
-    )
-    return df
-
-
-# %%
-res_df = pd.concat(
-    process_map(do_test, list(chunk_adatas(ad_cpdb_primary)), max_workers=32)
-)
-
-# %%
-_, res_df["fdr"] = statsmodels.stats.multitest.fdrcorrection(res_df["pvalue"].values)
-
-# %%
-pd.set_option("display.max_rows", None)
-
-# %%
-res_df.query("fdr < 0.1").set_index("variable").join(ad_cpdb_primary.var).sort_values(
-    ["group", "pvalue"]
-)
-
-# %%
-res_df.query("fdr < 0.1").set_index("variable").join(ad_cpdb_primary.var).sort_values(
-    ["group", "cluster_1", "cluster_2"]
-)
-
-# %%
