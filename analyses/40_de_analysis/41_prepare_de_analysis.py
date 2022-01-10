@@ -13,7 +13,7 @@
 # ---
 
 # %% [markdown]
-# ## Split anndata into subsets that only contain the required data for the DE analysis. 
+# ## Split anndata into subsets that only contain the required data for the DE analysis.
 
 # %%
 import scanpy as sc
@@ -94,14 +94,14 @@ sc.pl.umap(adata_tumor_normal, color="cell_type")
 # primary tumor samples from LUAD and LSCC patients
 
 # %%
-adata_luad_lusc = adata[
+adata_luad_lscc = adata[
     adata.obs["condition"].isin(["LUAD", "LSCC"])
     & (adata.obs["origin"] == "tumor_primary"),
     :,
 ].copy()
 
 # %%
-sc.pl.umap(adata_luad_lusc, color="cell_type")
+sc.pl.umap(adata_luad_lscc, color="cell_type")
 
 # %% [markdown]
 # # Write output
@@ -110,4 +110,4 @@ sc.pl.umap(adata_luad_lusc, color="cell_type")
 adata_tumor_normal.write_h5ad(f"{artifact_dir}/adata_tumor_normal.h5ad")
 
 # %%
-adata_luad_lusc.write_h5ad(f"{artifact_dir}/adata_luad_lscc.h5ad")
+adata_luad_lscc.write_h5ad(f"{artifact_dir}/adata_luad_lscc.h5ad")

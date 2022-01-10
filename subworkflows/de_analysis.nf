@@ -56,7 +56,7 @@ workflow de_analysis {
         "+ patient"
     )
 
-    /** LUAD vs. LUSC comparison of pirmary tumor samples **/
+    /** LUAD vs. LSCC comparison of pirmary tumor samples **/
     PREPARE_ANNDATA_LUAD_LSCC(
         ch_prepare_adata.filter{ id, adata -> id == "adata_luad_lscc"},
         "X",
