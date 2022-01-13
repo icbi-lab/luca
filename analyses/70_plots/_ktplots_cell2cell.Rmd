@@ -21,7 +21,7 @@ cpdb_res = read_tsv("/home/sturm/Downloads/differential_signature_patient_immune
 ```
 ```{r}
 edges = cpdb_res |>
-  filter(fdr < 0.1) |>
+  filter(fdr < 0.1, coef > 0) |>
   mutate( from=sprintf("%s_%s_ligand", cluster_1, source), to=sprintf("%s_%s_receptor", cluster_2, target)) |>
   select(from, to, name="...1", coef, pvalue, fdr, group)
 ```
@@ -59,28 +59,73 @@ edges_ct_hierarchy = bind_rows(
   nodes |> mutate(from=paste0(cell_type, "_", type), to=name) |> select(from, to)
 )
 nodes_ct_hierarchy = data.frame(name=unique(c(edges_ct_hierarchy$to, edges_ct_hierarchy$from))) |> 
-  left_join(nodes)
+  left_join(nodes) |> group_by(cell_type) |>  group_modify(function(x, key) { 
+    n = nrow(x)
+    n1 = floor(n/2)
+    n2 = n - 1 - n1
+    x$cell_type_label = c(rep(NA, n1), key$cell_type, rep(NA, n2))
+    x
+  }) |> ungroup() |> select(name, cell_type, gene, type, cell_type_label)
 G_ct =graph_from_data_frame(edges_ct_hierarchy, directed=TRUE, vertices=nodes_ct_hierarchy)
+```
+```{r}
+zeileis_28 = c(
+    "#023fa5",
+    "#7d87b9",
+    "#bec1d4",
+    "#d6bcc0",
+    "#bb7784",
+    "#8e063b",
+    "#4a6fe3",
+    "#8595e1",
+    "#b5bbe3",
+    "#e6afb9",
+    "#e07b91",
+    "#d33f6a",
+    "#11c638",
+    "#8dd593",
+    "#c6dec7",
+    "#ead3c6",
+    "#f0b98d",
+    "#ef9708",
+    "#0fcfc0",
+    "#9cded6",
+    "#d5eae7",
+    "#f3e1eb",
+    "#f6c4e1",
+    "#f79cd4",
+    # these last ones were added:
+    '#7f7f7f',
+    "#c7c7c7",
+    "#1CE6FF",
+    "#336600"
+)
+
 ```
 
 
-
-```{r, fig.width=8, fig.height=8}
+```{r, fig.width=14, fig.height=14}
 from = match(edges$from, nodes_ct_hierarchy$name)
 to = match(edges$to, nodes_ct_hierarchy$name)
-conn_meta = data.frame(from=nodes_ct_hierarchy[from, "name"], to=nodes_ct_hierarchy[to, "name"]) |>
+conn_meta = data.frame(from=nodes_ct_hierarchy[from,]$name, to=nodes_ct_hierarchy[to,]$name) |>
   left_join(edges)
 
-ggraph(G_ct, layout="dendrogram", circular=TRUE) + 
-  geom_node_point(aes(color=cell_type, shape=type), size=5) + 
+p = ggraph(G_ct, layout="dendrogram", circular=TRUE) + 
   geom_conn_bundle(
     data = get_con(from=from, to=to, coef=conn_meta$coef, pvalue=conn_meta$pvalue, group=conn_meta$group),
-    aes(color=group),
+    aes(color=group, width=coef),
     tension=0.5) +
+  geom_node_point(aes(color=cell_type, shape=type), size=8, stroke=2, fill="grey") + 
+  scale_edge_color_brewer(type="qual") + 
   theme_void() + 
-  geom_text_repel(aes(x=x, y=y, label=gene)) + 
-  coord_fixed()
+  geom_text_repel(aes(x=x, y=y, label=gene), size=5 ) + 
+  geom_label_repel(aes(x=x, y=y, label=cell_type_label), size=8, force=3, alpha=.8) + 
+  coord_fixed() +
+  scale_shape_manual(values=c("receptor"=23, "ligand"=19))  +
+  scale_color_manual(values=zeileis_28)
+p
 
+ggsave("cell2cell.pdf")
 ```
 
 
