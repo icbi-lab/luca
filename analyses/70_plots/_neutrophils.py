@@ -56,12 +56,12 @@ sc.pl.umap(
 
 # %%
 tumor_normal_progeny = pd.read_csv(
-    "/home/sturm/Downloads/differential_signature_origin_progeny.tsv",
+    "/home/sturm/Downloads/differential_signature_tumor_normal_progeny.tsv",
     sep="\t",
     index_col=0,
 )
 tumor_normal_cytosig = pd.read_csv(
-    "/home/sturm/Downloads/differential_signature_origin_cytosig.tsv",
+    "/home/sturm/Downloads/differential_signature_tumor_normal_cytosig.tsv",
     sep="\t",
     index_col=0,
 )
@@ -170,19 +170,53 @@ sc.pl.matrixplot(
 deseq2_res_tumor_normal
 
 # %%
+adata_primary = sh.pseudobulk.pseudobulk(
+    adata[adata.obs["origin"] == "tumor_primary", :].copy(), groupby=["dataset", "patient", "cell_type_major"]
+)
+sc.pp.normalize_total(adata_primary, target_sum=1000)
+sc.pp.log1p(adata_primary)
+
+# %%
+pd.set_option("display.max_rows", 200)
+
+# %%
+adata.var[adata.var_names.str.startswith("MT")]
+
+# %%
+adata.obs.columns
+
+# %%
+sc.pl.matrixplot(adata_primary, groupby="cell_type_major", var_names="VEGFA", swap_axes=True)
+
+# %%
 sh.pairwise.plot_paired(
     adata_tumor_normal,
     groupby="origin",
     paired_by="patient",
     var_names=tumor_vs_normal,
     pvalues=deseq2_res_tumor_normal.loc[tumor_vs_normal, "pvalue"],
-    pvalue_template="DESeq2 p={:.2f}"
+    pvalue_template="DESeq2 p={:.2f}", 
+    ylabel="log norm counts"
 )
 
 # %% [markdown]
 # ### Using all samples (no pairing between tumor/normal) 
 #
 # This is a use-case of a linear mixed effects model
+
+# %%
+# tmp_adata = adata_n[
+#     adata_n.obs["origin"].isin(["normal", "tumor_primary"]),
+#     :,
+# ]
+# tmp_adata.obs["origin"] = [
+#     "normal" if "normal" in x else x for x in tmp_adata.obs["origin"]
+# ]
+# adata_tumor_normal = sh.pseudobulk.pseudobulk(
+#     tmp_adata, groupby=["dataset", "patient", "origin"]
+# )
+# sc.pp.normalize_total(adata_tumor_normal, target_sum=1000)
+# sc.pp.log1p(adata_tumor_normal)
 
 # %%
 me_data = adata_tumor_normal.obs.join(pd.DataFrame(adata_tumor_normal.X, columns=adata_tumor_normal.var_names, index=adata_tumor_normal.obs_names))
@@ -203,6 +237,7 @@ sh.pairwise.plot_paired(
     show_legend=False,
     size=5,
     pvalues=me_pvalues,
+    ylabel="log norm counts",
     pvalue_template="LME p={:.3f}"
 )
 
@@ -225,7 +260,8 @@ sh.pairwise.plot_paired(
     paired_by="patient",
     var_names=tmp_top10,
     pvalues=deseq2_res_tumor_normal.loc[tmp_top10, "pvalue"],
-    pvalue_template="DESeq2 p={:.4f}"
+    pvalue_template="DESeq2 p={:.4f}",
+    ylabel="log norm counts"
 )
 
 # %% [markdown]
@@ -285,8 +321,52 @@ sns.boxplot(
 )
 ax.legend(bbox_to_anchor=(1.1, 1.05))
 
+# %% [markdown]
+# ## T cell fractions by tumor type
+
 # %%
-mod = smf.ols("fraction ~ C(condition) + dataset", data=neutro_subset)
+tcell_fractions = ct_fractions.loc[lambda x: x["cell_type"].isin(["T cell CD8"]), :]
+
+# %%
+datasets_with_tcells = (
+    tcell_fractions.groupby("dataset")
+    .apply(lambda x: np.sum(x["fraction"]) > 0)
+    .where(lambda x: x)
+    .dropna()
+    .index.tolist()
+)
+
+# %%
+tcell_subset = tcell_fractions.loc[
+    lambda x: (
+        x["dataset"].isin(datasets_with_tcells) & x["condition"].isin(["LUAD", "LSCC"])
+    ),
+    :,
+].sort_values("fraction", ascending=False)
+tcell_subset.head()
+
+# %%
+fig, ax = plt.subplots()
+
+tcell_subset["condition"] = tcell_subset["condition"].astype(str)
+tcell_subset["dataset"] = tcell_subset["dataset"].astype(str)
+
+sns.stripplot(
+    data=tcell_subset,
+    x="condition",
+    y="fraction",
+    hue="dataset",
+    ax=ax,
+    size=7,
+    linewidth=2,
+)
+sns.boxplot(
+    data=tcell_subset, x="condition", y="fraction", ax=ax, width=0.5, fliersize=0
+)
+ax.legend(bbox_to_anchor=(1.1, 1.05))
+
+# %%
+mod = smf.ols("fraction ~ C(condition) + dataset", data=tcell_subset)
 res = mod.fit()
 
 # %%
