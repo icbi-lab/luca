@@ -621,7 +621,7 @@ def scale_01(a):
 tmp_ad = ad_ti_ratio[plot_df["patient"], :]
 heatmap_df = (
     pd.DataFrame(
-        scale_range(tmp_ad.X) * -1, columns=tmp_ad.var_names, index=tmp_ad.obs_names
+        scale_range(tmp_ad.X), columns=tmp_ad.var_names, index=tmp_ad.obs_names
     )
     .reset_index()
     .rename(columns={"index": "patient"})
@@ -637,7 +637,7 @@ p1 = (
             axis=alt.Axis(ticks=False, labels=False, title=None),
         ),
         y=alt.Y("cell_type_group:N", axis=alt.Axis(title=None)),
-        color=alt.Color("value", scale=alt.Scale(scheme="redblue", domain=[-0.9, 0.9])),
+        color=alt.Color("value", scale=alt.Scale(scheme="redblue", reverse=True, domain=[-0.9, 0.9])),
     )
     .properties(width=800, height=20)
 )
@@ -647,7 +647,7 @@ tmp_ad = ad_immune[
     plot_df.loc[plot_df["patient"].isin(ad_immune.obs_names), "patient"], :
 ].copy()
 # scale by tumor immune ratio
-tmp_ad.X = scale_range(tmp_ad.X) *  -scale_01(ad_ti_ratio[plot_df["patient"], "immune_tumor_ratio"].X)
+tmp_ad.X = scale_range(tmp_ad.X) *  scale_01(ad_ti_ratio[plot_df["patient"], "immune_tumor_ratio"].X)
 
 heatmap_df = (
     pd.DataFrame(
