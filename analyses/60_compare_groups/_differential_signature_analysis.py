@@ -146,11 +146,20 @@ ad_cpdb = sc.AnnData(var=var.iloc[:, :4], X=var.iloc[:, 4:].T.fillna(0))
 # %%
 sample_info = (
     adata.obs.loc[
-        :, ["sample", "patient", "tissue", "origin", "condition", "tumor_stage"]
+        :,
+        [
+            "sample",
+            "patient",
+            "tissue",
+            "origin",
+            "condition",
+            "tumor_stage",
+            "dataset",
+        ],
     ]
     .assign(sample_lc=lambda x: x["sample"].str.lower())
     .drop_duplicates()
-    .merge(patient_strat, on="patient", how="left")
+    .merge(patient_strat, how="left")
     .set_index("sample_lc")
 )
 
@@ -310,11 +319,23 @@ adata_primary_tumor.obs = (
     .merge(
         patient_strat,
         how="left",
-        left_on=["patient", "dataset"],
-        right_on=["patient", "dataset"],
     )
     .set_index("index")
 )
+
+# %%
+adata_primary_tumor.obs["infiltration_status"] = [
+    {"-": "immune_low", "T": "immune_high", "B": "immune_high", "M": "immune_high"}.get(
+        i, np.nan
+    )
+    for i in adata_primary_tumor.obs["immune_infiltration"]
+]
+adata_primary_tumor.obs["infiltration_type"] = [
+    np.nan if i == "-" else i for i in adata_primary_tumor.obs["immune_infiltration"]
+]
+adata_primary_tumor.obs["ct_all"] = [
+    "all" if ct != "other" else ct for ct in adata_primary_tumor.obs["cell_type_major"]
+]
 
 # %%
 sc.pl.umap(
@@ -325,6 +346,7 @@ sc.pl.umap(
 )
 
 # %%
+# TODO: split and aggregate datasets appropriately for cpdb.
 comparisons = {
     "tumor_normal": {
         "dataset": adata_tumor_normal,
@@ -333,6 +355,30 @@ comparisons = {
         "column_to_test": "origin",
         # paired analysis
         "lm_covariate_str": "+ patient",
+        "contrasts": "Treatment('normal')",
+    },
+    "infiltration_status": {
+        "dataset": adata_primary_tumor[
+            adata_primary_tumor.obs["infiltration_status"].isin(
+                ["immune_low", "immune_high"]
+            ),
+            :,
+        ],
+        "cell_type_column": "cell_type_major",
+        "pseudobulk_group_by": ["dataset", "patient"],
+        "column_to_test": "infiltration_status",
+        "lm_covariate_str": "+ dataset",
+        "contrasts": "Treatment('immune_low')",
+    },
+    "infiltration_type": {
+        "dataset": adata_primary_tumor[
+            adata_primary_tumor.obs["infiltration_type"].isin(["T", "B", "M"]), :
+        ],
+        "cell_type_column": "cell_type_major",
+        "pseudobulk_group_by": ["dataset", "patient"],
+        "column_to_test": "infiltration_type",
+        "lm_covariate_str": "+ dataset",
+        "contrasts": "Sum",
     },
     "patient_immune_infiltration": {
         "dataset": adata_primary_tumor,
@@ -340,6 +386,7 @@ comparisons = {
         "pseudobulk_group_by": ["dataset", "patient"],
         "column_to_test": "immune_infiltration",
         "lm_covariate_str": "+ dataset",
+        "contrasts": "Sum",
     },
     "luad_lscc": {
         "dataset": adata_primary_tumor[
@@ -349,6 +396,7 @@ comparisons = {
         "pseudobulk_group_by": ["dataset", "patient"],
         "column_to_test": "condition",
         "lm_covariate_str": "+ dataset",
+        "contrasts": "Treatment('LUAD')",
     },
     "early_advanced": {
         "dataset": adata_primary_tumor,
@@ -356,6 +404,17 @@ comparisons = {
         "pseudobulk_group_by": ["dataset", "patient"],
         "column_to_test": "tumor_stage",
         "lm_covariate_str": "+ dataset",
+        "contrasts": "Treatment('early')",
+    },
+    "cell_types": {
+        "dataset": adata_primary_tumor,
+        "pseudobulk_group_by": ["dataset", "patient"],
+        "column_to_test": "cell_type_major",
+        "lm_covariate_str": "+ patient",
+        "contrasts": "Sum",
+        "cell_type_column": "ct_all",
+        # need to manually split this up by cell-type, because here, cell-type is not a variable, but a condition.
+        "tools": ["progeny", "cytosig"],
     },
 }
 
@@ -371,12 +430,26 @@ TOOLS = {
 
 
 def prepare_dataset(
-    id_, *, dataset, cell_type_column, tools=("progeny", "cytosig"), **kwargs
+    id_,
+    *,
+    dataset,
+    cell_type_column,
+    tools=("progeny", "cytosig"),
+    column_to_test,
+    **kwargs,
 ):
     """Split anndata by cell-type and run the different signature enrichment
     methods"""
     print(f"Preparing dataset for {id_}:")
-    dataset = dataset[dataset.obs[cell_type_column] != "other", :]
+    dataset = dataset[
+        (dataset.obs[cell_type_column] != "other")
+        & ~pd.isnull(dataset.obs[column_to_test])
+        & (dataset.obs[column_to_test] != "nan"),
+        :,
+    ].copy()
+    dataset.obs[column_to_test] = pd.Categorical(
+        dataset.obs[column_to_test].astype(str)
+    )
     print(f"\tSplitting anndata by {cell_type_column}:")
     adata_by_cell_type = sh.util.split_anndata(dataset, cell_type_column)
     all_adatas = {}
@@ -397,6 +470,7 @@ def compare_signatures(
     pseudobulk_group_by,
     column_to_test,
     lm_covariate_str,
+    contrasts,
     **kwargs,
 ):
     """Compare signature enrichment using linear model"""
@@ -409,6 +483,7 @@ def compare_signatures(
             groupby=pseudobulk_group_by,
             column_to_test=column_to_test,
             lm_covariate_str=lm_covariate_str,
+            contrasts=contrasts,
         )
         tmp_res.to_csv(
             f"{artifact_dir}/differential_signature_{id_}_{tool}.tsv", sep="\t"
@@ -424,6 +499,7 @@ def compare_cpdb(
     dataset,
     column_to_test,
     lm_covariate_str,
+    contrasts,
     **kwargs,
 ):
     """
@@ -434,13 +510,21 @@ def compare_cpdb(
     tmp_ad = ad_cpdb[
         ad_cpdb.obs["sample"].isin(dataset.obs["sample"].unique().tolist()), :
     ].copy()
+    tmp_ad.obs.set_index("sample", inplace=True)
+    tmp_ad.obs[column_to_test] = (
+        dataset.obs.loc[:, ["sample", column_to_test]]
+        .drop_duplicates()
+        .set_index("sample")[column_to_test]
+    )
     tmp_res = (
         sh.lm.test_lm(
             tmp_ad,
-            f"~ 0 + C({column_to_test}, Sum) {lm_covariate_str}",
+            f"~ C({column_to_test}, {contrasts}) {lm_covariate_str}",
             column_to_test,
             progress=True,
-            n_jobs=32,
+            contrasts=contrasts,
+            n_jobs=48,
+            chunksize=1200,
         )
         .set_index("variable")
         .join(ad_cpdb.var, how="left")
@@ -457,39 +541,159 @@ def compare_cpdb(
 
 
 # %%
-datasets = {id_: prepare_dataset(id_, **config) for id_, config in comparisons.items()}
+datasets = {}
+for id_, config in comparisons.items():
+    datasets[id_] = prepare_dataset(id_, **config)
 
 # %%
-results = {
-    id_: compare_signatures(id_, datasets[id_], **config)
-    for id_, config in comparisons.items()
-}
+results = {}
+for id_, config in comparisons.items():
+    results[id_] = compare_signatures(id_, datasets[id_], **config)
 
 # %%
 for id_, config in comparisons.items():
     if "cpdb" in config.get("tools", ["cpdb"]):
+        print(id_)
         results[id_]["cpdb"] = compare_cpdb(id_, **config)
 
+# %% [markdown]
+# ### test cpdb cell-type vs cell-type
+
+# %%
+tmp_ad = ad_cpdb[
+    ad_cpdb.obs["sample"].isin(adata_primary_tumor.obs["sample"].unique().tolist()), :
+]
+tmp_ad2 = sc.AnnData(
+    X=tmp_ad.var.join(
+        pd.DataFrame(tmp_ad.X.T, columns=tmp_ad.obs_names, index=tmp_ad.var_names)
+    )
+    .pivot(index=["source", "target", "cluster_2"], columns=["cluster_1"])
+    .T
+)
+tmp_ad2.obs.reset_index(inplace=True)
+tmp_ad2.var.reset_index(inplace=True)
+tmp_ad2.var.index = ["_".join([ct, s, t]) for _, s, t, ct in tmp_ad2.var.itertuples()]
+tmp_ad2.obs.columns = ["sample", "cell_type_major"]
+
+# %%
+tmp_ad2.var
+
+# %%
+tmp_res = (
+    sh.lm.test_lm(
+        tmp_ad2,
+        "~ C(cell_type_major, Sum) + sample",
+        "cell_type_major",
+        progress=True,
+        contrasts="Sum",
+        n_jobs=48,
+        chunksize=600,
+    )
+    .set_index("variable")
+    .join(tmp_ad2.var, how="left")
+    .sort_values("pvalue")
+    .dropna(how="any")
+    .assign(
+        fdr=lambda x: statsmodels.stats.multitest.fdrcorrection(x["pvalue"].values)[1]
+    )
+)
+tmp_res.to_csv(f"{artifact_dir}/differential_signature_cell_types_cpdb.tsv", sep="\t")
+results["cell_types"]["cpdb"] = tmp_res
+
+# %%
+results["cell_types"]["cpdb"]
+
+# %% [markdown]
+# ## Differentially expressed progeny pathways in tumor cells
+
+# %%
+results["patient_immune_infiltration"]["progeny"].loc[
+    lambda x: x["cell_type"] == "tumor cells", :
+].pipe(sh.util.fdr_correction).pipe(
+    sh.lm.plot_lm_result_altair, title="Differential pathways (tumor cells)"
+)
+
+# %%
+results["luad_lscc"]["progeny"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
+    sh.util.fdr_correction
+).pipe(sh.lm.plot_lm_result_altair, title="Differential pathways (tumor cells)")
+
+# %% [markdown]
+# ## Differential cytokine signalling in selected cell-types
+
+# %%
+tmp_cytosig = (
+    results["patient_immune_infiltration"]["cytosig"]
+    .loc[lambda x: x["cell_type"].isin(["tumor cells", "stromal", "endothelial"]), :]
+    .pipe(sh.util.fdr_correction)
+)
+alt.hconcat(
+    *[
+        sh.lm.plot_lm_result_altair(
+            tmp_cytosig.loc[lambda x: x["cell_type"] == ct], title=f"Cytosig for {ct}"
+        )
+        for ct in tmp_cytosig["cell_type"].unique()
+    ]
+)
+# if ch is not None:
+#     ch.display()
+
+# %%
+results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
+    sh.util.fdr_correction
+).pipe(sh.lm.plot_lm_result_altair, title="Cytosig (tumor cells)")
+
+# %% [markdown]
+# ## Selected cellphonedb interactions
+
+# %%
+growth_factors = pd.read_csv(
+    "../../tables/gene_annotations/genecards_growth_factors.csv", comment="#"
+)
+immune_checkpoints = pd.read_csv(
+    "../../tables/gene_annotations/immune_checkpoints.csv", comment="#"
+)
+
+# %%
+results["luad_lscc"]["cpdb"]
+
+# %%
+results["luad_lscc"]["cpdb"]["cluster_1"].unique().tolist()
+
+# %%
+# TODO: here, normal and normal adjacent are treated separately
+# TODO: fix FDR correction, see note in scanpy helpers
+# TODO: potentially switch to treatment coding for more targetet comparisons
+
+# %%
+cti = ["T cell CD8", "T cell CD4", "T cell regulatory"]
+results["tumor_normal"]["cpdb"].loc[
+    lambda _: (
+        _["source"].isin(immune_checkpoints["gene_symbol"])
+        | _["target"].isin(immune_checkpoints["gene_symbol"])
+    )
+    & _["cluster_1"].isin(cti)
+    & _["cluster_2"].isin(["Tumor cells"])
+].pipe(sh.util.fdr_correction)
+
+# %%
+cti = ["Tumor cells", "Stromal", "Endothelial cell"]
+results["early_advanced"]["cpdb"].loc[
+    lambda _: (
+        _["source"].isin(growth_factors["Gene Symbol"])
+        | _["target"].isin(growth_factors["Gene Symbol"])
+    )
+    & _["cluster_1"].isin(cti)
+    & _["cluster_2"].isin(cti)
+].pipe(sh.util.fdr_correction)
 
 # %% [markdown]
 # ---
 
 # %%
-def mk_matrixplot(cell_type, features, adatas, column):
-    ad_lookup = {ct: ad for ct, ad in zip(cell_types, adatas)}
-    tmp_bulk = hb.tl.pseudobulk(
-        ad_lookup[cell_type],
-        groupby=["patient", column],
-        aggr_fun=np.mean,
-    )
-    sc.pl.matrixplot(tmp_bulk, var_names=features, groupby=column, title=cell_type)
-
+immune_checkpoints
 
 # %%
-for cell_type in res_cytosig["cell_type"].unique():
-    mk_matrixplot(
-        cell_type,
-        res_cytosig.loc[lambda x: x["cell_type"] == cell_type, "variable"],
-        adatas_cytosig,
-        "immune_infiltration",
-    )
+pd.set_option("display.max_rows", 20)
+
+# %%
