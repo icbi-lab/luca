@@ -14,6 +14,9 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--InFile", help="H5AD sample file", required=True)
     parser.add_argument("-o", "--outDir", help="pickle output dir path", required=True)
     parser.add_argument(
+        "-n", "--cpus", help="number of cpus for ligrec", required=True, type=int
+    )
+    parser.add_argument(
         "-c",
         "--cellTypeKey",
         help="column in adata.obs holding cell-type information",
@@ -27,17 +30,20 @@ if __name__ == "__main__":
     s_name = sample.replace(".h5ad", "")
     outfile = args.outDir + os.path.basename(s_name) + ".pkl"
     adata_sample = anndata.read_h5ad(sample)
+    cpus = args.cpus
 
+    # squidpy expects log-norm data, which should be in adata.raw, see
+    # https://github.com/theislab/squidpy/issues/446#issuecomment-1013244936
     res = sq.gr.ligrec(
         adata_sample,
         n_perms=1000,
         cluster_key=ct_key,
         copy=True,
-        use_raw=False,
+        use_raw=True,
         transmitter_params={"categories": "ligand"},
         receiver_params={"categories": "receptor"},
         interactions_params={"resources": "CellPhoneDB"},
-        n_jobs=10,
+        n_jobs=cpus,
     )
 
     with open(outfile, "wb") as handle:

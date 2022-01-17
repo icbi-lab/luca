@@ -17,7 +17,12 @@ process SQUIDPY {
     // (they will always fail due to characteristics of the data, e.g. too few cells)
     ignore_exit_code = task.ext.ignore_error ? "|| true" : ""
     """
-    squidpy_cpdb.py -i ${in_file} -o ./ -c ${cell_type_key} > ${id}.log 2>&1 $ignore_exit_code
+    squidpy_cpdb.py \\
+       -i ${in_file} \\
+       -o ./ \\
+       -c ${cell_type_key} \\
+       -n ${task.cpus} \\
+            > ${id}.log 2>&1 $ignore_exit_code
     """
 }
 
