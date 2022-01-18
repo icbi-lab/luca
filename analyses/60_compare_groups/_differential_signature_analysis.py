@@ -382,7 +382,7 @@ comparisons = {
     },
     "patient_immune_infiltration": {
         "dataset": adata_primary_tumor,
-        "cell_type_column": "cell_type_structural",
+        "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient"],
         "column_to_test": "immune_infiltration",
         "lm_covariate_str": "+ dataset",
@@ -429,6 +429,13 @@ TOOLS = {
 }
 
 
+def _prepare_subset(adata, tools):
+    res = {}
+    for tool in tools:
+        res[tool] = TOOLS[tool](adata)
+    return res
+
+
 def prepare_dataset(
     id_,
     *,
@@ -452,13 +459,14 @@ def prepare_dataset(
     )
     print(f"\tSplitting anndata by {cell_type_column}:")
     adata_by_cell_type = sh.util.split_anndata(dataset, cell_type_column)
+    res_by_cell_type = process_map(
+        _prepare_subset, adata_by_cell_type.values(), itertools.repeat(tools)
+    )
     all_adatas = {}
     for tool in tools:
-        print(f"\tRunning {tool}:")
-        all_adatas[tool] = {
-            ct: TOOLS[tool](tmp_adata)
-            for ct, tmp_adata in tqdm(adata_by_cell_type.items())
-        }
+        all_adatas[tool] = {}
+        for ct, tmp_res in zip(adata_by_cell_type, res_by_cell_type):
+            all_adatas[tool][ct] = tmp_res[tool]
 
     return all_adatas
 
@@ -576,9 +584,6 @@ tmp_ad2.var.index = ["_".join([ct, s, t]) for _, s, t, ct in tmp_ad2.var.itertup
 tmp_ad2.obs.columns = ["sample", "cell_type_major"]
 
 # %%
-tmp_ad2.var
-
-# %%
 tmp_res = (
     sh.lm.test_lm(
         tmp_ad2,
@@ -599,9 +604,6 @@ tmp_res = (
 )
 tmp_res.to_csv(f"{artifact_dir}/differential_signature_cell_types_cpdb.tsv", sep="\t")
 results["cell_types"]["cpdb"] = tmp_res
-
-# %%
-results["cell_types"]["cpdb"]
 
 # %% [markdown]
 # ## Differentially expressed progeny pathways in tumor cells

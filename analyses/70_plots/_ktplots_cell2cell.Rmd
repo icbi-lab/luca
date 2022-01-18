@@ -1,74 +1,22 @@
 ---
-title: "Untitled"
+title: "CPDB interaction plots"
 output: html_document
 ---
 
-```{r}
+```{r, include=FALSE}
 library(conflicted)
-library(ktplots)
-data(kidneyimmune)
-data(cpdb_output2)
 
+library(ggplot2)
 library(ggraph)
 library(dplyr)
 conflict_prefer("filter", "dplyr")
+conflict_prefer("rename", "dplyr")
 library(readr)
+library(ggrepel)
+library(igraph)
 ```
 
-```{r}
-cpdb_res = read_tsv("/home/sturm/Downloads/differential_signature_patient_immune_infiltration_cpdb.tsv")
-
-```
-```{r}
-edges = cpdb_res |>
-  filter(fdr < 0.1, coef > 0) |>
-  mutate( from=sprintf("%s_%s_ligand", cluster_1, source), to=sprintf("%s_%s_receptor", cluster_2, target)) |>
-  select(from, to, name="...1", coef, pvalue, fdr, group)
-```
-
-```{r}
-nodes_source = cpdb_res |> 
-  select(cell_type=cluster_1, gene=source) |>
-  mutate(type="ligand") |>
-  mutate(name=sprintf("%s_%s_%s", cell_type, gene, type))
-nodes_target = cpdb_res |> 
-  select(cell_type=cluster_2, gene=target) |>
-  mutate(type="receptor") |>
-  mutate(name=sprintf("%s_%s_%s", cell_type, gene, type))
-nodes = bind_rows(nodes_source, nodes_target) |>
-  distinct() |>
-  select(name, cell_type, gene, type) |>
-  filter(name %in% edges$to | name %in% edges$from)
-
-```
-
-
-<!-- # ```{r} -->
-<!-- # G = graph_from_data_frame(edges, directed=TRUE, vertices=nodes |> filter(name %in% edges$from | name %in% edges$to)) -->
-<!-- #  -->
-<!-- # ``` -->
-
-```{r}
-cell_types = unique(c(cpdb_res$cluster_1, cpdb_res$cluster_2))
-cell_type_lr = unique(paste0(nodes$cell_type, "_", nodes$type))
-# construct hierarchy
-edges_ct_hierarchy = bind_rows(
-  # root
-  data.frame(from="root", to=nodes$cell_type),
-  nodes |> mutate(to=paste0(cell_type, "_", type)) |> select(from=cell_type, to) |> distinct(),
-  nodes |> mutate(from=paste0(cell_type, "_", type), to=name) |> select(from, to)
-)
-nodes_ct_hierarchy = data.frame(name=unique(c(edges_ct_hierarchy$to, edges_ct_hierarchy$from))) |> 
-  left_join(nodes) |> group_by(cell_type) |>  group_modify(function(x, key) { 
-    n = nrow(x)
-    n1 = floor(n/2)
-    n2 = n - 1 - n1
-    x$cell_type_label = c(rep(NA, n1), key$cell_type, rep(NA, n2))
-    x
-  }) |> ungroup() |> select(name, cell_type, gene, type, cell_type_label)
-G_ct =graph_from_data_frame(edges_ct_hierarchy, directed=TRUE, vertices=nodes_ct_hierarchy)
-```
-```{r}
+```{r, include=FALSE}
 zeileis_28 = c(
     "#023fa5",
     "#7d87b9",
@@ -104,63 +52,133 @@ zeileis_28 = c(
 ```
 
 
-```{r, fig.width=14, fig.height=14}
-from = match(edges$from, nodes_ct_hierarchy$name)
-to = match(edges$to, nodes_ct_hierarchy$name)
-conn_meta = data.frame(from=nodes_ct_hierarchy[from,]$name, to=nodes_ct_hierarchy[to,]$name) |>
-  left_join(edges)
+```{r, include=FALSE}
+cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge_color_distiller(palette="RdBu", limits=c(-1,1) * max(abs(conn_meta$log2_fc)))) {
+  # make edges df
+  edges = cpdb_res |>
+    mutate( from=sprintf("%s_%s_ligand", cluster_1, source), to=sprintf("%s_%s_receptor", cluster_2, target)) |>
+    select(from, to, name="variable", coef, pvalue, fdr, group, log2_fc)
+  
+  # make nodes df
+  nodes_source = cpdb_res |> 
+    select(cell_type=cluster_1, gene=source) |>
+    mutate(type="ligand") |>
+    mutate(name=sprintf("%s_%s_%s", cell_type, gene, type))
+  nodes_target = cpdb_res |> 
+    select(cell_type=cluster_2, gene=target) |>
+    mutate(type="receptor") |>
+    mutate(name=sprintf("%s_%s_%s", cell_type, gene, type))
+  nodes = bind_rows(nodes_source, nodes_target) |>
+    distinct() |>
+    select(name, cell_type, gene, type) |>
+    filter(name %in% edges$to | name %in% edges$from)
 
-p = ggraph(G_ct, layout="dendrogram", circular=TRUE) + 
-  geom_conn_bundle(
-    data = get_con(from=from, to=to, coef=conn_meta$coef, pvalue=conn_meta$pvalue, group=conn_meta$group),
-    aes(color=group, width=coef),
-    tension=0.5) +
-  geom_node_point(aes(color=cell_type, shape=type), size=8, stroke=2, fill="grey") + 
-  scale_edge_color_brewer(type="qual") + 
-  theme_void() + 
-  geom_text_repel(aes(x=x, y=y, label=gene), size=5 ) + 
-  geom_label_repel(aes(x=x, y=y, label=cell_type_label), size=8, force=3, alpha=.8) + 
-  coord_fixed() +
-  scale_shape_manual(values=c("receptor"=23, "ligand"=19))  +
-  scale_color_manual(values=zeileis_28)
-p
+  cell_types = unique(c(cpdb_res$cluster_1, cpdb_res$cluster_2))
+  cell_type_lr = unique(paste0(nodes$cell_type, "_", nodes$type))
+  
+  # construct hierarchy graph for dendrogram
+  edges_ct_hierarchy = bind_rows(
+    # root
+    data.frame(from="root", to=nodes$cell_type),
+    nodes |> mutate(to=paste0(cell_type, "_", type)) |> select(from=cell_type, to) |> distinct(),
+    nodes |> mutate(from=paste0(cell_type, "_", type), to=name) |> select(from, to)
+  )
+  nodes_ct_hierarchy = data.frame(name=unique(c(edges_ct_hierarchy$to, edges_ct_hierarchy$from))) |> 
+    left_join(nodes, by="name") |> group_by(cell_type) |>  group_modify(function(x, key) { 
+      n = nrow(x)
+      n1 = floor(n/2)
+      n2 = n - 1 - n1
+      x$cell_type_label = c(rep(NA, n1), key$cell_type, rep(NA, n2))
+      x
+    }) |> ungroup() |> select(name, cell_type, gene, type, cell_type_label)
+  G_ct =graph_from_data_frame(edges_ct_hierarchy, directed=TRUE, vertices=nodes_ct_hierarchy)
 
-ggsave("cell2cell.pdf")
+
+  # info for geom_conn_bundle
+  from = match(edges$from, nodes_ct_hierarchy$name)
+  to = match(edges$to, nodes_ct_hierarchy$name)
+  conn_meta = data.frame(from=nodes_ct_hierarchy[from,]$name, to=nodes_ct_hierarchy[to,]$name) |>
+    left_join(edges, by=c("from", "to"))
+  
+  # plot using ggraph
+  p = ggraph(G_ct, layout="dendrogram", circular=TRUE) + 
+    geom_node_point(aes(color=cell_type, shape=type), size=8, stroke=2, fill="white") + 
+    geom_conn_bundle(
+      data = get_con(from=from, to=to, coef=conn_meta$coef, log2_fc=conn_meta$log2_fc, pvalue=conn_meta$pvalue, group=conn_meta$group),
+      aes_string(color=edge_color, width="abs(log2_fc)"),
+      tension=0.4,
+      arrow=arrow()) +
+    edge_color_scale + 
+    theme_void() + 
+    geom_text_repel(aes(x=x, y=y, label=gene), size=5 ) + 
+    geom_label_repel(aes(x=x, y=y, nudge_x=1.3*x, nudge_y=1.3*y, label=cell_type_label), xlim=c(-2, 2), size=8, force=3, alpha=.8) + 
+    coord_fixed(clip="off") +
+    scale_shape_manual(values=c("receptor"=23, "ligand"=19))  +
+    scale_color_manual(values=zeileis_28)   +
+    theme(legend.position="top")
+  p
+}
+
+# ggsave("cell2cell.pdf")
+```
+
+```{r, include=FALSE}
+cpdb_early_advanced = read_tsv("/home/sturm/Downloads/differential_signature_early_advanced_cpdb.tsv")
+cpdb_luad_lscc = read_tsv("/home/sturm/Downloads/differential_signature_luad_lscc_cpdb.tsv")
+cpdb_infiltration_status = read_tsv("/home/sturm/Downloads/differential_signature_infiltration_status_cpdb.tsv")
+
+# nothing to see here
+# cpdb_infiltration_type = read_tsv("/home/sturm/Downloads/differential_signature_infiltration_type_cpdb.tsv")
+
+cpdb_infiltration = read_tsv("/home/sturm/Downloads/differential_signature_patient_immune_infiltration_cpdb.tsv")
+cpdb_tumor_normal = read_tsv("/home/sturm/Downloads/differential_signature_tumor_normal_cpdb.tsv")
+
+cpdb_cell_types = read_tsv("/home/sturm/Downloads/differential_signature_cell_types_cpdb.tsv")
 ```
 
 
----
-
-```{r}
-sce <- Seurat::as.SingleCellExperiment(kidneyimmune)
+### Early advanced
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_early_advanced |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
 ```
 
-```{r}
-p <- plot_cpdb2(cell_type1 = 'B cell', cell_type2 = 'CD4T cell',
-    scdata = sce,
-    idents = 'celltype', # column name where the cell ids are located in the metadata
-    means = means2,
-    pvals = pvals2,
-    deconvoluted = decon2, # new options from here on specific to plot_cpdb2
-    desiredInteractions = list(
-        c('CD4T cell', 'B cell'),
-        c('B cell', 'CD4T cell')),
-    interaction_grouping = interaction_annotation,
-    edge_group_colors = c(
-        "Activating" = "#e15759",
-        "Chemotaxis" = "#59a14f",
-        "Inhibitory" = "#4e79a7",
-        "Intracellular trafficking" = "#9c755f",
-        "DC_development" = "#B07aa1",
-        "Unknown" = "#e7e7e7"
-        ),
-    node_group_colors = c(
-        "CD4T cell" = "red",
-        "B cell" = "blue"),
-    keep_significant_only = TRUE,
-    standard_scale = TRUE,
-    remove_self = TRUE
-    )
-p
+### LUAD LSCC
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_luad_lscc |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
+```
+
+### Infiltration status
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_infiltration_status |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
+```
+
+### Infiltration status (only tumor and structural cells)
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_infiltration_status |> filter(abs(log2_fc) > 1, cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell")) |> head(100) |> cpdb_plot()
+```
+
+### Infiltration type (originating from Tumor, stromal, endothelial cells)
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_infiltration |> rename(variable=`...1`) |>
+  filter(log2_fc > 1) |> 
+  filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), log2_fc > 1) |>
+  mutate(fdr=p.adjust(pvalue, method="fdr")) |> head(100) |>
+  cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_brewer(palette="Set2"))
+```
+
+### Tumor vs normal
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_tumor_normal |> filter(abs(log2_fc) > 1) |> 
+  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell")) |> 
+  head(100) |>
+  # clip log fc for better aesthetics
+  mutate(log2_fc = sapply(log2_fc, \(x) if_else(x < 0, max(x, -5), min(x, 5)))) |>
+  cpdb_plot()
+```
+
+
+## By cell type
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_cell_types |> filter(abs(log2_fc) > 1, group %in% c("Stromal", "Endothelial cell", "Tumor cells"), cluster_2 %in% c("Stromal", "Endothelial cell", "Tumor cells")) |> head(150) |> rename(variable=`...1`) |> mutate(cluster_1=group) |> cpdb_plot(edge_color="group", edge_color_scale=scale_edge_color_brewer(palette="Set2"))
 ```
 

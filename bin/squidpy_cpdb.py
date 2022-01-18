@@ -36,10 +36,11 @@ if __name__ == "__main__":
     # https://github.com/theislab/squidpy/issues/446#issuecomment-1013244936
     res = sq.gr.ligrec(
         adata_sample,
-        n_perms=1000,
+        n_perms=0,
         cluster_key=ct_key,
         copy=True,
         use_raw=True,
+        threshold=0,
         transmitter_params={"categories": "ligand"},
         receiver_params={"categories": "receptor"},
         interactions_params={"resources": "CellPhoneDB"},
