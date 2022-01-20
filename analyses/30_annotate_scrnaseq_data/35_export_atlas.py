@@ -35,9 +35,13 @@ path_adata_epi = nxfvars.get(
 )
 path_patient_metadata = nxfvars.get(
     "patient_metadata",
-    "../../tables/additional_patient_metadata/patient_metadata_corrected.xlsx"
+    "../../tables/additional_patient_metadata/patient_metadata_corrected.xlsx",
 )
-artifact_dir = nxfvars.get("artifact_dir", "/data/scratch/sturm/tmp/")
+path_platform_metadata = nxfvars.get(
+    "platform_metadata",
+    "../../tables/additional_patient_metadata/sequencing_platforms.csv",
+)
+artifact_dir = nxfvars.get("artifact_dir", "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/")
 
 # %%
 ah = AnnotationHelper()
@@ -90,9 +94,9 @@ adata.obs.columns
 # # Add missing dataset metadata
 
 # %%
-additional_patient_metadata = pd.read_excel(
-    path_patient_metadata
-).assign(ever_smoker=lambda x: x["ever_smoker"].str.strip().str.lower())
+additional_patient_metadata = pd.read_excel(path_patient_metadata).assign(
+    ever_smoker=lambda x: x["ever_smoker"].str.strip().str.lower()
+)
 additional_patient_metadata
 
 # %%
@@ -116,7 +120,10 @@ for col in additional_patient_metadata.columns:
 # %%
 adata.obs["tumor_stage"] = np.nan
 adata.obs.loc[adata.obs["uicc_stage"].isin(["I", "II", "IA"]), "tumor_stage"] = "early"
-adata.obs.loc[adata.obs["uicc_stage"].isin(["III", "IV", "IIIA", "IIIB", "III or IV"]), "tumor_stage"] = "late"
+adata.obs.loc[
+    adata.obs["uicc_stage"].isin(["III", "IV", "IIIA", "IIIB", "III or IV"]),
+    "tumor_stage",
+] = "late"
 assert np.all(pd.isnull(adata.obs["uicc_stage"]) == pd.isnull(adata.obs["tumor_stage"]))
 
 # %% [markdown]
@@ -146,6 +153,21 @@ for col in ["sample", "patient", "dataset"]:
 
 # %%
 adata.obs
+
+# %% [markdown]
+# # Add sequencing platforms
+
+# %%
+platform_metadata = pd.read_csv(path_platform_metadata)
+
+# %%
+platform_metadata_by_cell = adata.obs.loc[:, ["dataset"]].reset_index(drop=False).merge(
+    platform_metadata, on="dataset", how="left"
+).set_index("index")
+
+# %%
+adata.obs["platform"] = platform_metadata_by_cell["platform"]
+adata.obs["platform_fine"] = platform_metadata_by_cell["platform_fine"]
 
 # %% [markdown]
 # # Adjust cell-type annotations
@@ -211,7 +233,7 @@ adata.obs.loc[
 sc.set_figure_params(figsize=(10, 10))
 sc.pl.umap(
     adata,
-    color=["cell_type_coarse", "cell_type", "cell_type_major"],
+    color=["cell_type_coarse", "cell_type", "cell_type_major", "platform"],
     legend_loc="on data",
     legend_fontoutline=2,
     legend_fontsize=8,
@@ -222,7 +244,15 @@ sc.pl.umap(
 sc.set_figure_params(figsize=(6, 6))
 sc.pl.umap(
     adata,
-    color=["condition", "origin", "dataset", "sex", "ever_smoker", "uicc_stage", "tumor_stage"],
+    color=[
+        "condition",
+        "origin",
+        "dataset",
+        "sex",
+        "ever_smoker",
+        "uicc_stage",
+        "tumor_stage",
+    ],
     wspace=0.3,
     ncols=3,
 )
