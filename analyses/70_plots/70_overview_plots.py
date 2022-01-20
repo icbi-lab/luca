@@ -13,6 +13,10 @@
 # ---
 
 # %%
+# %load_ext autoreload
+# %autoreload 2
+
+# %%
 import scanpy as sc
 from scanpy_helpers.annotation import AnnotationHelper
 from nxfvars import nxfvars
@@ -21,9 +25,14 @@ from toolz.functoolz import pipe
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
+import scanpy_helpers as sh
 
 # %%
 alt.data_transformers.disable_max_rows()
+
+# %%
+sh.colors.plot_all_palettes()
 
 # %%
 sc.set_figure_params(figsize=(5, 5))
@@ -44,12 +53,7 @@ main_adata = nxfvars.get(
 adata = sc.read_h5ad(main_adata)
 
 # %%
-adata_epi = sc.read_h5ad(
-    "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/epithelial_cells_annotated.h5ad"
-)
-
-# %%
-with plt.rc_context({"figure.figsize": (8, 8)}):
+with plt.rc_context({"figure.figsize": (8, 8), "figure.dpi": 300}):
     sc.pl.umap(
         adata,
         color="cell_type_coarse",
@@ -57,25 +61,21 @@ with plt.rc_context({"figure.figsize": (8, 8)}):
         legend_fontsize=12,
         legend_fontoutline=2,
         frameon=False,
-        add_outline=True,
-        size=2,
+        # add_outline=True,
+        size=3,
     )
 
 # %%
-adata.obs["cell_type"].value_counts()
+adata.shape
 
 # %%
-with plt.rc_context({"figure.figsize": (8, 8)}):
-    sc.pl.umap(
-        adata_epi,
-        color="cell_type",
-        legend_loc="on data",
-        legend_fontsize=12,
-        legend_fontoutline=2,
-        frameon=False,
-        add_outline=True,
-        size=4,
-    )
+adata.obs["sample"].nunique()
+
+# %%
+adata.obs["platform"].nunique()
+
+# %%
+adata.obs["cell_type"].nunique()
 
 
 # %%
@@ -91,6 +91,7 @@ def process_subset(mask):
 adatas = {
     label: process_subset(ct)
     for label, ct in {
+        "epithelial": (adata.obs["cell_type_coarse"] == "Epithelial cell") & (adata.obs["cell_type_major"] != "other"),
         "tumor": (adata.obs["cell_type"] == "Tumor cells"),
         "immune": adata.obs["cell_type_coarse"].isin(
             [

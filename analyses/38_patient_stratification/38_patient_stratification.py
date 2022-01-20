@@ -38,6 +38,9 @@ import numpy as np
 import statsmodels.formula.api as smf
 from tqdm.contrib.concurrent import process_map
 import itertools
+from operator import or_
+from functools import reduce
+import scanpy_helpers as sh
 
 # %%
 threadpool_limits(32)
@@ -55,47 +58,44 @@ path_adata = nxfvars.get(
 adata = sc.read_h5ad(path_adata)
 
 # %%
-sc.pl.umap(adata, color=["cell_type", "origin"], ncols=1)
+sc.pl.umap(adata, color=["cell_type_major", "origin"], ncols=1)
 
 # %%
-adata.obs["cell_type"].value_counts()
+adata.obs["cell_type_major"].value_counts().sort_index()
 
 # %%
-# TODO cDC1 is missing; maybe use the new "cell_type_major" annotation
+# # TODO cDC1 is missing; maybe use the new "cell_type_major" annotation
 cell_types = {
-    "tumor": set(adata.obs["cell_type_tumor"]) - set(adata.obs["cell_type"]),
+    "tumor": ["Tumor cells"],
     "healthy epithelial": [
         "Alveolar cell type 2",
-        "Club",
-        "Ciliated",
         "Alveolar cell type 1",
+        "Ciliated",
+        "Club",
         "Goblet",
     ],
     "immune": [
-        "Macrophage FABP4+",
-        "T cell CD4",
-        "T cell CD8",
+        "B cell",
+        "DC mature",
         "Macrophage",
+        "Macrophage FABP4+",
+        "Mast cell",
         "Monocyte",
         "NK cell",
-        "B cell",
-        "T cell regulatory",
-        "cDC2",
+        # "Neutrophils",
         "Plasma cell",
-        "Mast cell",
-        # "Granulocytes",
-        "DC mature",
+        "T cell CD4",
+        "T cell CD8",
+        "T cell regulatory",
+        "cDC1",
+        "cDC2",
         "pDC",
     ],
-    "structural": [
-        "Endothelial cell",
-        "Fibroblast",
-        "Fibroblast adventitial",
-        "Fibroblast alveolar",
-        "Smooth muscle cell",
-        "Pericyte",
-    ],
+    "structural": ["Endothelial cell", "Stromal"],
 }
+assert reduce(or_, [set(v) for v in cell_types.values()]) | {"other", "Neutrophils"} == set(
+    adata.obs["cell_type_major"]
+), "Some cell-types are missing"
 
 # %%
 adata_primary_tumor = adata[
@@ -107,7 +107,7 @@ adata_primary_tumor = adata[
 
 # %%
 adata_tumor_cells = adata_primary_tumor[
-    adata_primary_tumor.obs["cell_type"] == "Tumor cells",
+    adata_primary_tumor.obs["cell_type_major"] == "Tumor cells",
     :,
 ]
 
@@ -169,7 +169,7 @@ def get_cell_type_group(ct):
 major_cell_types_df = (
     (
         adata_primary_tumor.obs.assign(
-            cell_type_group=lambda x: x["cell_type_tumor"].apply(get_cell_type_group)
+            cell_type_group=lambda x: x["cell_type_major"].apply(get_cell_type_group)
         )
         .groupby(["dataset", "patient", "cell_type_group"], observed=True)
         .size()
@@ -190,8 +190,6 @@ major_cell_types_df = (
     )
 )
 
-# %%
-major_cell_types_df
 
 # %%
 ad_ti_ratio = sc.AnnData(
@@ -242,7 +240,7 @@ sc.pl.matrixplot(
 ad_cts = sc.AnnData(
     X=(
         adata_primary_tumor.obs.assign(
-            cell_type_group=lambda x: x["cell_type_tumor"].apply(get_cell_type_group)
+            cell_type_group=lambda x: x["cell_type_major"].apply(get_cell_type_group)
         )
         .loc[lambda x: x["cell_type_group"] != "other", :]
         .groupby(["dataset", "patient", "cell_type"], observed=True)
@@ -309,7 +307,7 @@ sc.pl.matrixplot(
 ad_immune = sc.AnnData(
     X=(
         adata_primary_tumor.obs.assign(
-            cell_type_group=lambda x: x["cell_type_tumor"].apply(get_cell_type_group)
+            cell_type_group=lambda x: x["cell_type_major"].apply(get_cell_type_group)
         )
         .loc[lambda x: x["cell_type_group"] == "immune", :]
         .groupby(["dataset", "patient", "cell_type"], observed=True)
@@ -487,8 +485,6 @@ def get_stratum(infiltration_group, immune_type):
 
 
 # %%
-
-# %%
 plot_df = (
     adata.obs.loc[
         :, ["patient", "sex", "uicc_stage", "ever_smoker", "age", "tumor_stage"]
@@ -504,6 +500,13 @@ plot_df["stratum"] = [
     get_stratum(infil, imm)
     for infil, imm in zip(plot_df["group"], plot_df["immune_type"])
 ]
+remap_tumor_type = {
+    "PPC": "NSCLC",
+    "LUSC": "LSCC",
+    "LCLC": "NSCLC",
+}
+plot_df["condition"] = [remap_tumor_type.get(x,x) for x in plot_df["condition"]]
+plot_df["sex"] = plot_df["sex"].cat.add_categories("unknown").fillna("unknown")
 plot_df.rename(
     columns={
         "condition": "tumor_type_annotated",
@@ -522,62 +525,11 @@ plot_df = plot_df.reset_index()
 # %%
 plot_df
 
-# %%
-cmaps = {
-    "sex": {
-        "male": "#80b1d3",
-        "female": "#fccde5",
-    },
-    "tumor_stage": {
-        "early": "#b3de69",
-        "late": "#fdb462",
-    },
-    "TMIG": {  # tumor microenvironment infiltration group
-        "-/-": "#CCCCCC",
-        "-/S": "#999999",
-        "T/S": "#1f78b4",
-        "T/-": "#a6cee3",
-        "M/S": "#33a02c",
-        "M/-": "#b2df8a",
-        "B/S": "#ff7f00",
-        "B/-": "#fdbf6f",
-    },
-    "immune_infiltration": {
-        "B": "#ff7f00",
-        "T": "#1f78b4",
-        "M": "#33a02c",
-        "-": "#999999",
-    },
-    "infiltration_state": {
-        "I/S": "#6a3d9a",
-        "I/-": "#cab2d6",
-        "-/S": "#999999",
-        "-/-": "#CCCCCC",
-    },
-    "tumor_type_annotated": {
-        "LUAD": "#7fc97f",
-        "NSCLC": "#999999",
-        "LSCC": "#f0027f",
-        "LUSC": "#f0027f",
-        "LUAD": "#7fc97f",
-        "LUAD EMT": "#beaed4",
-        "LUAD NE": "#fdc086",
-        "LUAD dedifferentiated": "#ffff99",
-        # TODO: probably just show those as NSCLC
-        "PPC": "#bf5b17",
-        "LCLC": "#bf5b17",
-    },
-}
-cmaps["tumor_type_inferred"] = cmaps["tumor_type_annotated"]
-
 
 # %%
-def get_scale(col):
-    return alt.Scale(domain=list(cmaps[col].keys()), range=list(cmaps[col].values()))
-
-
-# %%
-def get_row(col):
+def get_row(col, color_scale=None):
+    if color_scale is None:
+        color_scale=col
     return (
         alt.Chart(plot_df.assign(ylab=col))
         .mark_rect()
@@ -588,7 +540,7 @@ def get_row(col):
                 sort=plot_df["patient"].values,
             ),
             y=alt.Y("ylab", axis=alt.Axis(title=None)),
-            color=alt.Color(col, scale=get_scale(col), legend=alt.Legend(columns=3)),
+            color=alt.Color(col, scale=sh.colors.altair_scale(color_scale), legend=alt.Legend(columns=3)),
         )
         .properties(width=800)
     )
@@ -596,15 +548,15 @@ def get_row(col):
 
 p0 = (
     alt.vconcat(
-        get_row("tumor_type_annotated") & get_row("tumor_type_inferred"),
+        get_row("tumor_type_annotated", "condition") & get_row("tumor_type_inferred", "condition"),
         get_row("sex"),
         get_row("tumor_stage"),
         # get_row("infiltration_state"),
         # get_row("immune_infiltration"),
-        get_row("TMIG"),
+        get_row("immune_infiltration"),
     )
-    .resolve_scale("independent")
-    .resolve_legend("shared")
+    .resolve_scale(color="independent")
+    # .resolve_legend("shared")
     .configure_concat(spacing=0)
 )
 p0
@@ -613,12 +565,14 @@ p0
 # %%
 def scale_range(a):
     return a / max(np.abs(np.max(a)), np.abs(np.min(a)))
+
+
 def scale_01(a):
-    return (a - np.min(a))/np.ptp(a)
+    return (a - np.min(a)) / np.ptp(a)
 
 
 # %%
-tmp_ad = ad_ti_ratio[plot_df["patient"], :]
+tmp_ad = ad_ti_ratio[plot_df["patient"], ["immune_tumor_ratio"]]
 heatmap_df = (
     pd.DataFrame(
         scale_range(tmp_ad.X), columns=tmp_ad.var_names, index=tmp_ad.obs_names
@@ -637,7 +591,9 @@ p1 = (
             axis=alt.Axis(ticks=False, labels=False, title=None),
         ),
         y=alt.Y("cell_type_group:N", axis=alt.Axis(title=None)),
-        color=alt.Color("value", scale=alt.Scale(scheme="redblue", reverse=True, domain=[-0.9, 0.9])),
+        color=alt.Color(
+            "value", scale=alt.Scale(scheme="redblue", reverse=True, domain=[-0.9, 0.9])
+        ),
     )
     .properties(width=800, height=20)
 )
@@ -647,12 +603,12 @@ tmp_ad = ad_immune[
     plot_df.loc[plot_df["patient"].isin(ad_immune.obs_names), "patient"], :
 ].copy()
 # scale by tumor immune ratio
-tmp_ad.X = scale_range(tmp_ad.X) *  scale_01(ad_ti_ratio[plot_df["patient"], "immune_tumor_ratio"].X)
+tmp_ad.X = scale_range(tmp_ad.X) * scale_01(
+    ad_ti_ratio[plot_df["patient"], "immune_tumor_ratio"].X
+)
 
 heatmap_df = (
-    pd.DataFrame(
-        tmp_ad.X, columns=tmp_ad.var_names, index=tmp_ad.obs_names
-    )
+    pd.DataFrame(tmp_ad.X, columns=tmp_ad.var_names, index=tmp_ad.obs_names)
     .reset_index()
     .rename(columns={"index": "patient"})
     .melt(id_vars="patient")
