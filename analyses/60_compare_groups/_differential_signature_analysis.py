@@ -538,11 +538,8 @@ def compare_cpdb(
         .join(ad_cpdb.var, how="left")
         .sort_values("pvalue")
         .dropna(how="any")
-        .assign(
-            fdr=lambda x: statsmodels.stats.multitest.fdrcorrection(x["pvalue"].values)[
-                1
-            ]
-        )
+        .pipe(sh.util.fdr_correction)
+        .pipe(sh.util.log2_fc)
     )
     tmp_res.to_csv(f"{artifact_dir}/differential_signature_{id_}_cpdb.tsv", sep="\t")
     return tmp_res
@@ -563,6 +560,13 @@ for id_, config in comparisons.items():
     if "cpdb" in config.get("tools", ["cpdb"]):
         print(id_)
         results[id_]["cpdb"] = compare_cpdb(id_, **config)
+
+# %%
+# id_ = "luad_lscc"
+# results[id_] = compare_signatures(id_, datasets[id_], **comparisons[id_])
+
+# %%
+# results[id_]["progeny"]
 
 # %% [markdown]
 # ### test cpdb cell-type vs cell-type
@@ -598,9 +602,8 @@ tmp_res = (
     .join(tmp_ad2.var, how="left")
     .sort_values("pvalue")
     .dropna(how="any")
-    .assign(
-        fdr=lambda x: statsmodels.stats.multitest.fdrcorrection(x["pvalue"].values)[1]
-    )
+    .pipe(sh.util.fdr_correction)
+    .pipe(sh.util.log2_fc)
 )
 tmp_res.to_csv(f"{artifact_dir}/differential_signature_cell_types_cpdb.tsv", sep="\t")
 results["cell_types"]["cpdb"] = tmp_res
@@ -610,7 +613,7 @@ results["cell_types"]["cpdb"] = tmp_res
 
 # %%
 results["patient_immune_infiltration"]["progeny"].loc[
-    lambda x: x["cell_type"] == "tumor cells", :
+    lambda x: x["cell_type"] == "Tumor cells", :
 ].pipe(sh.util.fdr_correction).pipe(
     sh.lm.plot_lm_result_altair, title="Differential pathways (tumor cells)"
 )
@@ -624,21 +627,20 @@ results["luad_lscc"]["progeny"].loc[lambda x: x["cell_type"] == "Tumor cells", :
 # ## Differential cytokine signalling in selected cell-types
 
 # %%
+results["patient_immune_infiltration"]["cytosig"]
+
+# %%
 tmp_cytosig = (
     results["patient_immune_infiltration"]["cytosig"]
-    .loc[lambda x: x["cell_type"].isin(["tumor cells", "stromal", "endothelial"]), :]
+    .loc[
+        lambda x: x["cell_type"].isin(["Tumor cells", "Stromal", "Endothelial cell"]), :
+    ]
     .pipe(sh.util.fdr_correction)
 )
-alt.hconcat(
-    *[
-        sh.lm.plot_lm_result_altair(
-            tmp_cytosig.loc[lambda x: x["cell_type"] == ct], title=f"Cytosig for {ct}"
-        )
-        for ct in tmp_cytosig["cell_type"].unique()
-    ]
-)
-# if ch is not None:
-#     ch.display()
+for ct in tmp_cytosig["cell_type"].unique():
+    sh.lm.plot_lm_result_altair(
+        tmp_cytosig.loc[lambda x: x["cell_type"] == ct], title=f"Cytosig for {ct}"
+    ).display()
 
 # %%
 results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
@@ -657,19 +659,14 @@ immune_checkpoints = pd.read_csv(
 )
 
 # %%
-results["luad_lscc"]["cpdb"]
-
-# %%
 results["luad_lscc"]["cpdb"]["cluster_1"].unique().tolist()
 
 # %%
 # TODO: here, normal and normal adjacent are treated separately
-# TODO: fix FDR correction, see note in scanpy helpers
-# TODO: potentially switch to treatment coding for more targetet comparisons
 
 # %%
 cti = ["T cell CD8", "T cell CD4", "T cell regulatory"]
-results["tumor_normal"]["cpdb"].loc[
+results["infiltration_status"]["cpdb"].loc[
     lambda _: (
         _["source"].isin(immune_checkpoints["gene_symbol"])
         | _["target"].isin(immune_checkpoints["gene_symbol"])

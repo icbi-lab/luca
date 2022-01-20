@@ -17,9 +17,6 @@
 # %autoreload 2
 
 # %%
-from hierarchical_bootstrapping.util import gini_index
-
-# %%
 import scanpy as sc
 import pandas as pd
 from nxfvars import nxfvars
@@ -31,7 +28,6 @@ import progeny
 import dorothea
 import matplotlib.pyplot as plt
 from threadpoolctl import threadpool_limits
-import hierarchical_bootstrapping as hb
 import altair as alt
 import re
 import statsmodels.stats
@@ -42,6 +38,7 @@ import numpy as np
 import statsmodels.formula.api as smf
 from tqdm.contrib.concurrent import process_map
 import itertools
+import scanpy_helpers as sh
 
 # %%
 threadpool_limits(32)
@@ -73,12 +70,13 @@ sc.pl.umap(adata, color="cell_type")
 
 # %%
 scissor_res_files = {
-    id: Path(
-        "../../data/30_downstream_analyses/scissor/scissor_by_sample/artifacts/"
-    ).glob(f"*_scissor_{id}.tsv")
+    id: Path("../../data/30_downstream_analyses/scissor/scissor_by_sample/").glob(
+        f"**/scissor_{id}.tsv"
+    )
     for id in [
-        # TODO something is wrong with e.g. lambrechts 6149v2_3: the cell ids get lost, but only for survival! 
-        # "survival",
+        # TODO something is wrong with e.g. lambrechts 6149v2_3: the cell ids get lost, but only for survival!
+        "status_time",
+        "tumor_type",
         "tumor_stage",
         "kras_mutation",
         "braf_mutation",
@@ -111,15 +109,19 @@ for colname, series in scissor_obs.items():
 sc.settings.set_figure_params(figsize=(8, 8))
 
 # %%
-sc.pl.umap(adata, color=["scissor_survival", "cell_type"], size=1)
+sc.pl.umap(adata, color=["scissor_status_time", "cell_type"], size=1)
 
 # %% [markdown]
 # Scissor+ cells are associated with late stage or with having the corresponding mutation. 
 
 # %%
 adata.obs["scissor_tumor_stage"] = [
-    {"scissor+": "late_stage", "scissor-": "early_stage"}.get(x, np.nan)
+    {"scissor+": "late", "scissor-": "early"}.get(x, np.nan)
     for x in adata.obs["scissor_tumor_stage"]
+]
+adata.obs["scissor_tumor_type"] = [
+    {"scissor+": "LSCC", "scissor-": "LUAD"}.get(x, np.nan)
+    for x in adata.obs["scissor_tumor_type"]
 ]
 
 # %%
@@ -140,7 +142,9 @@ adata.obs["scissor_egfr_mutation"] = [
 adata_primary = adata[adata.obs["origin"] == "tumor_primary", :].copy()
 
 # %%
+sc.pl.umap(adata_primary, color="scissor_status_time", size=2)
 sc.pl.umap(adata_primary, color="scissor_tumor_stage", size=2)
+sc.pl.umap(adata_primary, color="scissor_tumor_type", size=2)
 for var in ["scissor_kras_mutation", "scissor_braf_mutation", "scissor_egfr_mutation"]:
     sc.pl.umap(adata_primary, color=var, size=2, palette=["#ff7f0e", "#1f77b4"])
 
@@ -148,36 +152,16 @@ for var in ["scissor_kras_mutation", "scissor_braf_mutation", "scissor_egfr_muta
 sc.pl.umap(adata, color="VEGFA", size=1)
 
 # %%
-sc.pl.umap(adata, color=["PDCD1", "LAG3", "HAVCR2", "CXCL13", "CTLA4"], size=1), 
+sc.pl.umap(adata, color=["PDCD1", "LAG3", "HAVCR2", "CXCL13", "CTLA4"], size=1),
 
 # %%
 sc.pl.umap(adata, color=["dataset", "condition", "origin"], size=1)
 
-# %%
-adata_epi.obs["scissor"] = adata.obs["scissor_survival"]
-adata_epi.obs["cell_type"] = adata.obs["cell_type"]
-adata_tumor.obs["scissor"] = adata.obs["scissor_survival"]
 
 # %%
-sc.pl.umap(adata_epi, color=["dataset", "condition", "origin"], size=2, wspace=0.5)
-
-# %%
-sc.pl.umap(adata_epi, color=["scissor", "cell_type"], size=2, wspace=0.5)
-
-# %%
-sc.pl.umap(
-    adata_epi[adata_epi.obs["origin"] == "tumor_primary", :], color="scissor", size=4
-)
-
-# %%
-sc.pl.umap(adata_tumor, color=["scissor", "cell_type"], size=4, wspace=0.5)
-
-# %%
-pd.__version__
-
-
-# %%
-def scissor_by_group(adata, *, groupby="cell_type", scissor_col, adatas_for_gini=None):
+def scissor_by_group(
+    adata, *, groupby=["cell_type_major", "patient"], scissor_col, adatas_for_gini=None
+):
     """Aggregate scissor scores first by patient, then by a grouping variable
 
     Parameters
@@ -192,14 +176,14 @@ def scissor_by_group(adata, *, groupby="cell_type", scissor_col, adatas_for_gini
     obs[scissor_col] = obs[scissor_col].astype(str)
     df_grouped = (
         (
-            obs.groupby(["cell_type", "patient"], observed=True)[scissor_col]
+            obs.groupby(groupby, observed=True)[scissor_col]
             .value_counts(normalize=True)
             .reset_index(name="frac")
         )
         .pivot_table(
             values="frac",
             columns=scissor_col,
-            index="cell_type",
+            index="cell_type_major",
             fill_value=0,
             aggfunc=np.mean,
         )
@@ -213,13 +197,13 @@ def scissor_by_group(adata, *, groupby="cell_type", scissor_col, adatas_for_gini
 def plot_scissor_df(df, *, title="scissor"):
     """Plot the result of scissor_by_group as a bar chart"""
     up, down = [x for x in df.columns[1:] if x != "nan"]
-    order = df.sort_values(up)["cell_type"].values.tolist()
+    order = df.sort_values(up)["cell_type_major"].values.tolist()
     return alt.vconcat(
         alt.Chart(df)
         .mark_bar()
         .encode(
-            x=alt.X("cell_type", sort=order, axis=None),
-            y=up,
+            x=alt.X("cell_type_major", sort=order, axis=None),
+            y=alt.Y(up, scale=alt.Scale(domain=[0, 1])),
             # color=alt.Color(
             #     "gini_better", scale=alt.Scale(scheme="magma", reverse=False)
             # ),
@@ -228,8 +212,8 @@ def plot_scissor_df(df, *, title="scissor"):
         alt.Chart(df.assign(**{down: lambda x: -x[down]}))
         .mark_bar()
         .encode(
-            x=alt.X("cell_type", sort=order),
-            y=down,
+            x=alt.X("cell_type_major", sort=order),
+            y=alt.Y(down, scale=alt.Scale(domain=[-1, 0]))
             # color=alt.Color(
             #     "gini_worse", scale=alt.Scale(scheme="magma", reverse=False)
             # ),
@@ -238,6 +222,53 @@ def plot_scissor_df(df, *, title="scissor"):
         spacing=0,
     )
 
+
+# %%
+def plot_scissor_df_ratio(df, *, title="scissor"):
+    """Plot the result of scissor_by_group as a bar chart"""
+    df = df.copy()
+    up, down = [x for x in df.columns[1:] if x != "nan"]
+    df["log2_ratio"] = np.log2(df[up]) - np.log2(df[down])
+    order = df.sort_values("log2_ratio")["cell_type_major"].values.tolist()
+    return (
+        alt.Chart(df)
+        .mark_bar()
+        .encode(
+            x=alt.X("cell_type_major", sort=order),
+            y=alt.Y("log2_ratio"),
+            # color=alt.Color(
+            #     "gini_better", scale=alt.Scale(scheme="magma", reverse=False)
+            # ),
+        )
+        .properties(height=100, title=title)
+    )
+
+
+# %%
+scissor_dfs = {
+    k: scissor_by_group(adata, scissor_col=k)
+    for k in [
+        "scissor_status_time",
+        "scissor_tumor_type",
+        "scissor_tumor_stage",
+        "scissor_kras_mutation",
+        "scissor_braf_mutation",
+        "scissor_egfr_mutation",
+    ]
+}
+
+# %%
+for col, df in scissor_dfs.items():
+    plot_scissor_df_ratio(df, title=col).display()
+
+# %%
+for col, df in scissor_dfs.items():
+    plot_scissor_df(df, title=col).display()
+
+
+# %% [markdown]
+# ---
+# ### gini per group
 
 # %%
 def subcluster_adata(tmp_adata):
@@ -296,230 +327,11 @@ scissor_per_cell_type["gini_better"] = gini_better
 scissor_per_cell_type["gini_worse"] = gini_worse
 scissor_per_cell_type = scissor_per_cell_type.reset_index()
 
-# %%
-scissor_dfs = {
-    k: scissor_by_group(adata, scissor_col=k)
-    for k in [
-        "scissor_survival",
-        "scissor_tumor_stage",
-        "scissor_kras_mutation",
-        "scissor_braf_mutation",
-        "scissor_egfr_mutation",
-    ]
-}
-
-# %%
-for col, df in scissor_dfs.items():
-    plot_scissor_df(df, title=col).display()
-
-# %% [markdown] tags=[]
-# ---
-#
-# # Signature enrichment
-
-# %%
-sc.settings.set_figure_params(figsize=(4, 4))
-
-# %%
-regulons = dorothea.load_regulons(
-    [
-        "A",
-        "B",
-    ],  # Which levels of confidence to use (A most confident, E least confident)
-    organism="Human",  # If working with mouse, set to Mouse
-)
-
-# %%
-dorothea.run(
-    adata,  # Data to use
-    regulons,  # Dorothea network
-    center=True,  # Center gene expression by mean per cell
-    num_perm=0,  # Simulate m random activities
-    norm=True,  # Normalize by number of edges to correct for large regulons
-    scale=True,  # Scale values per feature so that values can be compared across cells
-    use_raw=True,  # Use raw adata, where we have the lognorm gene expression
-    min_size=5,  # TF with less than 5 targets will be ignored
-)
-
-# %%
-adata_dorothea = dorothea.extract(adata)
-
-# %%
-model = progeny.load_model(
-    organism="Human",  # If working with mouse, set to Mouse
-    top=1000,  # For sc we recommend ~1k target genes since there are dropouts
-)
-
-# %%
-progeny.run(
-    adata,  # Data to use
-    model,  # PROGENy network
-    center=True,  # Center gene expression by mean per cell
-    num_perm=0,  # Simulate m random activities
-    norm=True,  # Normalize by number of edges to correct for large regulons
-    scale=True,  # Scale values per feature so that values can be compared across cells
-    use_raw=True,  # Use raw adata, where we have the lognorm gene expression
-    min_size=5,  # Pathways with less than 5 targets will be ignored
-)
-
-# %%
-adata_progeny = progeny.extract(adata)
-
-# %%
-cytosig_signature = pd.read_csv(
-    "../../tables/cytosig_signature_matrix.tsv", sep="\t", index_col=0
-)
-
-# %%
-progeny.run(
-    adata,  # Data to use
-    cytosig_signature,  # PROGENy network
-    center=True,  # Center gene expression by mean per cell
-    num_perm=0,  # Simulate m random activities
-    norm=True,  # Normalize by number of edges to correct for large regulons
-    scale=True,  # Scale values per feature so that values can be compared across cells
-    use_raw=True,  # Use raw adata, where we have the lognorm gene expression
-    min_size=5,  # Pathways with less than 5 targets will be ignored
-    obsm_key="cytosig",
-)
-
-# %%
-adata_cytosig = progeny.extract(adata, obsm_key="cytosig")
-
-# %%
-sc.pl.matrixplot(
-    adata_cytosig,
-    var_names=adata_cytosig.var_names,
-    groupby="cell_type",
-    cmap="bwr",
-    vmin=-3,
-    vmax=3,
-    swap_axes=True,
-)
-
-# %%
-sc.pl.matrixplot(
-    adata_progeny,
-    var_names=adata_progeny.var_names,
-    groupby="cell_type",
-    cmap="bwr",
-    vmin=-3,
-    vmax=3,
-    swap_axes=True,
-)
-
-# %%
-sc.pl.matrixplot(
-    adata_dorothea,
-    var_names=adata_dorothea.var_names,
-    groupby="cell_type",
-    cmap="bwr",
-    vmin=-3,
-    vmax=3,
-    swap_axes=True,
-)
-
-
 # %% [markdown]
 # ---
 
-# %%
-def paired_test(tmp_adata):
-    var_names = tmp_adata.var_names
-    groups = ["tumor", "normal"]
-    tmp_adata.obs["status"] = [
-        {"tumor_primary": "tumor", "normal": "normal", "normal_adjacent": "normal"}.get(
-            origin, None
-        )
-        for origin in tmp_adata.obs["origin"]
-    ]
-    pseudobulk = hb.tl.pseudobulk(
-        tmp_adata, groupby=["patient", "sample", "status"], aggr_fun=np.mean
-    )
-    paired_by = "patient"
-    group_by = "status"
-    df = pseudobulk.obs.loc[:, [paired_by, group_by]].join(
-        pd.DataFrame(pseudobulk.X, index=pseudobulk.obs_names, columns=var_names)
-    )
-    # remove unpaired samples
-    has_matching_samples = df.groupby(paired_by).apply(
-        lambda x: sorted(x[group_by]) == sorted(groups)
-    )
-    has_matching_samples = has_matching_samples.index[has_matching_samples].values
-    removed_samples = adata.obs[paired_by].nunique() - len(has_matching_samples)
-    if removed_samples:
-        warnings.warn(f"{removed_samples} unpaired samples removed")
-
-    values1 = df.loc[
-        df[paired_by].isin(has_matching_samples) & (df[group_by] == groups[0]),
-        var_names,
-    ]
-    values2 = df.loc[
-        df[paired_by].isin(has_matching_samples) & (df[group_by] == groups[1]),
-        var_names,
-    ]
-
-    mean1 = np.mean(values1, axis=0)
-    mean2 = np.mean(values2, axis=0)
-    pvalues = []
-    for col in var_names:
-        _, p = scipy.stats.wilcoxon(values1[col].values, values2[col].values)
-        pvalues.append(p)
-    # _, pvalues = scipy.stats.ttest_rel(
-    #     values1, values2
-    # )
-
-    return pd.DataFrame(
-        index=var_names, data={"mean1": mean1, "mean2": mean2, "pvalue": pvalues}
-    )
-
-
-# %%
-dfs = {}
-for signature, adatas in all_adatas.items():
-    tmp_dfs = []
-    for ct, ad in zip(cell_types, adatas):
-        try:
-            tmp_dfs.append(paired_test(ad).assign(cell_type=ct))
-        except ValueError:
-            pass
-    dfs[signature] = pd.concat(tmp_dfs)
-
-# %%
-tumor_normal_df = pd.concat(dfs).sort_values("pvalue")
-
-# %%
-_, tumor_normal_df["fdr"] = statsmodels.stats.multitest.fdrcorrection(
-    tumor_normal_df["pvalue"].values,
-    alpha=0.2,
-)
-
-# %%
-pd.set_option("display.max_rows", None)
-
-# %%
-tumor_normal_df.shape
-
 # %% [markdown]
-# ---
-
-# %%
-progeny_epi = adata_cytosig[
-    adata_cytosig.obs["cell_type_coarse"] == "Epithelial cell", :
-].copy()
-
-# %%
-pb_tn = hb.tl.pseudobulk(
-    progeny_epi, groupby=["dataset", "patient", "status"], aggr_fun=np.mean
-)
-
-# %%
-hb.pl.paired_expression(
-    pb_tn, group_by="status", paired_by="patient", var_names=None, show_legend=True
-)
-
-# %% [markdown]
-# ---
+# # Variability within cell-types
 
 # %%
 # %%time

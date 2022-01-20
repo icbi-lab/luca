@@ -57,7 +57,10 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
   # make edges df
   edges = cpdb_res |>
     mutate( from=sprintf("%s_%s_ligand", cluster_1, source), to=sprintf("%s_%s_receptor", cluster_2, target)) |>
-    select(from, to, name="variable", coef, pvalue, fdr, group, log2_fc)
+    select(from, to, name="variable", coef, pvalue, fdr, group, log2_fc) |>
+    mutate(log2_fc = if_else(is.infinite(log2_fc) & log2_fc < 0, min(log2_fc[is.finite(log2_fc)]), log2_fc)) |> 
+    mutate(log2_fc = if_else(is.infinite(log2_fc) & log2_fc > 0, max(log2_fc[is.finite(log2_fc)]), log2_fc)) |>
+    mutate(fdr = if_else(fdr == 0, 1e-255, fdr))
   
   # make nodes df
   nodes_source = cpdb_res |> 
@@ -98,17 +101,20 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
   from = match(edges$from, nodes_ct_hierarchy$name)
   to = match(edges$to, nodes_ct_hierarchy$name)
   conn_meta = data.frame(from=nodes_ct_hierarchy[from,]$name, to=nodes_ct_hierarchy[to,]$name) |>
-    left_join(edges, by=c("from", "to"))
+    left_join(edges, by=c("from", "to")) |> 
+    mutate(log2_fc = )
   
   # plot using ggraph
   p = ggraph(G_ct, layout="dendrogram", circular=TRUE) + 
     geom_node_point(aes(color=cell_type, shape=type), size=8, stroke=2, fill="white") + 
     geom_conn_bundle(
-      data = get_con(from=from, to=to, coef=conn_meta$coef, log2_fc=conn_meta$log2_fc, pvalue=conn_meta$pvalue, group=conn_meta$group),
-      aes_string(color=edge_color, width="abs(log2_fc)"),
+      data = get_con(from=from, to=to, coef=conn_meta$coef, log2_fc=conn_meta$log2_fc, pvalue=conn_meta$pvalue, group=conn_meta$group, fdr=conn_meta$fdr),
+      # aes_string(color=edge_color, width="abs(log2_fc)"),
+      aes_string(color=edge_color, width="abs(log10(fdr))"),
       tension=0.4,
       arrow=arrow()) +
     edge_color_scale + 
+    scale_edge_width_continuous(range=c(1,5)) + 
     theme_void() + 
     geom_text_repel(aes(x=x, y=y, label=gene), size=5 ) + 
     geom_label_repel(aes(x=x, y=y, nudge_x=1.3*x, nudge_y=1.3*y, label=cell_type_label), xlim=c(-2, 2), size=8, force=3, alpha=.8) + 
@@ -181,4 +187,45 @@ cpdb_tumor_normal |> filter(abs(log2_fc) > 1) |>
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 cpdb_cell_types |> filter(abs(log2_fc) > 1, group %in% c("Stromal", "Endothelial cell", "Tumor cells"), cluster_2 %in% c("Stromal", "Endothelial cell", "Tumor cells")) |> head(150) |> rename(variable=`...1`) |> mutate(cluster_1=group) |> cpdb_plot(edge_color="group", edge_color_scale=scale_edge_color_brewer(palette="Set2"))
 ```
+
+```{r}
+growth_factors = read_csv("../../tables/gene_annotations/genecards_growth_factors.csv", comment = "#")
+immune_checkpoints = read_csv("../../tables/gene_annotations/immune_checkpoints.csv", comment="#")
+```
+
+## All growth factors (stromal -> tumor)
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_cell_types |> rename(variable=`...1`) |> mutate(cluster_1=group) |> filter(group %in% c("Endothelial cell", "Stromal"), cluster_2 == "Tumor cells", source %in% growth_factors$`Gene Symbol`, log2_fc > 2, fdr < 0.01) |> 
+  cpdb_plot(edge_color="group", edge_color_scale=scale_edge_color_brewer(palette="Set2"))
+```
+
+## All checkpoints (tumor immune)
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_cell_types |> rename(variable=`...1`) |> mutate(cluster_1=group) |>
+  filter(group %in% c("Tumor cells"), cluster_2 %in% c("T cell CD4", "T cell CD8", "T cell regulatory"), target %in% immune_checkpoints$gene_symbol, log2_fc > 2, fdr < 0.1) |> cpdb_plot()
+```
+
+## All checkpoints (LUAD LSCC, tumor immune)
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_luad_lscc |> filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |> 
+mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> cpdb_plot()
+```
+
+## All checkpoints (infiltration)
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+
+cpdb_infiltration |> rename(variable=`...1`) |>
+  filter(log2_fc > 1) |> 
+  filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |> 
+mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |>
+  cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_brewer(palette="Set2"))
+```
+
+
+## All checkpoints (early_advanced)
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_early_advanced |> filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |> 
+mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> cpdb_plot()
+```
+
 
