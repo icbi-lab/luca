@@ -66,7 +66,7 @@ adata_tumor = sc.read_h5ad(
 )
 
 # %%
-sc.pl.umap(adata, color="cell_type")
+sc.pl.umap(adata, color="cell_type_coarse")
 
 # %%
 scissor_res_files = {
