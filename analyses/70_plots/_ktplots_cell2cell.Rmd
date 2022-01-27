@@ -14,9 +14,13 @@ conflict_prefer("rename", "dplyr")
 library(readr)
 library(ggrepel)
 library(igraph)
+library(reticulate)
 ```
 
 ```{r, include=FALSE}
+sh = import("scanpy_helpers")
+COLORS = sapply(names(sh$colors$COLORS), \(x) unlist(sh$colors$COLORS[[x]]), simplify = FALSE, USE.NAMES = TRUE)
+
 zeileis_28 = c(
     "#023fa5",
     "#7d87b9",
@@ -49,6 +53,24 @@ zeileis_28 = c(
     "#336600"
 )
 
+
+immune_cells = c(
+  "B cell"   ,
+  "cDC1"            ,
+  "cDC2" ,
+  "DC mature"     ,
+  "Macrophage"     ,
+  "Macrophage FABP4+"  ,
+  "Mast cell"     ,
+  "Monocyte"       ,
+  "Neutrophils"   ,
+  "NK cell"      ,
+  "pDC"       ,
+  "Plasma cell",
+  "T cell CD4"       ,
+  "T cell CD8"     ,
+  "T cell regulatory"
+)
 ```
 
 
@@ -140,39 +162,71 @@ cpdb_infiltration = read_tsv("/home/sturm/Downloads/differential_signature_patie
 cpdb_tumor_normal = read_tsv("/home/sturm/Downloads/differential_signature_tumor_normal_cpdb.tsv")
 
 cpdb_cell_types = read_tsv("/home/sturm/Downloads/differential_signature_cell_types_cpdb.tsv")
+
+cytosig = read_tsv("/home/sturm/Downloads/differential_signature_patient_immune_infiltration_cytosig.tsv")
 ```
 
+## Explanation of the plots
+
+ * Each dot in the circle marks a ligand (filled circle) or a receptor (outline square). The direction of the interaction (ligant -> receptor) is additionally indicated with arrows
+ * The ligands and receptors are colored and organized by cell-type
+ * Arrows indicate interactions that are differentially regulated between two conditions. Red arrows mean up-regulated, blue down-regulated. 
+ * The thickness of the arrows indicates the confidence (=FDR) that the given interaction is differentially regulated. 
+ * Usually, the top 100 differentailly regulated interactions are shown. It is, in most cases, not possible to fit all significantly different interactions into the plot. 
 
 ### Early advanced
+
+Comparison between early and advanced tumor stages. Red = upregulated in advanced, blue = upregulated in early. 
+
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 cpdb_early_advanced |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
 ```
 
 ### LUAD LSCC
+
+Comparison of LUAD and LSCC samples. Blue = Upregulated in LUAD, Red = upregulated in LSCC
+
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 cpdb_luad_lscc |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
 ```
 
 ### Infiltration status
+
+Comparison of "infiltration status", i.e. immune desert vs. infiltrated (all three groups). 
+Blue = interaction increased in desert, Red = interaction increased in infiltration. 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 cpdb_infiltration_status |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
 ```
 
 ### Infiltration status (only tumor and structural cells)
+
+Same as above, but only focusing on ligands on Tumor, stromal and endothelial cells. 
+
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 cpdb_infiltration_status |> filter(abs(log2_fc) > 1, cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell")) |> head(100) |> cpdb_plot()
 ```
 
 ### Infiltration type (originating from Tumor, stromal, endothelial cells)
+
+Comparison of the four infiltration types. Interactions are colored according to whether they 
+are uniquely upregulated in either the immune desert group (grey), the B-cell infiltration group (orange), the Macro/Mono infiltration group (green), or the T-cell infiltration group (blue). 
+
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+
 cpdb_infiltration |> rename(variable=`...1`) |>
-  filter(log2_fc > 1) |> 
-  filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), log2_fc > 1) |>
-  mutate(fdr=p.adjust(pvalue, method="fdr")) |> head(100) |>
-  cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_brewer(palette="Set2"))
+  filter(log2_fc > 1) |>
+  filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |> 
+mutate(fdr=p.adjust(pvalue, method="fdr")) |> 
+  group_by(group) |> 
+  filter(row_number() < 20) |>  
+  ungroup() |> 
+  cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
 ```
 
+
 ### Tumor vs normal
+
+Differential signalling between tumor and normal adjacent tissue. Blue = up-regulated in normal, red= upregulated in tumor. 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 cpdb_tumor_normal |> filter(abs(log2_fc) > 1) |> 
   # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell")) |> 
@@ -183,49 +237,64 @@ cpdb_tumor_normal |> filter(abs(log2_fc) > 1) |>
 ```
 
 
-## By cell type
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_cell_types |> filter(abs(log2_fc) > 1, group %in% c("Stromal", "Endothelial cell", "Tumor cells"), cluster_2 %in% c("Stromal", "Endothelial cell", "Tumor cells")) |> head(150) |> rename(variable=`...1`) |> mutate(cluster_1=group) |> cpdb_plot(edge_color="group", edge_color_scale=scale_edge_color_brewer(palette="Set2"))
-```
+<!-- ## By cell type -->
+<!-- ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE} -->
+<!-- cpdb_cell_types |> filter(abs(log2_fc) > 1, group %in% c("Stromal", "Endothelial cell", "Tumor cells"), cluster_2 %in% c("Stromal", "Endothelial cell", "Tumor cells")) |> head(150) |> rename(variable=`...1`) |> mutate(cluster_1=group) |> cpdb_plot(edge_color="group", edge_color_scale=scale_edge_color_brewer(palette="Set2")) -->
+<!-- ``` -->
 
-```{r}
+```{r, include=FALSE}
 growth_factors = read_csv("../../tables/gene_annotations/genecards_growth_factors.csv", comment = "#")
 immune_checkpoints = read_csv("../../tables/gene_annotations/immune_checkpoints.csv", comment="#")
 ```
 
-## All growth factors (stromal -> tumor)
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_cell_types |> rename(variable=`...1`) |> mutate(cluster_1=group) |> filter(group %in% c("Endothelial cell", "Stromal"), cluster_2 == "Tumor cells", source %in% growth_factors$`Gene Symbol`, log2_fc > 2, fdr < 0.01) |> 
-  cpdb_plot(edge_color="group", edge_color_scale=scale_edge_color_brewer(palette="Set2"))
-```
+<!-- ## All growth factors (stromal -> tumor) -->
+<!-- ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE} -->
+<!-- cpdb_cell_types |> rename(variable=`...1`) |> mutate(cluster_1=group) |> filter(group %in% c("Endothelial cell", "Stromal"), cluster_2 == "Tumor cells", source %in% growth_factors$`Gene Symbol`, log2_fc > 2, fdr < 0.01) |>  -->
+<!--   cpdb_plot(edge_color="group", edge_color_scale=scale_edge_color_brewer(palette="Set2")) -->
+<!-- ``` -->
 
-## All checkpoints (tumor immune)
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_cell_types |> rename(variable=`...1`) |> mutate(cluster_1=group) |>
-  filter(group %in% c("Tumor cells"), cluster_2 %in% c("T cell CD4", "T cell CD8", "T cell regulatory"), target %in% immune_checkpoints$gene_symbol, log2_fc > 2, fdr < 0.1) |> cpdb_plot()
-```
+<!-- ## All checkpoints (tumor immune) -->
+<!-- ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE} -->
+<!-- cpdb_cell_types |> rename(variable=`...1`) |> mutate(cluster_1=group) |> -->
+<!--   filter(group %in% c("Tumor cells"), cluster_2 %in% c("T cell CD4", "T cell CD8", "T cell regulatory"), target %in% immune_checkpoints$gene_symbol, log2_fc > 2, fdr < 0.1) |> cpdb_plot() -->
+<!-- ``` -->
 
-## All checkpoints (LUAD LSCC, tumor immune)
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lscc |> filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |> 
-mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> cpdb_plot()
-```
+<!-- ## All checkpoints (LUAD LSCC, tumor immune) -->
+<!-- ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE} -->
+<!-- cpdb_luad_lscc |> filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |>  -->
+<!-- mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> cpdb_plot() -->
+<!-- ``` -->
 
-## All checkpoints (infiltration)
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+## Selected interactions (from cytosig)
+
+Only focusing on interactions also found in the cytosig analysis.
+```{r, fig.width=18, fig.height=12, message=FALSE, warning=FALSE, results=FALSE}
+
+selected_cytosig_variables = cytosig |> filter(cell_type %in% c("Tumor cells", "Stromal", "Endothelial cell")) |>
+  mutate(fdr = p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> pull("variable")
 
 cpdb_infiltration |> rename(variable=`...1`) |>
-  filter(log2_fc > 1) |> 
-  filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |> 
+  # filter(log2_fc > 1) |> 
+  filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), source %in% selected_cytosig_variables, cluster_2 %in% immune_cells ) |> 
 mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |>
-  cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_brewer(palette="Set2"))
+  cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
 ```
 
+<!-- ## All checkpoints (infiltration) -->
+<!-- ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE} -->
 
-## All checkpoints (early_advanced)
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_early_advanced |> filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |> 
-mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> cpdb_plot()
-```
+<!-- cpdb_infiltration |> rename(variable=`...1`) |> -->
+<!--   filter(log2_fc > 1) |>  -->
+<!--   filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |>  -->
+<!-- mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> -->
+<!--   cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_brewer(palette="Set2")) -->
+<!-- ``` -->
+
+
+<!-- ## All checkpoints (early_advanced) -->
+<!-- ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE} -->
+<!-- cpdb_early_advanced |> filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |>  -->
+<!-- mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> cpdb_plot() -->
+<!-- ``` -->
 
 

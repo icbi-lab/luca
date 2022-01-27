@@ -540,7 +540,7 @@ def get_row(col, color_scale=None):
                 sort=plot_df["patient"].values,
             ),
             y=alt.Y("ylab", axis=alt.Axis(title=None)),
-            color=alt.Color(col, scale=sh.colors.altair_scale(color_scale), legend=alt.Legend(columns=3)),
+            color=alt.Color(col, scale=sh.colors.altair_scale(color_scale), legend=alt.Legend(columns=4)),
         )
         .properties(width=800)
     )
@@ -648,6 +648,9 @@ p2 = (
 
 # %%
 p0 & (p1 & p2).resolve_scale(x="shared")
+
+# %%
+tmp_ad.shape
 
 # %% [markdown]
 # # Write output

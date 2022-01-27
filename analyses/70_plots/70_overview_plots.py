@@ -77,6 +77,28 @@ adata.obs["platform"].nunique()
 # %%
 adata.obs["cell_type"].nunique()
 
+# %%
+df = (
+    adata.obs.loc[lambda x: x["origin"].str.contains("tumor")]
+    .groupby(["dataset"])
+    .apply(lambda x: x["patient"].nunique())
+    .reset_index(name="# lung cancer patients")
+    .loc[lambda x: x["# lung cancer patients"] > 0]
+    .sort_values("# lung cancer patients")
+)
+ch = (
+    alt.Chart(df)
+    .mark_bar()
+    .encode(
+        x="# lung cancer patients",
+        y=alt.Y("dataset", sort="x"),
+        color=alt.Color(
+            "# lung cancer patients", scale=alt.Scale(scheme="viridis"), legend=None
+        ),
+    )
+)
+ch + (ch).mark_text(align="left", dx=3).encode(text="# lung cancer patients", color=alt.value("black"))
+
 
 # %%
 def process_subset(mask):
@@ -91,7 +113,8 @@ def process_subset(mask):
 adatas = {
     label: process_subset(ct)
     for label, ct in {
-        "epithelial": (adata.obs["cell_type_coarse"] == "Epithelial cell") & (adata.obs["cell_type_major"] != "other"),
+        "epithelial": (adata.obs["cell_type_coarse"] == "Epithelial cell")
+        & (adata.obs["cell_type_major"] != "other"),
         "tumor": (adata.obs["cell_type"] == "Tumor cells"),
         "immune": adata.obs["cell_type_coarse"].isin(
             [
@@ -111,6 +134,38 @@ adatas = {
         ),
     }.items()
 }
+
+# %%
+with plt.rc_context({"figure.figsize": (8, 8), "figure.dpi": 300}):
+    sc.pl.umap(
+        adata,
+        color="cell_type_coarse",
+        legend_loc=None,
+        legend_fontsize=12,
+        legend_fontoutline=2,
+        frameon=False,
+        # add_outline=True,
+        size=3,
+        groups=["Epithelial cell"]
+    )
+
+# %%
+with plt.rc_context({"figure.figsize": (8, 8), "figure.dpi": 300}):
+    tmp_adata = adatas["epithelial"].copy()
+    tmp_adata.obs["cell_type_tumor"] = tmp_adata.obs["cell_type_tumor"].str.replace("Tumor cells ", "")
+    fig = sc.pl.umap(
+        tmp_adata,
+        color="cell_type_tumor",
+        legend_loc="on data",
+        legend_fontsize=12,
+        legend_fontoutline=2,
+        frameon=False,
+        # add_outline=True,
+        size=8,
+        return_fig=True
+    )
+    fig.savefig("/home/sturm/Downloads/umap_epi.pdf", dpi=600)
+    plt.show()
 
 # %%
 with plt.rc_context({"figure.figsize": (8, 8)}):

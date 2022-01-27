@@ -25,6 +25,8 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
+import matplotlib
+import altair as alt
 
 # %%
 sc.settings.set_figure_params(figsize=(5, 5))
@@ -36,6 +38,62 @@ ah = AnnotationHelper()
 adata = sc.read_h5ad(
     "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad"
 )
+
+# %%
+adata.obs.columns
+
+# %%
+rel_counts = (
+    adata.obs.groupby(["dataset", "cell_type_coarse"])
+    .agg(total_counts=("total_counts", "median"))
+    .reset_index()
+    .groupby("dataset")
+    .apply(
+        lambda x: x.assign(
+            rel_counts=np.log2(x["total_counts"])
+            - np.log2(
+                x.loc[x["cell_type_coarse"] == "Epithelial cell", "total_counts"].values
+            )
+        )
+    )
+)
+
+# %%
+rel_counts
+
+# %%
+order = (
+    rel_counts.groupby("cell_type_coarse")
+    .mean()
+    .sort_values("rel_counts")
+    .index.tolist()
+)
+(
+    alt.Chart(
+        rel_counts,
+        title="Mean detected counts per cell-type, relative to Epithelial cells",
+    )
+    .mark_bar()
+    .encode()
+    .encode(
+        x=alt.X("cell_type_coarse", sort=order),
+        y=alt.Y("mean(rel_counts):Q", title="log2(ratio)"),
+        color=alt.Color(
+            "cell_type_coarse",
+            scale=sh.colors.altair_scale("cell_type_coarse"),
+            legend=None,
+        ),
+    )
+    + alt.Chart(rel_counts)
+    .mark_errorbar(extent="ci")
+    .encode(
+        x=alt.X("cell_type_coarse", sort=order),
+        y=alt.Y("rel_counts", title="log2(ratio)"),
+    )
+)
+
+# %% [markdown]
+# ### Neutrophil subset
 
 # %%
 adata_t = adata[adata.obs["cell_type"] == "Tumor cells", :].copy()
@@ -50,6 +108,16 @@ sc.pl.umap(
     color=["cell_type", "origin", "condition", "tumor_stage", "sex", "dataset"],
     wspace=0.5,
 )
+
+# %%
+adata_n_ukimv = adata_n[adata_n.obs["dataset"] == "UKIM-V", :].copy()
+
+# %%
+ah.reprocess_adata_subset_scvi(adata_n_ukimv, use_rep="X_scANVI")
+
+# %%
+with plt.rc_context({"figure.figsize": (4, 4), "figure.dpi": 300}):
+    sc.pl.umap(adata_n_ukimv, color="origin", frameon=False, size=20)
 
 # %% [markdown]
 # ### Compare cytosig and progeny
@@ -130,7 +198,17 @@ top_up_tumor = [
 ]
 
 # %%
-tumor_vs_normal = ["PTGS2", "SELL", "CXCR2", "VEGFA", "OLR1", "CXCR4", "CXCR1", "ICAM1", "FCGR3B"]
+tumor_vs_normal = [
+    "PTGS2",
+    "SELL",
+    "CXCR2",
+    "VEGFA",
+    "OLR1",
+    "CXCR4",
+    "CXCR1",
+    "ICAM1",
+    "FCGR3B",
+]
 
 # %%
 tmp_adata = adata_n[
@@ -143,7 +221,7 @@ tmp_adata.obs["origin"] = [
 adata_tumor_normal = sh.pseudobulk.pseudobulk(
     tmp_adata, groupby=["dataset", "patient", "origin"]
 )
-sc.pp.normalize_total(adata_tumor_normal, target_sum=1000)
+sc.pp.normalize_total(adata_tumor_normal, target_sum=1e6)
 sc.pp.log1p(adata_tumor_normal)
 
 # %%
@@ -171,9 +249,10 @@ deseq2_res_tumor_normal
 
 # %%
 adata_primary = sh.pseudobulk.pseudobulk(
-    adata[adata.obs["origin"] == "tumor_primary", :].copy(), groupby=["dataset", "patient", "cell_type_major"]
+    adata[adata.obs["origin"] == "tumor_primary", :].copy(),
+    groupby=["dataset", "patient", "cell_type_major"],
 )
-sc.pp.normalize_total(adata_primary, target_sum=1000)
+sc.pp.normalize_total(adata_primary, target_sum=1e6)
 sc.pp.log1p(adata_primary)
 
 # %%
@@ -186,7 +265,9 @@ adata.var[adata.var_names.str.startswith("MT")]
 adata.obs.columns
 
 # %%
-sc.pl.matrixplot(adata_primary, groupby="cell_type_major", var_names="VEGFA", swap_axes=True)
+sc.pl.matrixplot(
+    adata_primary, groupby="cell_type_major", var_names="VEGFA", swap_axes=True
+)
 
 # %%
 sh.pairwise.plot_paired(
@@ -195,9 +276,40 @@ sh.pairwise.plot_paired(
     paired_by="patient",
     var_names=tumor_vs_normal,
     pvalues=deseq2_res_tumor_normal.loc[tumor_vs_normal, "pvalue"],
-    pvalue_template="DESeq2 p={:.2f}", 
-    ylabel="log norm counts"
+    pvalue_template="DESeq2 p={:.2f}",
+    ylabel="log norm counts",
 )
+
+# %%
+tmp_var = [
+    "CXCR1",
+    # "CXCR2",
+    # "CXCR4",
+    "SELL",
+    "ICAM1",
+    "OLR1",
+    "CD83",
+]
+tmp_ad = adata_tumor_normal.copy()
+tmp_ad.obs["origin"] = [
+    {"normal": "normal", "tumor_primary": "tumor"}[x] for x in tmp_ad.obs["origin"]
+]
+with plt.rc_context({"figure.dpi": 150}):
+    fig = sh.pairwise.plot_paired(
+        tmp_ad,
+        groupby="origin",
+        paired_by="patient",
+        var_names=tmp_var,
+        panel_size=(3, 3),
+        pvalues=deseq2_res_tumor_normal.loc[tmp_var, "pvalue"],
+        pvalue_template="",
+        ylabel="log CPM",
+        n_cols=8,
+        show=False,
+        return_fig=True,
+    )
+    for ax in fig.axes:
+        ax.set_ylim(-0.5, 9)
 
 # %% [markdown]
 # ### Using all samples (no pairing between tumor/normal) 
@@ -219,7 +331,13 @@ sh.pairwise.plot_paired(
 # sc.pp.log1p(adata_tumor_normal)
 
 # %%
-me_data = adata_tumor_normal.obs.join(pd.DataFrame(adata_tumor_normal.X, columns=adata_tumor_normal.var_names, index=adata_tumor_normal.obs_names))
+me_data = adata_tumor_normal.obs.join(
+    pd.DataFrame(
+        adata_tumor_normal.X,
+        columns=adata_tumor_normal.var_names,
+        index=adata_tumor_normal.obs_names,
+    )
+)
 
 # %%
 me_pvalues = []
@@ -238,7 +356,7 @@ sh.pairwise.plot_paired(
     size=5,
     pvalues=me_pvalues,
     ylabel="log norm counts",
-    pvalue_template="LME p={:.3f}"
+    pvalue_template="LME p={:.3f}",
 )
 
 # %% [markdown]
@@ -261,7 +379,7 @@ sh.pairwise.plot_paired(
     var_names=tmp_top10,
     pvalues=deseq2_res_tumor_normal.loc[tmp_top10, "pvalue"],
     pvalue_template="DESeq2 p={:.4f}",
-    ylabel="log norm counts"
+    ylabel="log norm counts",
 )
 
 # %% [markdown]
@@ -435,7 +553,7 @@ sh.pairwise.plot_paired(
     size=5,
     ylabel="log norm counts",
     pvalues=deseq2_res_luad_lscc.loc[recruitment_genes, "padj"],
-    pvalue_template="DESeq2 FDR={:.3f}"
+    pvalue_template="DESeq2 FDR={:.3f}",
 )
 
 # %%

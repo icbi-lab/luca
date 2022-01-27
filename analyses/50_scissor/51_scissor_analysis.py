@@ -142,11 +142,21 @@ adata.obs["scissor_egfr_mutation"] = [
 adata_primary = adata[adata.obs["origin"] == "tumor_primary", :].copy()
 
 # %%
-sc.pl.umap(adata_primary, color="scissor_status_time", size=2)
-sc.pl.umap(adata_primary, color="scissor_tumor_stage", size=2)
-sc.pl.umap(adata_primary, color="scissor_tumor_type", size=2)
-for var in ["scissor_kras_mutation", "scissor_braf_mutation", "scissor_egfr_mutation"]:
-    sc.pl.umap(adata_primary, color=var, size=2, palette=["#ff7f0e", "#1f77b4"])
+for var in [
+    "scissor_status_time",
+    "scissor_tumor_stage",
+    "scissor_kras_mutation",
+    "scissor_braf_mutation",
+    "scissor_egfr_mutation",
+]:
+    with plt.rc_context({"figure.figsize": (6, 6), "figure.dpi": 300}):
+        sc.pl.umap(
+            adata_primary,
+            color=var,
+            size=2,
+            palette=["#ca0020", "#0571b0"][::-1],
+            frameon=False,
+        )
 
 # %%
 sc.pl.umap(adata, color="VEGFA", size=1)
@@ -157,8 +167,30 @@ sc.pl.umap(adata, color=["PDCD1", "LAG3", "HAVCR2", "CXCL13", "CTLA4"], size=1),
 # %%
 sc.pl.umap(adata, color=["dataset", "condition", "origin"], size=1)
 
-
 # %%
+# def conf_int(data, confidence=0.95):
+#     a = 1.0 * np.array(data)
+#     n = len(a)
+#     m, se = np.mean(a), scipy.stats.sem(a)
+#     h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
+#     return h
+
+
+def _scissor_test(df):
+    c1, c2 = [x for x in df.columns if x != "nan"]
+    _, p = scipy.stats.ttest_rel(
+        df[c1].values, df[c2].values
+    )
+    return         pd.Series({
+            c1: df[c1].mean(),
+            c2: df[c2].mean(),
+            "pvalue": p,
+            "log2_ratio": np.log2(df[c1].mean()) - np.log2(df[c2].mean())
+            
+        })
+    
+
+
 def scissor_by_group(
     adata, *, groupby=["cell_type_major", "patient"], scissor_col, adatas_for_gini=None
 ):
@@ -183,12 +215,13 @@ def scissor_by_group(
         .pivot_table(
             values="frac",
             columns=scissor_col,
-            index="cell_type_major",
+            index=["cell_type_major", "patient"],
             fill_value=0,
             aggfunc=np.mean,
         )
-        .reset_index()
-    )
+        .groupby("cell_type_major")
+        .apply(_scissor_test)
+    ).pipe(sh.util.fdr_correction)
 
     return df_grouped
 
@@ -224,18 +257,20 @@ def plot_scissor_df(df, *, title="scissor"):
 
 
 # %%
-def plot_scissor_df_ratio(df, *, title="scissor"):
+def plot_scissor_df_ratio(df, *, title="scissor", fdr_cutoff=0.01):
     """Plot the result of scissor_by_group as a bar chart"""
-    df = df.copy()
-    up, down = [x for x in df.columns[1:] if x != "nan"]
-    df["log2_ratio"] = np.log2(df[up]) - np.log2(df[down])
+    df = df.loc[lambda x: x["fdr"] < fdr_cutoff].copy().reset_index(drop=False)
+    # print(df)
+    up, down = df.columns[:2]
+    # df["log2_ratio"] = np.log2(df[up]) - np.log2(df[down])
     order = df.sort_values("log2_ratio")["cell_type_major"].values.tolist()
     return (
         alt.Chart(df)
         .mark_bar()
         .encode(
             x=alt.X("cell_type_major", sort=order),
-            y=alt.Y("log2_ratio"),
+            y=alt.Y("log2_ratio", scale=alt.Scale(domain=[-8, 8])),
+            color=alt.Color("log2_ratio", scale=alt.Scale(scheme="redblue"))
             # color=alt.Color(
             #     "gini_better", scale=alt.Scale(scheme="magma", reverse=False)
             # ),

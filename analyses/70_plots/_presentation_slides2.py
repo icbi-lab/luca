@@ -37,6 +37,12 @@ adata_unintegrated = sc.read_h5ad("../../data/20_build_atlas/integrate_datasets/
 adata = sc.read_h5ad("../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad")
 
 # %%
+adata.X
+
+# %%
+adata.shape[0] * adata.shape[1]
+
+# %%
 adata_unintegrated = adata_unintegrated[adata.obs_names, :].copy()
 
 # %%

@@ -27,13 +27,14 @@ import scipy.stats as st
 import matplotlib
 import scanpy_helpers as sh
 import altair as alt
+import numpy as np
 
 # %%
 threadpoolctl.threadpool_limits(20)
 
 # %%
 matplotlib.rcParams.update({"font.size": 16})
-matplotlib.rcParams["figure.dpi"] = 72
+matplotlib.rcParams["figure.dpi"] = 300
 
 # %%
 adata = sc.read_h5ad(
@@ -41,7 +42,147 @@ adata = sc.read_h5ad(
 )
 
 # %% [markdown]
+# ## TCGA
+
+# %%
+tcga_clin = pd.read_csv("../../tables/tcga/clinical_data_for_scissor.tsv", sep="\t")
+tcga_clin["type"] = tcga_clin["type"].str.replace("LUSC", "LSCC")
+
+# %%
+df = tcga_clin.groupby("type").size().reset_index(name="n")
+ch = (
+    alt.Chart(df)
+    .mark_bar(size=40)
+    .encode(
+        x=alt.X("type"),
+        y=alt.Y("n", axis=alt.Axis(labels=False, ticks=False)),
+        color=alt.Color("type", scale=sh.colors.altair_scale("condition"), legend=None),
+    )
+)
+(
+    ch + (ch).mark_text(dx=0, dy=15, size=15).encode(text="n", color=alt.value("black"))
+).properties(width=100)
+
+# %%
+df = (
+    tcga_clin.loc[:, ["kras_mutation", "braf_mutation", "egfr_mutation"]]
+    .sum()
+    .reset_index(name="n")
+    .rename(columns={"index": "mutation", "n": "frac"})
+)
+df["mutation"] = df["mutation"].str.replace("_mutation", "").str.upper()
+df["frac"] = df["frac"] / tcga_clin.shape[0]
+
+# %%
+ch = alt.Chart(df).mark_bar().encode(x=alt.X("frac", axis=alt.Axis(labels=False, ticks=False)), y="mutation")
+(
+    ch
+    + (ch)
+    .mark_text(align="left", dx=3)
+    .encode(
+        text=alt.Text("frac", format=",.2f", ),
+        color=alt.value("black"),
+    )
+).configure_view(strokeOpacity=0).configure_axis(grid=False).properties(width=150)
+
+# %%
+tcga_clin["kras_mutation"].sum()
+
+# %% [markdown]
 # ## Cell types by platform
+
+# %%
+df = (
+    adata.obs.loc[lambda x: ~x["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"])][
+        "cell_type_coarse"
+    ]
+    .value_counts(normalize=True)
+    .reset_index(name="fraction")
+    .rename(columns={"index": "cell_type"})
+)
+alt.Chart(df).mark_bar().encode(
+    color=alt.Color(
+        "cell_type", scale=sh.colors.altair_scale("cell_type_coarse"), legend=None
+    ),
+    x="fraction",
+    y=alt.Y("cell_type", sort="-x"),
+)
+
+# %%
+
+# %%
+df = (
+    (
+        adata.obs.loc[
+            lambda x: ~x["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"])
+        ]["platform"].value_counts(normalize=True)
+    )
+    .reset_index(name="fraction")
+    .rename(columns={"index": "platform"})
+    .assign(y="all cells")
+)
+
+c_vline = (
+    alt.Chart(df.loc[lambda x: x["platform"] == "10x"])
+    .mark_rule(color="black", strokeWidth=1, strokeDash=[3, 3])
+    .encode(x="fraction")
+)
+
+
+c1 = (
+    alt.Chart(df)
+    .mark_bar()
+    .encode(
+        x=alt.X(
+            "fraction",
+            axis=None,
+        ),
+        order=alt.Order("fraction", sort="descending"),
+        color=alt.Color(
+            "platform",
+            scale=sh.colors.altair_scale("platform"),
+            sort=alt.EncodingSortField("fraction"),
+        ),
+        y=alt.Y("y", title=None),
+    )
+) + c_vline
+
+df = (
+    adata.obs.loc[lambda x: ~x["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"])]
+    .groupby("cell_type_coarse")["platform"]
+    .value_counts(normalize=True)
+    .reset_index(name="fraction")
+    .rename(columns={"level_1": "platform"})
+    .set_index("platform")
+    .assign(order=df.set_index("platform")["fraction"])
+    .reset_index(drop=False)
+)
+c2 = (
+    alt.Chart(df)
+    .mark_bar()
+    .encode(
+        y=alt.Y(
+            "cell_type_coarse",
+            title=None,
+            sort=df.loc[lambda x: x["platform"] == "10x"]
+            .sort_values("fraction", ascending=False)["cell_type_coarse"]
+            .tolist(),
+        ),
+        x=alt.X(
+            "fraction",
+            sort=df.sort_values("fraction")["platform"].tolist(),
+            scale=alt.Scale(domain=[0, 1]),
+        ),
+        color=alt.Color(
+            "platform",
+            scale=sh.colors.altair_scale("platform"),
+            sort=alt.EncodingSortField("order"),
+        ),
+        order=alt.Order("order", sort="descending"),
+    )
+) + c_vline
+
+c1 & c2
 
 # %%
 df = (
@@ -93,8 +234,21 @@ ax.legend(
 )
 plt.show()
 
+
 # %% [markdown]
 # ## Pie charts atlas composition
+
+# %%
+def fmt_label(total_series, min_value=0):
+    def fmt(pct):
+        n = int(pct / 100 * sum(total_series))
+        if n > min_value:
+            return n
+        else:
+            return ""
+
+    return fmt
+
 
 # %%
 df = (
@@ -127,6 +281,7 @@ ax.pie(
     df["n_samples"],
     labels=df.index,
     colors=[sh.colors.COLORS.origin[c] for c in df.index],
+    autopct=fmt_label(df["n_samples"], 7),
 )
 plt.show()
 
@@ -150,6 +305,7 @@ ax.pie(
     df["n_patients"],
     labels=df["condition"],
     colors=[sh.colors.COLORS.condition[c] for c in df["condition"]],
+    autopct=fmt_label(df["n_patients"], 7),
 )
 plt.show()
 
@@ -164,16 +320,11 @@ df = (
 ).sort_values("n_datasets", ascending=False)
 
 
-def fmt_label(pct):
-    n = int(pct / 100 * sum(df["n_datasets"]))
-    return n
-
-
 fig, ax = plt.subplots()
 ax.pie(
     df["n_datasets"],
     labels=df["platform"],
-    autopct=fmt_label,
+    autopct=fmt_label(df["n_datasets"], 0),
     colors=[sh.colors.COLORS.platform[c] for c in df["platform"]],
 )
 plt.show()
