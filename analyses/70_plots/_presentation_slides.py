@@ -295,6 +295,8 @@ df = (
             x if x in ["COPD", "LUAD", "LSCC", "NSCLC", "healthy_control"] else "other"
             for x in x["condition"]
         ]
+    ).assign(
+        condition = lambda x: [{"NSCLC": "NOS", "healthy_control": "non-cancer"}.get(_, _) for _ in x["condition"]]
     )
     .groupby("condition")
     .size()
