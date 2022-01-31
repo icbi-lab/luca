@@ -1,0 +1,2 @@
+id,input_adata,min_counts,max_counts,min_genes,max_genes,max_pct_mito,batch_key,run_solo
+UKIM-V-2,data/12_input_adatas/batch2_5patients.h5ad,1000,60000,200,8000,30,sample,true
