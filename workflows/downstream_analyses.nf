@@ -2,6 +2,7 @@
 
 nextflow.enable.dsl = 2
 
+include { check_samplesheet } from '../modules/local/check_samplesheet'
 include { add_additional_datasets } from "../subworkflows/add_additional_datasets.nf"
 include { de_analysis } from "../subworkflows/de_analysis.nf"
 include { scissor } from "../subworkflows/scissor.nf"
@@ -12,8 +13,17 @@ include { JUPYTERNOTEBOOK as STRATIFY_PATIENTS } from "../modules/local/jupytern
 workflow downstream_analyses {
     assert params.atlas: "Atlas h5ad file not specified!"
 
-    add_additional_datasets()
-    // final_atlas = file(params.atlas, checkIfExists: true)
+    ch_samples = Channel.from(check_samplesheet(params.additional_input, baseDir))
+    reference_atlas = file(params.atlas, checkIfExists: true)
+    reference_scanvi_h5ad = file(params.reference_scanvi_h5ad, checkIfExists: true)
+    reference_scanvi_model = file(params.reference_scanvi_model, checkIfExists: true)
+
+    add_additional_datasets(
+        ch_samples,
+        reference_atlas,
+        reference_scanvi_h5ad,
+        reference_scanvi_model
+    )
 
     // STRATIFY_PATIENTS(
     //     Channel.value([
