@@ -5,6 +5,8 @@ include { JUPYTERNOTEBOOK as ANNOTATE_CELL_TYPES_EPI }  from "../modules/local/j
 include { SPLIT_ANNDATA }  from "../modules/local/scconversion/main.nf"
 include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_CELL_TYPES } from "./neighbors_leiden_umap.nf"
 include { JUPYTERNOTEBOOK as EXPORT_ATLAS }  from "../modules/local/jupyternotebook/main.nf"
+include { SCVI } from "../modules/local/scvi/main.nf"
+include { SCANVI } from "../modules/local/scvi/main.nf"
 
 /**
  * Annotate cell-types of the lung cancer atlas.
@@ -81,6 +83,17 @@ workflow annotate_dataset {
         ).collect()
     )
     ch_atlas = EXPORT_ATLAS.out.artifacts.flatten().filter{ it -> it.baseName.equals("full_atlas_annotated") }
+
+    SCVI(
+        ch_atlas.map{ it -> ['full_atlas', it]},
+        1,
+        ["sample", "dataset", null]
+    )
+    SCANVI(
+        SCVI.out.adata.join(SCVI.out.scvi_model),
+        "sample",
+        "cell_type"
+    )
 
     emit:
         final_atlas = ch_atlas

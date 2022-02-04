@@ -62,9 +62,9 @@ process JUPYTERNOTEBOOK {
     export NUMBA_NUM_THREADS="${task.cpus}"
 
     # Convert notebook to ipynb using jupytext, execute using papermill, convert using nbconvert
-    jupytext --to notebook --output - --set-kernel ${kernel} ${notebook}  \\
-        | ${render_cmd} \\
-        | jupyter nbconvert --stdin --to html --output ${prefix}.html
+    jupytext --to notebook --output - --set-kernel ${kernel} ${notebook} > ${notebook}.ipynb
+    ${render_cmd} ${notebook}.ipynb ${notebook}.executed.ipynb
+    jupyter nbconvert --stdin --to html --output ${prefix}.html < ${notebook}.executed.ipynb
 
     cat <<-END_VERSIONS > versions.yml
     "${task.process}":

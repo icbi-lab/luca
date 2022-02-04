@@ -88,22 +88,18 @@ workflow integrate_datasets {
 
     SCVI(
         ch_adata_merged,
-        Channel.from(0, 1),
+        1, // 1 = use HVG
         ["batch", "dataset", null]
     )
-
     SCANVI(
         SCVI.out.adata.join(SCVI.out.scvi_model),
         "batch",
         "cell_type"
     )
-
-    // use HVG version for downstream analysis. We just keep the version with
-    // all genes in case we need to run DE analysis with scVI.
-    ch_scvi_hvg = SCVI.out.adata.filter{ id, adata -> adata.baseName.contains("hvg") }
-    ch_scvi_hvg_model = SCVI.out.scvi_model.filter{ id, adata -> adata.baseName.contains("hvg") }
-    ch_scanvi_hvg = SCANVI.out.adata.filter{ id, adata -> adata.baseName.contains("hvg") }
-    ch_scanvi_hvg_model = SCANVI.out.scvi_model.filter{ id, adata -> adata.baseName.contains("hvg") }
+    ch_scvi_hvg = SCVI.out.adata
+    ch_scvi_hvg_model = SCVI.out.scvi_model
+    ch_scanvi_hvg = SCANVI.out.adata
+    ch_scanvi_hvg_model = SCANVI.out.scvi_model
 
     NEIGHBORS_LEIDEN_UMAP_DOUBLET(
         ch_scanvi_hvg,

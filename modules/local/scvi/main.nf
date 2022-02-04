@@ -15,6 +15,7 @@ process SCVI {
     script:
     def suffix = use_highly_variable == 0 ? "all_genes" : "hvg"
     def labels_key_arg = labels_key ? "--labels_key ${labels_key}" : ""
+    def args = task.ext.args ?: ''
     """
     export CUDA_VISIBLE_DEVICES=\$((0 + \$RANDOM % 2))
     export OPENBLAS_NUM_THREADS=${task.cpus} OMP_NUM_THREADS=${task.cpus}  \\
@@ -27,7 +28,8 @@ process SCVI {
         --use_hvg ${use_highly_variable} \\
         --hvg_batch_key ${hvg_batch_key} \\
         --batch_key ${batch_key} \\
-        ${labels_key_arg}
+        ${labels_key_arg} \\
+        $args
     """
 }
 

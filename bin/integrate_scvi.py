@@ -35,6 +35,7 @@ def main(
     batch_key,
     hvg_batch_key=None,
     labels_key=None,
+    use_arches_params=False,
 ):
     """
     Run scvi tools integration
@@ -61,10 +62,22 @@ def main(
     labels_key
         Key in adata.obs containing cell-type labels for semi-supervised training
         and later SCANVI inference
+    use_arches_params
+        Use parameters that were found to work well with scArches, cf. https://docs.scvi-tools.org/en/stable/tutorials/notebooks/scarches_scvi_tools.html#Online-update-of-SCANVI
     """
     set_all_seeds()
 
     adata = sc.read_h5ad(adata_in)
+
+    extra_params = {}
+    if use_arches_params:
+        extra_params = dict(
+            use_layer_norm="both",
+            use_batch_norm="none",
+            encode_covariates=True,
+            dropout_rate=0.2,
+            n_layers=2,
+        )
 
     if use_highly_variable:
         if hvg_batch_key is None:
@@ -82,7 +95,7 @@ def main(
     else:
         scvi.data.setup_anndata(adata, batch_key=batch_key)
 
-    vae = scvi.model.SCVI(adata)
+    vae = scvi.model.SCVI(adata, **extra_params)
 
     vae.train(
         use_gpu=True,
@@ -118,7 +131,7 @@ if __name__ == "__main__":
         "--use_hvg",
         dest="use_hvg",
         type=bool,
-        help="Whether to use all genes (False) or the 6000 most highly variable genese (True)",
+        help="Whether to use all genes (False) or the 6000 most highly variable genes (True)",
         default="1",
     )
     parser.add_argument(
@@ -142,6 +155,13 @@ if __name__ == "__main__":
         help="Key in adata.obs that contains the cell-type labels (optional)",
         default=None,
     )
+    parser.add_argument(
+        "--arches_params",
+        dest="arches_params",
+        type=bool,
+        help="Run with parameters optimized for scArches mode",
+        default=False,
+    )
     args = parser.parse_args()
     main(
         args.adata_in,
@@ -151,4 +171,5 @@ if __name__ == "__main__":
         batch_key=args.batch_key,
         hvg_batch_key=args.hvg_batch_key,
         labels_key=args.labels_key,
+        use_arches_params=args.arches_params,
     )
