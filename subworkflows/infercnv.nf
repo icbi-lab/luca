@@ -52,7 +52,7 @@ workflow infercnv {
     take: adata_annotated
 
     main:
-    ch_adata_annotated = Channel.value([adata_annotated.baseName, adata_annotated])
+    ch_adata_annotated = adata_annotated.map{ it -> [it.baseName, it]}
     SPLIT_ANNDATA(ch_adata_annotated, "patient")
 
     ch_adatas_by_patient = SPLIT_ANNDATA.out.adata.flatten().map{ it -> [it.baseName, it]}

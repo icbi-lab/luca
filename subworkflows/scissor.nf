@@ -27,7 +27,7 @@ workflow scissor {
     take: adata_annotated
 
     main:
-    ch_adata_integrated = Channel.value([adata_annotated.baseName, adata_annotated])
+    ch_adata_integrated = adata_annotated.map{ it -> [it.baseName, it]}
     SPLIT_ANNDATA(ch_adata_integrated, "patient")
     H5AD_TO_SCE(SPLIT_ANNDATA.out.adata.flatten().map{ it -> [it.baseName, it]})
 

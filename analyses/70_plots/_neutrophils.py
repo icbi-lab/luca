@@ -36,7 +36,7 @@ ah = AnnotationHelper()
 
 # %%
 adata = sc.read_h5ad(
-    "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad"
+    "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad"
 )
 
 # %%
@@ -110,10 +110,13 @@ sc.pl.umap(
 )
 
 # %%
-adata_n_ukimv = adata_n[adata_n.obs["dataset"] == "UKIM-V", :].copy()
+adata_n_ukimv = adata_n[adata_n.obs["dataset"].str.startswith("UKIM-V"), :].copy()
 
 # %%
 ah.reprocess_adata_subset_scvi(adata_n_ukimv, use_rep="X_scANVI")
+
+# %%
+adata_n_ukimv.obs
 
 # %%
 with plt.rc_context({"figure.figsize": (4, 4), "figure.dpi": 300}):
@@ -208,6 +211,7 @@ tumor_vs_normal = [
     "CXCR1",
     "ICAM1",
     "FCGR3B",
+    "CD83"
 ]
 
 # %%
@@ -259,9 +263,6 @@ sc.pp.log1p(adata_primary)
 pd.set_option("display.max_rows", 200)
 
 # %%
-adata.var[adata.var_names.str.startswith("MT")]
-
-# %%
 adata.obs.columns
 
 # %%
@@ -275,41 +276,10 @@ sh.pairwise.plot_paired(
     groupby="origin",
     paired_by="patient",
     var_names=tumor_vs_normal,
-    pvalues=deseq2_res_tumor_normal.loc[tumor_vs_normal, "pvalue"],
-    pvalue_template="DESeq2 p={:.2f}",
+    pvalues=deseq2_res_tumor_normal.loc[tumor_vs_normal, "padj"],
+    pvalue_template="DESeq2 FDR={:.2f}",
     ylabel="log norm counts",
 )
-
-# %%
-tmp_var = [
-    "CXCR1",
-    # "CXCR2",
-    # "CXCR4",
-    "SELL",
-    "ICAM1",
-    "OLR1",
-    "CD83",
-]
-tmp_ad = adata_tumor_normal.copy()
-tmp_ad.obs["origin"] = [
-    {"normal": "normal", "tumor_primary": "tumor"}[x] for x in tmp_ad.obs["origin"]
-]
-with plt.rc_context({"figure.dpi": 150}):
-    fig = sh.pairwise.plot_paired(
-        tmp_ad,
-        groupby="origin",
-        paired_by="patient",
-        var_names=tmp_var,
-        panel_size=(3, 3),
-        pvalues=deseq2_res_tumor_normal.loc[tmp_var, "pvalue"],
-        pvalue_template="",
-        ylabel="log CPM",
-        n_cols=8,
-        show=False,
-        return_fig=True,
-    )
-    for ax in fig.axes:
-        ax.set_ylim(-0.5, 9)
 
 # %% [markdown]
 # ### Using all samples (no pairing between tumor/normal) 
@@ -555,5 +525,7 @@ sh.pairwise.plot_paired(
     pvalues=deseq2_res_luad_lscc.loc[recruitment_genes, "padj"],
     pvalue_template="DESeq2 FDR={:.3f}",
 )
+
+# %%
 
 # %%

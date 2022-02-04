@@ -93,6 +93,7 @@ sc.pl.umap(reference, color="cell_type")
 
 # %%
 query.obs["dataset"] = "UKIM-V-2"
+query.obs["patient"] = [f"UKIM-V-2_{p}" for p in query.obs["patient"]]
 query.obs["tissue"] = "lung"
 query.obs["tumor_stage"] = np.nan
 query.obs.loc[query.obs["uicc_stage"].isin(["I", "II", "IA"]), "tumor_stage"] = "early"

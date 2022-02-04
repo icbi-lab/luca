@@ -23,9 +23,9 @@ workflow de_analysis {
             [id: "prepare_for_de"],
             file("${baseDir}/analyses/40_de_analysis/41_prepare_de_analysis.py")
         ]),
-        [
-            "input_adata": adata_annotated.name,
-        ],
+        adata_annotated.map{it -> [
+            "input_adata": it.name,
+        ]},
         adata_annotated
     )
     ch_prepare_adata = PREPARE_FOR_DE.out.artifacts.flatten().map { it -> [it.baseName, it] }
