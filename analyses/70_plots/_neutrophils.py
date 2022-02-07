@@ -408,6 +408,14 @@ sns.boxplot(
     data=neutro_subset, x="condition", y="fraction", ax=ax, width=0.5, fliersize=0
 )
 ax.legend(bbox_to_anchor=(1.1, 1.05))
+ax.set_title("Neutrophil fraction in LSCC vs LUAD")
+
+# %%
+mod = smf.ols("fraction ~ C(condition) + dataset", data=neutro_subset)
+res = mod.fit()
+
+# %%
+res.pvalues
 
 # %% [markdown]
 # ## T cell fractions by tumor type

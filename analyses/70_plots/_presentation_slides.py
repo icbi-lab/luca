@@ -38,7 +38,7 @@ matplotlib.rcParams["figure.dpi"] = 300
 
 # %%
 adata = sc.read_h5ad(
-    "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad"
+    "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad"
 )
 
 # %% [markdown]
