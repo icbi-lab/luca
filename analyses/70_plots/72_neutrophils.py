@@ -42,6 +42,11 @@ adata = sc.read_h5ad(
 # %%
 adata.obs.columns
 
+# %% [markdown] tags=[] jp-MarkdownHeadingCollapsed=true
+# # mRNA content
+#
+# Need to compute ratios, because the baseline difference between datasets and platforms is very high. 
+
 # %%
 rel_counts = (
     adata.obs.groupby(["dataset", "cell_type_coarse"])
@@ -93,7 +98,7 @@ order = (
 )
 
 # %% [markdown]
-# ### Neutrophil subset
+# # Neutrophil subset
 
 # %%
 adata_t = adata[adata.obs["cell_type"] == "Tumor cells", :].copy()
@@ -109,6 +114,9 @@ sc.pl.umap(
     wspace=0.5,
 )
 
+# %% [markdown]
+# ## UKIM-V datasets only
+
 # %%
 adata_n_ukimv = adata_n[adata_n.obs["dataset"].str.startswith("UKIM-V"), :].copy()
 
@@ -123,84 +131,10 @@ with plt.rc_context({"figure.figsize": (4, 4), "figure.dpi": 300}):
     sc.pl.umap(adata_n_ukimv, color="origin", frameon=False, size=20)
 
 # %% [markdown]
-# ### Compare cytosig and progeny
+# # DE analysis tumor normal
 
 # %%
-tumor_normal_progeny = pd.read_csv(
-    "/home/sturm/Downloads/differential_signature_tumor_normal_progeny.tsv",
-    sep="\t",
-    index_col=0,
-)
-tumor_normal_cytosig = pd.read_csv(
-    "/home/sturm/Downloads/differential_signature_tumor_normal_cytosig.tsv",
-    sep="\t",
-    index_col=0,
-)
-
-# %%
-tumor_normal_progeny.loc[lambda x: x["cell_type"] == "Neutrophils", :].query(
-    "pvalue < 0.1"
-)
-
-# %%
-tumor_normal_cytosig.loc[lambda x: x["cell_type"] == "Neutrophils", :].query(
-    "pvalue < 0.1"
-)
-
-# %% [markdown]
-# ### Compare DE genes using pair plots
-#
-# All pvalues are unadjusted
-
-# %%
-top_up_normal = [
-    "S100A8",
-    "IFITM2",
-    "ACTB",
-    "RGS2",
-    "SELL",
-    "S100A9",
-    "C5AR1",
-    "MNDA",
-    "PTGS2",
-    "ARHGDIB",
-    "H3-3A",
-    "FPR1",
-    "CXCR2",
-    "CSF3R",
-    "CNN2",
-    "SRGN",
-    "CTSS",
-    "TPM4",
-    "TAGLN2",
-    "VNN2",
-]
-
-# %%
-top_up_tumor = [
-    # "CCL3L1",
-    "C15orf48",
-    "CXCR4",
-    "VEGFA",
-    "CD83",
-    "TPI1",
-    "CCL4L2",
-    "CCRL2",
-    "IER3",
-    "BRI3",
-    "SQSTM1",
-    "JUN",
-    "PHACTR1",
-    "GAPDH",
-    "CSTB",
-    "LGALS3",
-    "ENO1",
-    "NFKBIA",
-    "FCER1G",
-    "WSB1",
-]
-
-# %%
+# candidate genes
 tumor_vs_normal = [
     "PTGS2",
     "SELL",
@@ -211,7 +145,8 @@ tumor_vs_normal = [
     "CXCR1",
     "ICAM1",
     "FCGR3B",
-    "CD83"
+    "CD83",
+    "ARG1",
 ]
 
 # %%
@@ -227,9 +162,17 @@ adata_tumor_normal = sh.pseudobulk.pseudobulk(
 )
 sc.pp.normalize_total(adata_tumor_normal, target_sum=1e6)
 sc.pp.log1p(adata_tumor_normal)
+adata_tumor_normal.obs["origin2"] = [
+    "T" if o == "tumor_primary" else "N" for o in adata_tumor_normal.obs["origin"]
+]
+
+# %% [markdown]
+# ### Overview pseudobulk samples
 
 # %%
-adata_tumor_normal.obs.query("dataset == 'UKIM-V'")
+adata_tumor_normal.obs.loc[
+    lambda x: x["dataset"].str.startswith("UKIM"), :
+].sort_values(["dataset", "patient", "origin"])
 
 # %%
 deseq2_res_tumor_normal = pd.read_csv(
@@ -239,41 +182,12 @@ deseq2_res_tumor_normal = pd.read_csv(
 ).set_index("gene_id.1")
 
 # %%
-sc.pl.matrixplot(
-    adata_tumor_normal, var_names=top_up_normal, groupby="origin", title="top up normal"
-)
-
-# %%
-sc.pl.matrixplot(
-    adata_tumor_normal, var_names=top_up_tumor, groupby="origin", title="top up tumor"
-)
-
-# %%
 deseq2_res_tumor_normal
-
-# %%
-adata_primary = sh.pseudobulk.pseudobulk(
-    adata[adata.obs["origin"] == "tumor_primary", :].copy(),
-    groupby=["dataset", "patient", "cell_type_major"],
-)
-sc.pp.normalize_total(adata_primary, target_sum=1e6)
-sc.pp.log1p(adata_primary)
-
-# %%
-pd.set_option("display.max_rows", 200)
-
-# %%
-adata.obs.columns
-
-# %%
-sc.pl.matrixplot(
-    adata_primary, groupby="cell_type_major", var_names="VEGFA", swap_axes=True
-)
 
 # %%
 sh.pairwise.plot_paired(
     adata_tumor_normal,
-    groupby="origin",
+    groupby="origin2",
     paired_by="patient",
     var_names=tumor_vs_normal,
     pvalues=deseq2_res_tumor_normal.loc[tumor_vs_normal, "padj"],
@@ -281,24 +195,10 @@ sh.pairwise.plot_paired(
     ylabel="log norm counts",
 )
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
 # ### Using all samples (no pairing between tumor/normal) 
 #
 # This is a use-case of a linear mixed effects model
-
-# %%
-# tmp_adata = adata_n[
-#     adata_n.obs["origin"].isin(["normal", "tumor_primary"]),
-#     :,
-# ]
-# tmp_adata.obs["origin"] = [
-#     "normal" if "normal" in x else x for x in tmp_adata.obs["origin"]
-# ]
-# adata_tumor_normal = sh.pseudobulk.pseudobulk(
-#     tmp_adata, groupby=["dataset", "patient", "origin"]
-# )
-# sc.pp.normalize_total(adata_tumor_normal, target_sum=1000)
-# sc.pp.log1p(adata_tumor_normal)
 
 # %%
 me_data = adata_tumor_normal.obs.join(
@@ -333,31 +233,27 @@ sh.pairwise.plot_paired(
 # ## Top DE genes as determined by DESeq2
 
 # %%
-sc.pl.matrixplot(
-    adata_tumor_normal,
-    var_names=deseq2_res_tumor_normal.index.values[:20],
-    groupby="origin",
-    title="top DE genes",
-)
-
-# %%
-tmp_top10 = deseq2_res_tumor_normal.index.values[:10]
+tmp_top10 = deseq2_res_tumor_normal.sort_values("padj").index.values[:10]
 sh.pairwise.plot_paired(
     adata_tumor_normal,
-    groupby="origin",
+    groupby="origin2",
     paired_by="patient",
     var_names=tmp_top10,
-    pvalues=deseq2_res_tumor_normal.loc[tmp_top10, "pvalue"],
-    pvalue_template="DESeq2 p={:.4f}",
+    pvalues=deseq2_res_tumor_normal.loc[tmp_top10, "padj"],
+    pvalue_template="DESeq2 FDR={:.4f}",
     ylabel="log norm counts",
 )
 
 # %% [markdown]
-# ## neutro fractions by tumor type
+# # neutro fractions by tumor type
 
 # %%
 ct_fractions = (
-    adata[adata.obs["origin"] == "tumor_primary", :]
+    adata[
+        (adata.obs["origin"] == "tumor_primary")
+        & ~adata.obs["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"]),
+        :,
+    ]
     .obs.groupby(["dataset", "patient", "condition"])["cell_type"]
     .value_counts(normalize=True)
     .reset_index()
@@ -387,7 +283,6 @@ neutro_subset = neutro_fractions.loc[
     ),
     :,
 ].sort_values("fraction", ascending=False)
-neutro_subset
 
 # %%
 fig, ax = plt.subplots()
@@ -417,8 +312,8 @@ res = mod.fit()
 # %%
 res.pvalues
 
-# %% [markdown]
-# ## T cell fractions by tumor type
+# %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
+# # T cell fractions by tumor type
 
 # %%
 tcell_fractions = ct_fractions.loc[lambda x: x["cell_type"].isin(["T cell CD8"]), :]
@@ -534,6 +429,89 @@ sh.pairwise.plot_paired(
     pvalue_template="DESeq2 FDR={:.3f}",
 )
 
-# %%
+# %% [markdown]
+# # VEGFA sources in NSCLC
 
 # %%
+adata_primary = sh.pseudobulk.pseudobulk(
+    adata[
+        (adata.obs["origin"] == "tumor_primary")
+        & ~adata.obs["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"]),
+        :,
+    ].copy(),
+    groupby=["dataset", "patient", "cell_type_major"],
+    min_obs=20,
+)
+sc.pp.normalize_total(adata_primary, target_sum=1e6)
+sc.pp.log1p(adata_primary)
+
+# %%
+pd.set_option("display.max_rows", 200)
+
+# %%
+adata.obs.columns
+
+# %%
+df = adata_primary.obs
+df["VEGFA"] = adata_primary[:, "VEGFA"].X
+
+# %%
+df
+
+# %%
+order = (
+    df.groupby("cell_type_major")
+    .agg("median")
+    .sort_values("VEGFA", ascending=False)
+    .index.values
+)
+
+# %%
+PROPS = {
+    "boxprops": {"facecolor": "none", "edgecolor": "black"},
+    "medianprops": {"color": "black"},
+    "whiskerprops": {"color": "black"},
+    "capprops": {"color": "black"},
+}
+
+fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+sns.stripplot(
+    x="cell_type_major", y="VEGFA", hue="dataset", data=df, ax=ax, order=order
+)
+sns.boxplot(
+    x="cell_type_major",
+    y="VEGFA",
+    ax=ax,
+    data=df,
+    order=order,
+    color="white",
+    **PROPS,
+    showfliers=False
+)
+ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+_ = plt.xticks(rotation=90)
+
+# %% [markdown]
+# # Compare cytosig and progeny
+
+# %%
+tumor_normal_progeny = pd.read_csv(
+    "/home/sturm/Downloads/differential_signature_tumor_normal_progeny.tsv",
+    sep="\t",
+    index_col=0,
+)
+tumor_normal_cytosig = pd.read_csv(
+    "/home/sturm/Downloads/differential_signature_tumor_normal_cytosig.tsv",
+    sep="\t",
+    index_col=0,
+)
+
+# %%
+tumor_normal_progeny.loc[lambda x: x["cell_type"] == "Neutrophils", :].query(
+    "pvalue < 0.1"
+)
+
+# %%
+tumor_normal_cytosig.loc[lambda x: x["cell_type"] == "Neutrophils", :].query(
+    "pvalue < 0.1"
+)

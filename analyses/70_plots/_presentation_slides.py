@@ -109,8 +109,6 @@ alt.Chart(df).mark_bar().encode(
 )
 
 # %%
-
-# %%
 df = (
     (
         adata.obs.loc[
