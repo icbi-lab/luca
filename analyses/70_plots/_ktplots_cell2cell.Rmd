@@ -14,6 +14,7 @@ conflict_prefer("rename", "dplyr")
 library(readr)
 library(ggrepel)
 library(igraph)
+library(readxl)
 library(reticulate)
 ```
 
@@ -80,8 +81,8 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
   edges = cpdb_res |>
     mutate( from=sprintf("%s_%s_ligand", cluster_1, source), to=sprintf("%s_%s_receptor", cluster_2, target)) |>
     select(from, to, name="variable", coef, pvalue, fdr, group, log2_fc) |>
-    mutate(log2_fc = if_else(is.infinite(log2_fc) & log2_fc < 0, min(log2_fc[is.finite(log2_fc)]), log2_fc)) |> 
-    mutate(log2_fc = if_else(is.infinite(log2_fc) & log2_fc > 0, max(log2_fc[is.finite(log2_fc)]), log2_fc)) |>
+    mutate(log2_fc = if_else(is.infinite(log2_fc) & log2_fc < 0, -max(abs(log2_fc[is.finite(log2_fc)])), log2_fc)) |> 
+    mutate(log2_fc = if_else(is.infinite(log2_fc) & log2_fc > 0, max(abs(log2_fc[is.finite(log2_fc)])), log2_fc)) |>
     mutate(fdr = if_else(fdr == 0, 1e-255, fdr))
   
   # make nodes df
@@ -187,8 +188,18 @@ cpdb_early_advanced |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
 Comparison of LUAD and LSCC samples. Blue = Upregulated in LUAD, Red = upregulated in LSCC
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lscc |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
+cpdb_luad_lscc |> filter(abs(log2_fc) > 1) |> mutate(group2 = if_else(log2_fc < 0, "LSCC", "LUAD")) |> group_by(group2) |> 
+  filter(row_number() < 30) |> ungroup() |> cpdb_plot()
 ```
+
+Focus on Neutrophils
+
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_luad_lscc |> filter(abs(log2_fc) > 1, fdr < 0.1,  cluster_1 == "Neutrophils" | cluster_2 == "Neutrophils") |> cpdb_plot(edge_color = "abs(log10(fdr))", edge_color_scale=scale_edge_color_viridis())
+```
+
+
+
 
 ### Infiltration status
 
@@ -215,10 +226,10 @@ are uniquely upregulated in either the immune desert group (grey), the B-cell in
 
 cpdb_infiltration |> rename(variable=`...1`) |>
   filter(log2_fc > 1) |>
-  filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |> 
+  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |> 
 mutate(fdr=p.adjust(pvalue, method="fdr")) |> 
   group_by(group) |> 
-  filter(row_number() < 20) |>  
+  filter(row_number() < 15) |>  
   ungroup() |> 
   cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
 ```
@@ -230,7 +241,7 @@ Differential signalling between tumor and normal adjacent tissue. Blue = up-regu
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 cpdb_tumor_normal |> filter(abs(log2_fc) > 1) |> 
   # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell")) |> 
-  head(100) |>
+  head(75) |>
   # clip log fc for better aesthetics
   mutate(log2_fc = sapply(log2_fc, \(x) if_else(x < 0, max(x, -5), min(x, 5)))) |>
   cpdb_plot()
@@ -245,6 +256,7 @@ cpdb_tumor_normal |> filter(abs(log2_fc) > 1) |>
 ```{r, include=FALSE}
 growth_factors = read_csv("../../tables/gene_annotations/genecards_growth_factors.csv", comment = "#")
 immune_checkpoints = read_csv("../../tables/gene_annotations/immune_checkpoints.csv", comment="#")
+neutro_genes_of_interest = read_excel("../../tables/gene_annotations/neutro_recruitment_chemokines.xlsx")
 ```
 
 <!-- ## All growth factors (stromal -> tumor) -->
@@ -264,6 +276,18 @@ immune_checkpoints = read_csv("../../tables/gene_annotations/immune_checkpoints.
 <!-- cpdb_luad_lscc |> filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |>  -->
 <!-- mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> cpdb_plot() -->
 <!-- ``` -->
+
+## Selected interactions (Neutrophils)
+```{r, fig.width=13, fig.height=7, message=FALSE, warning=FALSE, results=FALSE}
+neutro_goi = c(neutro_genes_of_interest$`TME Ligand`, neutro_genes_of_interest$`(neutrophil) receptor`)
+
+cpdb_luad_lscc |> filter(
+  cluster_1 == "Neutrophils" | cluster_2 == "Neutrophils", source %in% neutro_goi | target %in% neutro_goi
+)|> 
+mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |>
+  cpdb_plot()
+
+```
 
 ## Selected interactions (from cytosig)
 
