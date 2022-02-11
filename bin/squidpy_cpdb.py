@@ -36,7 +36,6 @@ if __name__ == "__main__":
     # https://github.com/theislab/squidpy/issues/446#issuecomment-1013244936
     res = sq.gr.ligrec(
         adata_sample,
-        n_perms=0,
         cluster_key=ct_key,
         copy=True,
         use_raw=True,
