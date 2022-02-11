@@ -62,7 +62,7 @@ artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 # %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
+    "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad",
 )
 
 # %%
@@ -76,6 +76,10 @@ patient_strat = pd.read_csv(
 
 # %%
 adata = sc.read_h5ad(path_adata)
+
+# %%
+# For the patient stratification, treat the two batches of the UKIM-V dataset as one
+adata.obs["dataset"] = adata.obs["dataset"].str.replace("UKIM-V-2", "UKIM-V")
 
 # %%
 patient_strat.set_index("patient", inplace=True)
@@ -191,7 +195,7 @@ adatas_infercnvpy = list(
 # %%
 adatas_cnv = {}
 for f in tqdm(adatas_infercnvpy):
-    patient = str(f).split("/")[-2].replace("full_atlas_annotated_", "")
+    patient = str(f).split("/")[-2].replace("full_atlas_merged_", "")
     adatas_cnv[patient] = sc.read_h5ad(f)
 
 # %%
@@ -204,11 +208,6 @@ for patient, tmp_ad in tqdm(adatas_cnv.items()):
     ithcna[patient] = sh.diversity.ithcna(
         tmp_ad, groupby="cell_type_major", inplace=False
     )
-
-# %%
-cnv.tl.cnv_score(
-    next(iter(adatas_cnv.values())), obs_key="cell_type_major", inplace=False
-)
 
 # %%
 cnv_scores = {}
@@ -321,5 +320,93 @@ mod = smf.ols(
     data=patient_strat2.loc[lambda x: x["tumor_type_annotated"].isin(["LUAD", "LSCC"])],
 )
 mod.fit().summary()
+
+
+# %% [markdown]
+# # Correlation with cell-types
+
+# %%
+def get_cell_type_group(ct):
+    for group, cts in cell_types.items():
+        if ct in cts:
+            return group
+    return "other"
+
+
+# %%
+adata_primary_tumor = adata[
+    (adata.obs["origin"] == "tumor_primary")
+    # exclude datasets that only contain a single cell-type
+    & ~adata.obs["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"]),
+    :,
+]
+
+# %%
+ad_cts = sc.AnnData(
+    X=(
+        adata_primary_tumor.obs
+        .groupby(["dataset", "patient", "cell_type_major"], observed=True)
+        .size()
+        .reset_index(name="n")
+        .pivot_table(
+            values="n",
+            columns="cell_type_major",
+            index=["dataset", "patient"],
+            fill_value=0,
+        )
+    )
+)
+ad_cts.obs = ad_cts.obs.reset_index().set_index("patient")
+
+# %%
+sc.pp.normalize_total(ad_cts, target_sum=1)
+
+# %%
+sc.pl.matrixplot(
+    ad_cts,
+    var_names=ad_cts.var_names,
+    groupby="patient",
+    dendrogram=False,
+    swap_axes=True,
+    cmap="viridis",
+    # vmin=-0.25,
+    # vmax=0.25
+    # # vmin=0,
+    # vmax=1,
+    standard_scale="var",
+)
+
+# %%
+ad_cts.obs["patient"] = ad_cts.obs.index.values
+
+# %%
+ad_cts.obs.index = ad_cts.obs.index.str.lower()
+
+# %%
+ct_df = pd.DataFrame(ad_cts.X, index=ad_cts.obs_names, columns=ad_cts.var_names).join(ad_cts.obs)
+
+# %%
+ith_df_subset = ith_df.loc[lambda x: x["n_tumor_cells"] >= 100, :]
+
+# %%
+cna_ct_df = ith_df_subset.join(ct_df, how="inner")
+
+# %%
+cna_ct_df
+
+# %%
+for x in ["ITHCNA", "ITHGEX"]:
+    for y in ["T cell CD8", "Neutrophils", "Macrophage"]:
+        fig, ax = plt.subplots(1,1)
+        ax = sns.scatterplot(data=cna_ct_df, x=x, y=y, hue="dataset")
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.show()
+        mod = smf.ols(
+            f"{x} ~ Q('{y}') + dataset",
+            data=cna_ct_df
+        )
+        display(mod.fit().summary())
+
+# %%
 
 # %%
