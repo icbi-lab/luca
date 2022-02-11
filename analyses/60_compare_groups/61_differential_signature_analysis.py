@@ -69,7 +69,7 @@ artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 # %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
+    "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad",
 )
 
 # %%
@@ -105,7 +105,7 @@ patient_strat
 # %%
 cpdb_res = {}
 for f in Path("../../data/30_downstream_analyses/cell2cell/squidpy/").glob("**/*.pkl"):
-    sample = f.name.replace("full_atlas_annotated_", "").replace(".pkl", "")
+    sample = f.name.replace("full_atlas_merged_", "").replace(".pkl", "")
     with open(f, "rb") as fh:
         cpdb_res[sample] = pickle.load(fh)
 
@@ -265,25 +265,6 @@ def prepare_cpdb(adata):
 # ## Prepare datasets
 
 # %%
-adata.obs["cell_type_structural"] = [
-    {
-        "Tumor cells": "tumor cells",
-        "Alveolar cell type 1": "healthy epithelial",
-        "Alveolar cell type 2": "healthy epithelial",
-        "Goblet": "healthy epithelial",
-        "Club": "healthy epithelial",
-        "Ciliated": "healthy epithelial",
-        "Fibroblast": "stromal",
-        "Fibroblast adventitial": "stromal",
-        "Fibroblast alveolar": "stromal",
-        "Smooth muscle cell": "stromal",
-        "Pericyte": "stromal",
-        "Endothelial cell": "endothelial",
-    }.get(ct, "other")
-    for ct in adata.obs["cell_type"]
-]
-
-# %%
 adata_tumor_normal = adata[
     adata.obs["origin"].isin(["normal_adjacent", "normal", "tumor_primary"]),
     :,
@@ -338,14 +319,6 @@ adata_primary_tumor.obs["ct_all"] = [
 ]
 
 # %%
-sc.pl.umap(
-    adata_primary_tumor,
-    color=["cell_type_major", "cell_type_structural"],
-    ncols=2,
-    wspace=1,
-)
-
-# %%
 # TODO: split and aggregate datasets appropriately for cpdb.
 comparisons = {
     "tumor_normal": {
@@ -356,6 +329,7 @@ comparisons = {
         # paired analysis
         "lm_covariate_str": "+ patient",
         "contrasts": "Treatment('normal')",
+        "tools": ["dorothea", "progeny", "cytosig", "cpdb"],
     },
     "infiltration_status": {
         "dataset": adata_primary_tumor[
@@ -387,6 +361,7 @@ comparisons = {
         "column_to_test": "immune_infiltration",
         "lm_covariate_str": "+ dataset",
         "contrasts": "Sum",
+        "tools": ["dorothea", "progeny", "cytosig", "cpdb"],
     },
     "luad_lscc": {
         "dataset": adata_primary_tumor[
@@ -397,6 +372,7 @@ comparisons = {
         "column_to_test": "condition",
         "lm_covariate_str": "+ dataset",
         "contrasts": "Treatment('LUAD')",
+        "tools": ["dorothea", "progeny", "cytosig", "cpdb"],
     },
     "early_advanced": {
         "dataset": adata_primary_tumor,
@@ -609,6 +585,50 @@ tmp_res.to_csv(f"{artifact_dir}/differential_signature_cell_types_cpdb.tsv", sep
 results["cell_types"]["cpdb"] = tmp_res
 
 # %% [markdown]
+# ## Differentially expressed dorothea TFs
+#
+#  * nothing significant for Neutrophils
+
+# %%
+results["luad_lscc"]["dorothea"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
+    sh.util.fdr_correction
+).pipe(sh.lm.plot_lm_result_altair, title="TFs (tumor cells LUAD/LSCC)")
+
+# %%
+results["tumor_normal"]["dorothea"].loc[
+    lambda x: x["cell_type"] == "Neutrophils", :
+].to_csv("/home/sturm/Downloads/neutrophils_tfs.tsv", sep="\t")
+
+# %%
+results["tumor_normal"]["dorothea"].loc[
+    lambda x: x["cell_type"] == "Neutrophils", :
+].pipe(sh.util.fdr_correction).pipe(
+    sh.lm.plot_lm_result_altair, title="TFs (Neutrophils tumor/normal)"
+)
+
+# %%
+pb_dorothea = sh.pseudobulk.pseudobulk(
+    datasets["tumor_normal"]["dorothea"]["Neutrophils"],
+    groupby=["dataset", "patient", "origin"],
+    aggr_fun=np.mean,
+)
+
+# %%
+tfoi = results["tumor_normal"]["dorothea"].loc[
+    lambda x: x["cell_type"] == "Neutrophils", :
+]["variable"][:30]
+
+# %%
+sh.pairwise.plot_paired_fc(
+    pb_dorothea, groupby="origin", paired_by="patient", metric="diff", var_names=tfoi
+).properties(height=150)
+
+# %%
+sh.pairwise.plot_paired(
+    pb_dorothea, groupby="origin", paired_by="patient", var_names=tfoi
+)
+
+# %% [markdown]
 # ## Differentially expressed progeny pathways in tumor cells
 
 # %%
@@ -627,9 +647,6 @@ results["luad_lscc"]["progeny"].loc[lambda x: x["cell_type"] == "Tumor cells", :
 # ## Differential cytokine signalling in selected cell-types
 
 # %%
-results["patient_immune_infiltration"]["cytosig"]
-
-# %%
 tmp_cytosig = (
     results["patient_immune_infiltration"]["cytosig"]
     .loc[
@@ -637,62 +654,17 @@ tmp_cytosig = (
     ]
     .pipe(sh.util.fdr_correction)
 )
+
+# %%
 for ct in tmp_cytosig["cell_type"].unique():
-    sh.lm.plot_lm_result_altair(
-        tmp_cytosig.loc[lambda x: x["cell_type"] == ct], title=f"Cytosig for {ct}"
-    ).display()
+    try:
+        sh.lm.plot_lm_result_altair(
+            tmp_cytosig.loc[lambda x: x["cell_type"] == ct], title=f"Cytosig for {ct}"
+        ).display()
+    except AttributeError:
+        pass
 
 # %%
 results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
     sh.util.fdr_correction
 ).pipe(sh.lm.plot_lm_result_altair, title="Cytosig (tumor cells)")
-
-# %% [markdown]
-# ## Selected cellphonedb interactions
-
-# %%
-growth_factors = pd.read_csv(
-    "../../tables/gene_annotations/genecards_growth_factors.csv", comment="#"
-)
-immune_checkpoints = pd.read_csv(
-    "../../tables/gene_annotations/immune_checkpoints.csv", comment="#"
-)
-
-# %%
-results["luad_lscc"]["cpdb"]["cluster_1"].unique().tolist()
-
-# %%
-# TODO: here, normal and normal adjacent are treated separately
-
-# %%
-cti = ["T cell CD8", "T cell CD4", "T cell regulatory"]
-results["infiltration_status"]["cpdb"].loc[
-    lambda _: (
-        _["source"].isin(immune_checkpoints["gene_symbol"])
-        | _["target"].isin(immune_checkpoints["gene_symbol"])
-    )
-    & _["cluster_1"].isin(cti)
-    & _["cluster_2"].isin(["Tumor cells"])
-].pipe(sh.util.fdr_correction)
-
-# %%
-cti = ["Tumor cells", "Stromal", "Endothelial cell"]
-results["early_advanced"]["cpdb"].loc[
-    lambda _: (
-        _["source"].isin(growth_factors["Gene Symbol"])
-        | _["target"].isin(growth_factors["Gene Symbol"])
-    )
-    & _["cluster_1"].isin(cti)
-    & _["cluster_2"].isin(cti)
-].pipe(sh.util.fdr_correction)
-
-# %% [markdown]
-# ---
-
-# %%
-immune_checkpoints
-
-# %%
-pd.set_option("display.max_rows", 20)
-
-# %%
