@@ -51,11 +51,15 @@ ah = AnnotationHelper()
 # %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/20_build_atlas//annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
+    "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad",
 )
 
 # %%
 adata = sc.read_h5ad(path_adata)
+
+# %%
+# For the patient stratification, treat the two batches of the UKIM-V dataset as one
+adata.obs["dataset"] = adata.obs["dataset"].str.replace("UKIM-V-2", "UKIM-V")
 
 # %%
 sc.pl.umap(adata, color=["cell_type_major", "origin"], ncols=1)
