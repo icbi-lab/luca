@@ -23,15 +23,41 @@ library(stringr)
 # library(immunedeconv)
 library(tibble)
 library(omnideconv)
+library(ggbeeswarm)
+library(cowplot)
 ```
-```{r}
+
+# Load data
+
+```{r, include=FALSE}
 clinical_data = read_tsv("../../tables/tcga/clinical_data_for_scissor.tsv")
-mixture_mat = read_rds("../../data/13_tcga/for_scissor/nsclc_primary_tumor.rds")
+tcga_tpm = read_rds("../../data/13_tcga/for_scissor/nsclc_primary_tumor.rds")
 age = read_excel("../../tables/tcga/mmc1.xlsx") %>% select(TCGA_patient_barcode=bcr_patient_barcode, age=age_at_initial_pathologic_diagnosis)
+tan_deseq2 = read_tsv("../../data/30_downstream_analyses/de_analysis/tumor_normal/de_deseq2/adata_tumor_normal_neutrophils_DESeq2_result.tsv")
 ```
 
 ```{r}
-genes = c('ADGRG3',
+# `folder_cho`
+load("../../data/14_ici_treatment/all_cho.RData")
+# `folder_jung`
+load("../../data/14_ici_treatment/all_jung.RData")
+
+ici_meta = bind_rows(
+  folder_cho$clinical_response |> 
+    mutate(type=if_else(str_trim(Histology)=="Adenocarcinoma", "LUAD", "LUSC"), response=str_trim(Responsiveness)) |>
+    select(type, age=Age, sex=Sex, response), 
+  folder_jung$clinical_response |>
+    mutate(response=if_else(str_trim(Clinical.benefit) == "NDB", "Non-responder", "Responder")) |>
+    select(response)
+)
+ici_tpm = bind_cols(folder_cho$tpm, folder_jung$tpm)[, rownames(ici_meta)]
+```
+
+# Signature scoring
+
+```{r}
+# These are genes highly specific for the Neutrophil cluster in primary tumor samples
+neutro_sig = c('ADGRG3',
  'BCL6',
  'CMTM2',
  'CSF3R',
@@ -57,9 +83,13 @@ genes = c('ADGRG3',
  'TRIM25',
  'USP15')
 
-genes2 = c('ADGRG3', 'CMTM2', 'CXCR1', 'CXCR2', 'FCGR3B', 'PROK2')
+# These genes are a subset of the above. They are fewer, but even more specific. 
+neutro_sig2 = c('ADGRG3', 'CMTM2', 'CXCR1', 'CXCR2', 'FCGR3B', 'PROK2')
 
-genes3 = c('ADGRG3',
+# These are genes relatively specific for TANs vs. NANs and all other 
+# cell-types based on single-cell data from primary tumor and normal adjacent
+# data
+tan_sig = c('ADGRG3',
  'BCL2A1',
  'CLEC4E',
  'DDX60L',
@@ -75,21 +105,132 @@ genes3 = c('ADGRG3',
  'PPIF',
  'SLC11A1')
 
+# These are the top genes differentially expressed between TANs and NANs
+# They are not necessarily specific for the Neutrophil cluster. 
+tan_sig2 = tan_deseq2 |> filter(log2FoldChange > 2) |> arrange(padj) |> head(20) |> pull(gene_id...2)
+
+# LCAM signature from the Merad paper
+lcam_tab = read_excel("../../tables/gene_annotations/merad_lcam.xlsx", sheet="LCAM axis", col_names = c("signature", "genes"))
+lcam = str_split(lcam_tab$genes, ",")
+names(lcam) = lcam_tab$signature
 ```
 
 ```{r}
-signature_expression = log1p(mixture_mat[genes, ])
-mcp_scores = apply(signature_expression, MARGIN = 2, mean)
+#' Score signature genes as defined in the MCP counter paper
+#'
+#' This is a simple mean of the log transformed gene expression (aka geometric mean)
+get_mcp_scores = function(mixture, genes) {
+  exclude_genes = setdiff(genes, rownames(mixture))
+  if(length(exclude_genes)) {
+    warning(sprintf("Excluded the following genes which are not in the mixture matrix: %s", paste(exclude_genes, collapse=", ")))
+    genes = setdiff(genes, exclude_genes)
+  }
+  signature_expression = log1p(mixture[genes, ])
+  apply(signature_expression, MARGIN = 2, mean, na.rm=TRUE)
+}
+
+#' Score signature genes as described in the Merad paper
+#' 
+#' This is a simple mean of the z-scored gene expression
+get_lcam_scores = function(mixture, genes) {
+  exclude_genes = setdiff(genes, rownames(mixture))
+  if(length(exclude_genes)) {
+    warning(sprintf("Excluded the following genes which are not in the mixture matrix: %s", paste(exclude_genes, collapse=", ")))
+    genes = setdiff(genes, exclude_genes)
+  }
+  signature_expression = t(scale(t(log1p(mixture[genes, ]))))
+  apply(signature_expression, MARGIN = 2, mean, na.rm=TRUE)
+}
+
+SCORING_FUNCTIONS = list("mean"=get_mcp_scores, "mean_z"=get_lcam_scores)
 ```
 
-```{r}
-clin_and_deconv = clinical_data %>% left_join(age) %>% inner_join(as_tibble(mcp_scores, rownames="TCGA_patient_barcode") %>% rename(mcp_scores=value))
+## LUAD vs LUSC
+
+In TCGA: 
+
+```{r, fig.width=10, fig.height=6}
+l
+lapply(names(SCORING_FUNCTIONS), function(title) {
+  fun = SCORING_FUNCTIONS[[title]]
+  tcga_scores = data.frame(
+    sig_neutro=fun(tcga_tpm, neutro_sig), 
+    sig_neutro2=fun(tcga_tpm, neutro_sig2),
+    sig_tan=fun(tcga_tpm, tan_sig),
+    sig_tan2=fun(tcga_tpm, tan_sig2),
+    sig_lcam_lo=fun(tcga_tpm, lcam$`LCAM-lo genes`),
+    sig_lcam_hi=fun(tcga_tpm, lcam$`LCAM-hi genes`)
+  ) |> 
+    mutate(sig_lcam_consensus = sig_lcam_hi - sig_lcam_lo) |>
+    as_tibble(rownames="TCGA_patient_barcode")
+  
+  clin_and_scores = clinical_data %>% 
+    left_join(age) %>%
+    inner_join(tcga_scores) 
+  
+  clin_and_scores |> select(type, starts_with("sig_")) |>
+    pivot_longer(-type, names_to="signature", values_to="score") |>
+    ggplot(aes(x=type, y=score)) + 
+    geom_quasirandom(aes(color=type)) + 
+    geom_boxplot(outlier.alpha=0, width=.2) + 
+    stat_compare_means(method="wilcox.test") +
+    theme_cowplot() + 
+    background_grid() + 
+    facet_wrap(~signature, ncol = 4) + 
+    ggtitle(sprintf("Scoring function: %s", title))
+})
+
 ```
 
+In response data:
+
+```{r, fig.width=10, fig.height=6}
+lapply(names(SCORING_FUNCTIONS), function(title) {
+  fun = SCORING_FUNCTIONS[[title]]
+  tcga_scores = data.frame(
+    sig_neutro=fun(ici_tpm, neutro_sig), 
+    sig_neutro2=fun(ici_tpm, neutro_sig2),
+    sig_tan=fun(ici_tpm, tan_sig),
+    sig_tan2=fun(ici_tpm, tan_sig2),
+    sig_lcam_lo=fun(ici_tpm, lcam$`LCAM-lo genes`),
+    sig_lcam_hi=fun(ici_tpm, lcam$`LCAM-hi genes`)
+  ) |> 
+    mutate(sig_lcam_consensus = sig_lcam_hi - sig_lcam_lo) |>
+    as_tibble(rownames="sample")
+  
+  clin_and_scores = ici_meta |> 
+    filter(!is.na(type)) |> 
+    as_tibble(rownames="sample") |>
+    inner_join(tcga_scores) 
+  
+  clin_and_scores |> select(type, starts_with("sig_")) |>
+    pivot_longer(-type, names_to="signature", values_to="score") |>
+    ggplot(aes(x=type, y=score)) + 
+    geom_boxplot(outlier.alpha=0, width=.2) + 
+    geom_quasirandom(aes(color=type)) + 
+    stat_compare_means(method="wilcox.test") +
+    theme_cowplot() + 
+    background_grid() + 
+    facet_wrap(~signature, ncol = 4) + 
+    ggtitle(sprintf("Scoring function: %s", title))
+})
+
+```
+
+
+## Responder vs. Non-responder
+
 ```{r}
+clin_and_deconv = clinical_data %>% 
+  left_join(age) %>%
+  inner_join(as_tibble(get_lcam_scores(mixture_mat, genes3), rownames="TCGA_patient_barcode")) %>% 
+  rename(score=value)
+```
+
+```{r, fig.width=3, fig.height=4}
 clin_and_deconv |> 
-  ggplot(aes(x=type, y=mcp_scores)) + 
-  geom_boxplot() + stat_compare_means(method="wilcox.test")
+  ggplot(aes(x=type, y=score)) + 
+  geom_quasirandom(color="lightblue") +  geom_boxplot(outlier.alpha=0, width=.2) + stat_compare_means(method="wilcox.test") + theme_cowplot()
 
 ```
 
@@ -113,8 +254,52 @@ ggsurvplot(fit, data = data_status)
 
 ---
 
+# ICI treatment
 
 
+
+```{r, fig.width=5, fig.height=4}
+ici_meta |> mutate(score = get_mcp_scores(ici_tpm, genes_tan)) |> 
+  filter(!is.na(type)) |> 
+  ggplot(aes(x=type, y=score)) +
+  geom_boxplot(outlier.alpha=0, width=.2) +
+  geom_quasirandom(aes(color=type)) + 
+  theme_cowplot() + background_grid() + stat_compare_means(method="wilcox.test")
+```
+
+```{r, fig.width=5, fig.height=4}
+ici_meta |> mutate(score = get_lcam_scores(ici_tpm, genes)) |> 
+  ggplot(aes(x=response, y=score)) +
+  geom_boxplot(outlier.alpha=0, width=.2) +
+  geom_quasirandom(aes(color=type)) + 
+  theme_cowplot() + background_grid() + stat_compare_means(method="wilcox.test")
+```
+
+---
+
+# LCAM
+
+```{r}
+```
+
+```{r, fig.width=5, fig.height=4}
+ici_meta |> mutate(score = get_lcam_scores(ici_tpm, lcam$`LCAM-lo genes`)) |> 
+  ggplot(aes(x=response, y=score)) +
+  geom_boxplot(outlier.alpha=0, width=.2) +
+  geom_quasirandom(aes(color=type)) + 
+  theme_cowplot() + background_grid() + stat_compare_means(method="wilcox.test")
+```
+
+```{r, fig.width=5, fig.height=4}
+ici_meta |> mutate(score = get_mcp_scores(ici_tpm, lcam$`LCAM-lo genes`)) |> 
+  ggplot(aes(x=response, y=score)) +
+  geom_boxplot(outlier.alpha=0, width=.2) +
+  geom_quasirandom(aes(color=type)) + 
+  theme_cowplot() + background_grid() + stat_compare_means(method="wilcox.test")
+```
+
+
+---
 ```{r}
 sc_mat = read_tsv("~/Downloads/cibersortx/cibersort_single_cell_matrix_5.txt")
 sc_mat = sc_mat |> column_to_rownames("...1")
