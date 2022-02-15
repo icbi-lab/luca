@@ -19,7 +19,7 @@ process SCISSOR {
     """
     scissor_single_sample.R --bulk_tpm $bulk_tpm --sce $sce --metadata $metadata \\
         --sample_col=TCGA_patient_barcode \\
-        $options > ${id}.log 2>&1 $ignore_exit_code
+        $options > ${id}_${options.replace("-","").replace(" ", "_")}.log 2>&1 $ignore_exit_code
     """
 }
 
@@ -34,16 +34,30 @@ workflow scissor {
     ch_sce = H5AD_TO_SCE.out.sce
     SCISSOR(
         ch_sce,
-        file("$baseDir/data/13_tcga/tcga-lung-primary.rds", checkIfExists: true),
+        file("$baseDir/data/13_tcga/for_scissor/nsclc_primary_tumor.rds", checkIfExists: true),
         file("$baseDir/tables/tcga/clinical_data_for_scissor.tsv", checkIfExists: true),
         Channel.from(
             [
-                "--column tumor_stage",
-                "--column kras_mutation",
-                "--column braf_mutation",
-                "--column egfr_mutation",
+                // "--column tumor_stage",
+                // "--column kras_mutation",
+                // "--column braf_mutation",
+                // "--column egfr_mutation",
                 "--column tumor_type",
-                "--surv_time time --surv_status status"
+                // "--surv_time time --surv_status status",
+                "--tumor_type LUAD --column kras_mutation",
+                "--tumor_type LUAD --column braf_mutation",
+                "--tumor_type LUAD --column egfr_mutation",
+                "--tumor_type LUAD --column tumor_stage",
+                "--tumor_type LUAD --column tp53_mutation",
+                "--tumor_type LUAD --column random",
+                "--tumor_type LUAD --surv_time time --surv_status status",
+                "--tumor_type LUSC --column kras_mutation",
+                "--tumor_type LUSC --column braf_mutation",
+                "--tumor_type LUSC --column egfr_mutation",
+                "--tumor_type LUSC --column tp53_mutation",
+                "--tumor_type LUSC --column tumor_stage",
+                "--tumor_type LUSC --column random",
+                "--tumor_type LUSC --surv_time time --surv_status status"
             ]
         )
     )

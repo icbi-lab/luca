@@ -14,6 +14,7 @@ The program will take the intersection of the <sample_col> in <metadata> and the
 
 Optional options:
     --column=<column>               Column with binary variable for binomial regression
+    --tumor_type=<tumor_type>       Restrict analysis to certain tumor type [default: any]
     --surv_time=<surv_time>         Column with survival time for coxph regression. Must be combined with --surv_status
     --surv_status=<surv_status>     Column with survival status for coxpy regression.
     --sample_col=<sample_col>       Column in <metadata> with sample identifier (must match colnames of <bulk_tpm>) [default: sample_id]
@@ -39,9 +40,10 @@ sce <- readRDS(arguments$sce)
 bulk_tpm <- readRDS(arguments$bulk_tpm)
 metadata <- read_tsv(arguments$metadata)
 sample_col <- arguments$sample_col
-column = arguments$column
-surv_time = arguments$surv_time
-surv_status = arguments$surv_status
+column <- arguments$column
+surv_time <- arguments$surv_time
+surv_status <- arguments$surv_status
+tumor_type <- arguments$tumor_type
 
 # # For testing only
 # sce = readRDS("../../data/30_downstream_analyses/scissor/adata_by_patient/full_atlas_annotated_lambrechts_2018_luad_6149v1_2.rds")
@@ -56,13 +58,17 @@ surv_status = arguments$surv_status
 # surv_status = NULL
 
 message("subsetting data to intersection")
+if (tumor_type != "any") {
+    metadata <- metadata %>% filter(type == !!tumor_type)
+}
+message(paste(dim(metadata), collapse = " "))
 common_patients <- sort(intersect(colnames(bulk_tpm), metadata[[sample_col]]))
 metadata <- metadata %>%
     filter(!!as.name(sample_col) %in% common_patients) %>%
     arrange(!!as.name(sample_col))
 bulk_tpm <- bulk_tpm[, common_patients]
 stopifnot(all(colnames(bulk_tpm) == metadata[[sample_col]]))
-message(paste(dim(bulk_tpm), collapse=" "))
+message(paste(dim(bulk_tpm), collapse = " "))
 
 message("preprocessing single-cell data")
 # not ideal to preprocess the same dataset multiple times when testing multiple variables.
@@ -78,15 +84,22 @@ if (!is.null(column)) {
     metadata_subset <- metadata %>% filter(!!as.name(column) %in% c(0, 1))
     bulk_tpm_subset <- bulk_tpm[, metadata_subset[[sample_col]]]
     stopifnot(all(colnames(bulk_tpm_subset) == metadata_subset[[sample_col]]))
-    message(paste(dim(bulk_tpm_subset), collapse=" "))
+    message(paste(dim(bulk_tpm_subset), collapse = " "))
 
     infos1 <- Scissor(bulk_tpm_subset, sc_dataset, metadata_subset[[column]],
         tag = c(0, 1),
+        alpha = sqrt(2) ^ -(24:2),
+        cutoff = 0.3,
         family = "binomial", Save_file = "scissor.RData"
     )
 
     Scissor_select <- rep(NA, ncol(sc_dataset))
     names(Scissor_select) <- colnames(sc_dataset)
+    
+    # sanity check due to some weirdness we observed
+    stopifnot("too many scissor cells" = length(infos1$Scissor_neg) <= dim(sce)[2])
+    stopifnot("too many scissor cells" = length(infos1$Scissor_pos) <= dim(sce)[2])
+    
     Scissor_select[infos1$Scissor_pos] <- "scissor+"
     Scissor_select[infos1$Scissor_neg] <- "scissor-"
 } else if (!is.null(surv_time) && !is.null(surv_status)) {
@@ -94,12 +107,18 @@ if (!is.null(column)) {
     phenotype <- metadata %>% select(!!as.name(surv_time), !!as.name(surv_status))
     sample_prefix <- paste0(surv_status, "_", surv_time)
     infos1 <- Scissor(bulk_tpm, sc_dataset, phenotype,
-        alpha = 0.05,
+        alpha = sqrt(2) ^ -(24:2),
+        cutoff = 0.3,
         family = "cox", Save_file = "scissor.RData"
     )
 
     Scissor_select <- rep(NA, ncol(sc_dataset))
     names(Scissor_select) <- colnames(sc_dataset)
+    
+    # sanity check due to some weirdness we observed
+    stopifnot("too many scissor cells" = length(infos1$Scissor_neg) <= dim(sce)[2])
+    stopifnot("too many scissor cells" = length(infos1$Scissor_pos) <= dim(sce)[2])
+    
     # it is a bit counterintuitive, but scissor+ -> worse survival, scissor- -> better survival
     Scissor_select[infos1$Scissor_pos] <- "worse survival"
     Scissor_select[infos1$Scissor_neg] <- "better survival"
@@ -116,4 +135,4 @@ p <- DimPlot(sc_dataset_meta,
 )
 ggsave("dim_plot_scissor.pdf", plot = p)
 
-write_tsv(as.data.frame(Scissor_select) %>% as_tibble(rownames = "cell_id"), sprintf("scissor_%s.tsv", sample_prefix))
+write_tsv(as.data.frame(Scissor_select) %>% as_tibble(rownames = "cell_id"), sprintf("scissor_%s_%s.tsv", tumor_type, sample_prefix))

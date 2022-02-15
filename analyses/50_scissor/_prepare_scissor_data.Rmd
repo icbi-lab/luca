@@ -1,6 +1,5 @@
 ```{r, include=FALSE}
 library(conflicted)
-library(Scissor)
 library(readxl)
 library(SingleCellExperiment)
 library(readxl)
@@ -8,27 +7,62 @@ library(dplyr)
 conflict_prefer("filter", "dplyr")
 library(readr)
 library(stringr)
+library(tidyr)
+library(tibble)
 # library(RhpcBLASctl)
 ```
 
 ```{r}
-lusc = read_tsv("../../data/13_tcga/TCGA-LUSC-PrimaryTumor-TPM.txt.gz")
-luad = read_tsv("../../data/13_tcga/TCGA-LUAD-PrimaryTumor-TPM.txt.gz")
-tcga_lung = luad %>%
-  inner_join(lusc, by=c("ENSGID", "GeneName")) %>%
-  select(-ENSGID) %>%
-  group_by(GeneName) %>%
-  summarise_all(sum) %>%
-  tibble::column_to_rownames("GeneName") %>%
-  as.matrix()
+process_dataset = function(df) {
+  df %>% 
+    select(-ENSGID) %>%
+    # aggregate duplicate gene symbols by sum
+    group_by(GeneName) %>%
+    summarise_all(sum) %>%
+    column_to_rownames("GeneName") %>% t() %>% as_tibble(rownames="sample")
+}
 
-colnames_new = sapply(colnames(tcga_lung), function(x) {paste(str_split(x, pattern="-")[[1]][1:3], collapse="-")}, USE.NAMES = FALSE)
-colnames(tcga_lung) = colnames_new
+lusc = read_tsv("../../data/13_tcga/TCGA-LUSC-PrimaryTumor-TPM.txt.gz")%>%
+  process_dataset() %>% mutate(origin = "T", condition = "LUSC", .after=1)
+luad = read_tsv("../../data/13_tcga/TCGA-LUAD-PrimaryTumor-TPM.txt.gz")%>%
+  process_dataset() %>% mutate(origin = "T", condition = "LUAD", .after=1)
+lusc_norm = read_tsv("../../data/13_tcga/TCGA-LUSC-SolidTissueNormal-TPM.txt.gz") %>%
+  process_dataset() %>% mutate(origin = "N", condition = "LUSC", .after=1)
+luad_norm = read_tsv("../../data/13_tcga/TCGA-LUAD-SolidTissueNormal-TPM.txt.gz") %>%
+  process_dataset() %>% mutate(origin = "N", condition = "LUAD", .after=1)
 
-# for now, exclude duplicates
-tcga_lung = tcga_lung[, !duplicated(colnames(tcga_lung))]
+stopifnot(all(colnames(lusc) == colnames(luad)))
+stopifnot(all(colnames(lusc) == colnames(lusc_norm)))
+stopifnot(all(colnames(lusc) == colnames(luad_norm)))
 
-saveRDS(tcga_lung, "../../data/13_tcga/tcga-lung-primary.rds", compress=FALSE)
+tcga_lung = bind_rows(lusc, luad, lusc_norm, luad_norm) |> 
+  mutate(patient = sapply(sample, function(x) {paste(str_split(x, pattern="-")[[1]][1:3], collapse="-")}), .after=1) |> 
+  # aggregate multiple replicates by mean
+  select(-sample) %>% 
+  group_by(condition, patient, origin) %>%
+  summarise_all(mean) %>%
+  ungroup()|> 
+  mutate(sample = sprintf("%s_%s_%s", condition, patient, origin), .before=1)
+```
+
+```{r}
+metadata = tcga_lung |> select(sample, condition, origin, patient)
+write_tsv(metadata, "../../data/13_tcga/for_cibersortx/metadata.tsv")
+
+nsclc_primary_scissor = tcga_lung |> filter(origin == "T") |> select(-sample, -origin, -condition) |> column_to_rownames("patient") |> t()
+write_rds(nsclc_primary_scissor, "../../data/13_tcga/for_scissor/nsclc_primary_tumor.rds")
+
+# lusc_primary_scissor = tcga_lung |> filter(origin == "T", condition == "LUSC") |> select(-sample, -origin, -condition) |> column_to_rownames("patient") |> t()
+# write_rds(lusc_primary_scissor, "../../data/13_tcga/for_scissor/lusc_primary_tumor.rds")
+# 
+# luad_primary_scissor = tcga_lung |> filter(origin == "T", condition == "LUAD") |> select(-sample, -origin, -condition) |> column_to_rownames("patient") |> t()
+# write_rds(luad_primary_scissor, "../../data/13_tcga/for_scissor/luad_primary_scissor.rds")
+
+nsclc_cibersortx = tcga_lung |> filter(condition == "LUAD") |> select(-patient, -origin, -condition) |> column_to_rownames("sample") |> t() |> as.data.frame()
+# rounding will significantly reduce tsv file size and should not affect results at this precision. 
+write_tsv(round(nsclc_cibersortx[, 1:15], digits=5) |> as_tibble(rownames="GeneSymbol"), "../../data/13_tcga/for_cibersortx/tcga_bulk_matrix_test_luad.txt")
+write_tsv(round(nsclc_cibersortx, digits=5) |> as_tibble(rownames="GeneSymbol"), "../../data/13_tcga/for_cibersortx/tcga_bulk_matrix_luad.txt")
+
 ```
 
 ```{r}
@@ -44,6 +78,7 @@ clinical_data = read_excel("../../tables/tcga/mmc1.xlsx", guess_max=1000000, na=
     kras_mutation = if_else(TCGA_patient_barcode %in% read_tsv("../../tables/tcga/kras_mutated.tsv")$case_submitter_id, 1, 0),
     braf_mutation = if_else(TCGA_patient_barcode %in% read_tsv("../../tables/tcga/braf_mutated.tsv")$case_submitter_id, 1, 0),
     egfr_mutation = if_else(TCGA_patient_barcode %in% read_tsv("../../tables/tcga/egfr_mutated.tsv")$case_submitter_id, 1, 0),
+    tp53_mutation = if_else(TCGA_patient_barcode %in% read_tsv("../../tables/tcga/tp53_mutated.tsv")$case_submitter_id, 1, 0),
     tumor_type = if_else(type == "LUAD", 0, 1),
     random = if_else(runif(nrow(.)) < 0.25, 1, 0)
   )

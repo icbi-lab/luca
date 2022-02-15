@@ -49,21 +49,11 @@ ah = AnnotationHelper()
 # %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
+    "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad",
 )
 
 # %%
 adata = sc.read_h5ad(path_adata)
-
-# %%
-adata_epi = sc.read_h5ad(
-    "../../data/20_build_atlas/annotate_datasets/33_cell_types_epi/artifacts/adata_epithelial.h5ad"
-)
-
-# %%
-adata_tumor = sc.read_h5ad(
-    "../../data/20_build_atlas/annotate_datasets/33_cell_types_epi/artifacts/adata_tumor.h5ad"
-)
 
 # %%
 sc.pl.umap(adata, color="cell_type_coarse")
@@ -75,12 +65,26 @@ scissor_res_files = {
     )
     for id in [
         # TODO something is wrong with e.g. lambrechts 6149v2_3: the cell ids get lost, but only for survival!
-        "status_time",
-        "tumor_type",
-        "tumor_stage",
-        "kras_mutation",
-        "braf_mutation",
-        "egfr_mutation",
+        # "any_status_time",
+        "any_tumor_type",
+        # "any_tumor_stage",
+        # "any_kras_mutation",
+        # "any_braf_mutation",
+        # "any_egfr_mutation",
+        "LUAD_kras_mutation",
+        "LUAD_braf_mutation",
+        "LUAD_egfr_mutation",
+        "LUAD_tp53_mutation",
+        "LUAD_tumor_stage",
+        "LUAD_random",
+        "LUAD_status_time",
+        "LUSC_kras_mutation",
+        "LUSC_braf_mutation",
+        "LUSC_egfr_mutation",
+        "LUSC_tumor_stage",
+        "LUSC_status_time",
+        "LUSC_tp53_mutation",
+        "LUSC_random",
     ]
 }
 
@@ -92,7 +96,7 @@ scissor_ids = {
 
 # %%
 scissor_obs = {
-    f"scissor_{id}": (
+    f"scissor_{id.lower()}": (
         pd.concat(tmp_ids)
         .set_index("cell_id")
         .rename(columns={"Scissor_select": "scissor"})
@@ -104,52 +108,95 @@ scissor_obs = {
 for colname, series in scissor_obs.items():
     print(colname)
     adata.obs[colname] = series
+    assert adata.obs[colname].value_counts().tolist() == series.value_counts().tolist()
+
+# %%
+# pd.set_option("display.max_rows", 100)
+# c = "scissor_lusc_status_time"
+# adata.obs.loc[lambda x: x["cell_type_coarse"] == "Neutrophils"].groupby(
+#     ["patient"]
+# ).apply(lambda x: x[c].value_counts(normalize=True, dropna=False)).reset_index().loc[
+#     lambda x: ~x["level_1"].isnull()
+# ].sort_values(
+#     c, ascending=False
+# ).head(
+#     99
+# )
+
+# %%
+colname, series = "scissor_lusc_tumor_stage", scissor_obs["scissor_lusc_tumor_stage"]
+adata.obs[colname].value_counts().tolist(), series.value_counts().tolist()
 
 # %%
 sc.settings.set_figure_params(figsize=(8, 8))
 
 # %%
-sc.pl.umap(adata, color=["scissor_status_time", "cell_type"], size=1)
+sc.pl.umap(
+    adata,
+    color=[
+        # "scissor_any_status_time",
+        "scissor_luad_status_time",
+        "scissor_lusc_status_time",
+        "scissor_lusc_tumor_stage",
+        "cell_type",
+    ],
+    size=1,
+)
 
 # %% [markdown]
 # Scissor+ cells are associated with late stage or with having the corresponding mutation. 
 
 # %%
-adata.obs["scissor_tumor_stage"] = [
-    {"scissor+": "late", "scissor-": "early"}.get(x, np.nan)
-    for x in adata.obs["scissor_tumor_stage"]
-]
-adata.obs["scissor_tumor_type"] = [
-    {"scissor+": "LSCC", "scissor-": "LUAD"}.get(x, np.nan)
-    for x in adata.obs["scissor_tumor_type"]
-]
+# adata.obs["scissor_tumor_stage"] = [
+#     {"scissor+": "late", "scissor-": "early"}.get(x, np.nan)
+#     for x in adata.obs["scissor_tumor_stage"]
+# ]
+# adata.obs["scissor_tumor_type"] = [
+#     {"scissor+": "LSCC", "scissor-": "LUAD"}.get(x, np.nan)
+#     for x in adata.obs["scissor_tumor_type"]
+# ]
+# adata.obs["scissor_kras_mutation"] = [
+#     {"scissor+": "KRAS mut", "scissor-": "no KRAS mut"}.get(x, None)
+#     for x in adata.obs["scissor_kras_mutation"]
+# ]
+# adata.obs["scissor_braf_mutation"] = [
+#     {"scissor+": "BRAF mut", "scissor-": "no BRAF mut"}.get(x, None)
+#     for x in adata.obs["scissor_braf_mutation"]
+# ]
+# adata.obs["scissor_egfr_mutation"] = [
+#     {"scissor+": "EGFR mut", "scissor-": "no EGFR mut"}.get(x, None)
+#     for x in adata.obs["scissor_egfr_mutation"]
+# ]
 
 # %%
-adata.obs["scissor_kras_mutation"] = [
-    {"scissor+": "KRAS mut", "scissor-": "no KRAS mut"}.get(x, None)
-    for x in adata.obs["scissor_kras_mutation"]
-]
-adata.obs["scissor_braf_mutation"] = [
-    {"scissor+": "BRAF mut", "scissor-": "no BRAF mut"}.get(x, None)
-    for x in adata.obs["scissor_braf_mutation"]
-]
-adata.obs["scissor_egfr_mutation"] = [
-    {"scissor+": "EGFR mut", "scissor-": "no EGFR mut"}.get(x, None)
-    for x in adata.obs["scissor_egfr_mutation"]
-]
+adata_primary = adata[
+    (adata.obs["origin"] == "tumor_primary")
+    & ~adata.obs["dataset"].str.startswith("UKIM"),
+    :,
+].copy()
 
 # %%
-adata_primary = adata[adata.obs["origin"] == "tumor_primary", :].copy()
+sc.pl.umap(adata_primary, color=["dataset", "condition", "origin"], size=1)
 
 # %%
 for var in [
-    "scissor_status_time",
-    "scissor_tumor_stage",
-    "scissor_kras_mutation",
-    "scissor_braf_mutation",
-    "scissor_egfr_mutation",
+    "scissor_any_tumor_type",
+    "scissor_luad_kras_mutation",
+    "scissor_luad_braf_mutation",
+    "scissor_luad_egfr_mutation",
+    "scissor_luad_tp53_mutation",
+    "scissor_luad_tumor_stage",
+    "scissor_luad_random",
+    "scissor_luad_status_time",
+    "scissor_lusc_kras_mutation",
+    "scissor_lusc_braf_mutation",
+    "scissor_lusc_egfr_mutation",
+    "scissor_lusc_tumor_stage",
+    "scissor_lusc_status_time",
+    "scissor_lusc_tp53_mutation",
+    "scissor_lusc_random",
 ]:
-    with plt.rc_context({"figure.figsize": (6, 6), "figure.dpi": 300}):
+    with plt.rc_context({"figure.figsize": (6, 6), "figure.dpi": 120}):
         sc.pl.umap(
             adata_primary,
             color=var,
@@ -157,15 +204,6 @@ for var in [
             palette=["#ca0020", "#0571b0"][::-1],
             frameon=False,
         )
-
-# %%
-sc.pl.umap(adata, color="VEGFA", size=1)
-
-# %%
-sc.pl.umap(adata, color=["PDCD1", "LAG3", "HAVCR2", "CXCL13", "CTLA4"], size=1),
-
-# %%
-sc.pl.umap(adata, color=["dataset", "condition", "origin"], size=1)
 
 # %%
 # def conf_int(data, confidence=0.95):
@@ -178,17 +216,15 @@ sc.pl.umap(adata, color=["dataset", "condition", "origin"], size=1)
 
 def _scissor_test(df):
     c1, c2 = [x for x in df.columns if x != "nan"]
-    _, p = scipy.stats.ttest_rel(
-        df[c1].values, df[c2].values
-    )
-    return         pd.Series({
+    _, p = scipy.stats.ttest_rel(df[c1].values, df[c2].values)
+    return pd.Series(
+        {
             c1: df[c1].mean(),
             c2: df[c2].mean(),
             "pvalue": p,
-            "log2_ratio": np.log2(df[c1].mean()) - np.log2(df[c2].mean())
-            
-        })
-    
+            "log2_ratio": np.log2(df[c1].mean()) - np.log2(df[c2].mean()),
+        }
+    )
 
 
 def scissor_by_group(
@@ -264,13 +300,14 @@ def plot_scissor_df_ratio(df, *, title="scissor", fdr_cutoff=0.01):
     up, down = df.columns[:2]
     # df["log2_ratio"] = np.log2(df[up]) - np.log2(df[down])
     order = df.sort_values("log2_ratio")["cell_type_major"].values.tolist()
+    max_ = np.max(np.abs(df["log2_ratio"]))
     return (
         alt.Chart(df)
         .mark_bar()
         .encode(
             x=alt.X("cell_type_major", sort=order),
-            y=alt.Y("log2_ratio", scale=alt.Scale(domain=[-8, 8])),
-            color=alt.Color("log2_ratio", scale=alt.Scale(scheme="redblue"))
+            y=alt.Y("log2_ratio", scale=alt.Scale(domain=[-13, 13])),
+            color=alt.Color("log2_ratio", scale=alt.Scale(scheme="redblue", domain=[-max_, max_]))
             # color=alt.Color(
             #     "gini_better", scale=alt.Scale(scheme="magma", reverse=False)
             # ),
@@ -283,22 +320,27 @@ def plot_scissor_df_ratio(df, *, title="scissor", fdr_cutoff=0.01):
 scissor_dfs = {
     k: scissor_by_group(adata, scissor_col=k)
     for k in [
-        "scissor_status_time",
-        "scissor_tumor_type",
-        "scissor_tumor_stage",
-        "scissor_kras_mutation",
-        "scissor_braf_mutation",
-        "scissor_egfr_mutation",
+        "scissor_any_tumor_type",
+        "scissor_luad_kras_mutation",
+        "scissor_luad_braf_mutation",
+        "scissor_luad_egfr_mutation",
+        "scissor_luad_tp53_mutation",
+        "scissor_luad_tumor_stage",
+        "scissor_luad_random",
+        "scissor_luad_status_time",
+        "scissor_lusc_kras_mutation",
+        "scissor_lusc_braf_mutation",
+        "scissor_lusc_egfr_mutation",
+        "scissor_lusc_tumor_stage",
+        "scissor_lusc_status_time",
+        "scissor_lusc_tp53_mutation",
+        "scissor_lusc_random",
     ]
 }
 
 # %%
 for col, df in scissor_dfs.items():
     plot_scissor_df_ratio(df, title=col).display()
-
-# %%
-for col, df in scissor_dfs.items():
-    plot_scissor_df(df, title=col).display()
 
 
 # %% [markdown]
@@ -418,27 +460,3 @@ import altair as alt
 alt.Chart(df_to_plot).mark_point().encode(
     y="gini_within", x="gini_between", color=df_to_plot.columns[0], tooltip="index"
 )
-
-# %%
-adata_goblet = adata_epi[adata_epi.obs["cell_type"] == "Ciliated", :]
-
-# %%
-adata_goblet
-
-# %%
-sc.pl.umap(adata_goblet, color=["dataset", "scissor"])
-
-# %%
-adata_m = adata[adata.obs["cell_type"].isin(["DC mature/cDC 1", "cDC2", "Monocyte"]), :]
-
-# %%
-
-# %%
-sc.pl.umap(adata_m, color=["dataset", "cell_type", "scissor"])
-
-# %%
-ah.plot_umap(
-    adata_m, filter_cell_type=["Macro", "Mono", "DC", "Div"], cmap="inferno", size=2
-)
-
-# %%

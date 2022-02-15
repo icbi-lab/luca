@@ -1,0 +1,292 @@
+---
+output: html_document
+params:
+  survival_path: "../../tables/mmc1.xlsx"
+  tcga_tpm_path: "../../data/13_tcga/tcga-lung-primary.rds"  
+  cpus: 1
+  id: test
+  artifact_dir: "/data/scratch/sturm/tmp"
+  meta: NULL
+  input_dir: NULL
+---
+
+```{r}
+library(conflicted)
+library(dplyr)
+conflict_prefer("filter", "dplyr")
+library(readxl)
+library(survminer)
+library(survival)
+library(tidyr)
+library(readr)
+library(stringr)
+# library(immunedeconv)
+library(tibble)
+library(omnideconv)
+```
+```{r}
+clinical_data = read_tsv("../../tables/tcga/clinical_data_for_scissor.tsv")
+mixture_mat = read_rds("../../data/13_tcga/for_scissor/nsclc_primary_tumor.rds")
+age = read_excel("../../tables/tcga/mmc1.xlsx") %>% select(TCGA_patient_barcode=bcr_patient_barcode, age=age_at_initial_pathologic_diagnosis)
+```
+
+```{r}
+genes = c('ADGRG3',
+ 'BCL6',
+ 'CMTM2',
+ 'CSF3R',
+ 'CXCR1',
+ 'CXCR2',
+ 'FCGR3B',
+ 'FFAR2',
+ 'HCAR3',
+ 'IFITM2',
+ 'IL1R2',
+ 'IVNS1ABP',
+ 'LITAF',
+ 'MBD6',
+ 'MX2',
+ 'NAMPT',
+ 'NSMAF',
+ 'PROK2',
+ 'R3HDM4',
+ 'RNF149',
+ 'SLC25A37',
+ 'SMCHD1',
+ 'TRIB1',
+ 'TRIM25',
+ 'USP15')
+
+genes2 = c('ADGRG3', 'CMTM2', 'CXCR1', 'CXCR2', 'FCGR3B', 'PROK2')
+
+genes3 = c('ADGRG3',
+ 'BCL2A1',
+ 'CLEC4E',
+ 'DDX60L',
+ 'GK',
+ 'HCAR3',
+ 'IER3',
+ 'ITGAX',
+ 'LCP2',
+ 'LILRA2',
+ 'NFKBIZ',
+ 'NSMAF',
+ 'PHACTR1',
+ 'PPIF',
+ 'SLC11A1')
+
+```
+
+```{r}
+signature_expression = log1p(mixture_mat[genes, ])
+mcp_scores = apply(signature_expression, MARGIN = 2, mean)
+```
+
+```{r}
+clin_and_deconv = clinical_data %>% left_join(age) %>% inner_join(as_tibble(mcp_scores, rownames="TCGA_patient_barcode") %>% rename(mcp_scores=value))
+```
+
+```{r}
+clin_and_deconv |> 
+  ggplot(aes(x=type, y=mcp_scores)) + 
+  geom_boxplot() + stat_compare_means(method="wilcox.test")
+
+```
+
+```{r}
+data = clin_and_deconv %>% filter(type == "LUAD")
+
+coxph(Surv(time, status) ~ mcp_scores, data = data)
+
+data = clin_and_deconv %>% filter(type == "LUSC")
+
+coxph(Surv(time, status) ~ mcp_scores, data = data)
+```
+
+```{r}
+data_status = clin_and_deconv %>% filter(type == "LUAD") %>% mutate(var_status=ifelse(mcp_scores > 1.1, "high", ifelse(mcp_scores < 0.3, "low", NA)))
+
+fit <- survfit(Surv(time, status) ~ var_status, data = data_status)
+
+ggsurvplot(fit, data = data_status)
+```
+
+---
+
+
+
+```{r}
+sc_mat = read_tsv("~/Downloads/cibersortx/cibersort_single_cell_matrix_5.txt")
+sc_mat = sc_mat |> column_to_rownames("...1")
+cell_type_vector = (colnames(sc_mat) |> str_split_fixed("\\.\\.\\.", n=2))[,1]
+batch_ids = read_tsv("~/Downloads/cibersortx/batch_ids.tsv")
+```
+
+
+```{r}
+options(mc.cores=32)
+subsamp = sample(1:dim(sc_mat)[2], 100)
+model_dwls = build_model(sc_mat[, subsamp], cell_type_vector[subsamp], "dwls")
+```
+
+```{r}
+res_dwls = deconvolute(mixture_mat[, 1:20], NULL, method="dwls", single_cell_object=sc_mat, cell_type_annotations=cell_type_vector, batch_ids=batch_ids$patient, verbose=TRUE)
+```
+
+```{r}
+res_bisque = deconvolute(mixture_mat[, ], NULL, method="bisque", single_cell_object=sc_mat, cell_type_annotations=cell_type_vector, batch_ids=batch_ids$patient, verbose=TRUE)
+res_music = deconvolute(mixture_mat[, ], NULL, method="music", single_cell_object=sc_mat, cell_type_annotations=cell_type_vector, batch_ids=batch_ids$patient, verbose=TRUE)
+```
+
+```{r}
+clin_and_deconv = clinical_data %>% inner_join(res_music %>% as_tibble(rownames="TCGA_patient_barcode"), by="TCGA_patient_barcode") %>% left_join(age)
+```
+
+```{r}
+data = clin_and_deconv %>% filter(type == "LUAD")
+
+coxph(Surv(time, status) ~ Neutrophils + age + tumor_stage, data = data)
+coxph(Surv(time, status) ~ `B cell` + age + tumor_stage, data = data)
+
+data = clin_and_deconv %>% filter(type == "LUSC")
+
+coxph(Surv(time, status) ~ Neutrophils + age + tumor_stage, data = data)
+coxph(Surv(time, status) ~ `B cell` + age + tumor_stage, data = data)
+```
+
+
+
+
+
+
+
+
+---
+
+
+
+
+
+
+
+
+# Cibersortx
+
+```{r}
+cibersort_res = read_tsv("~/Downloads/cibersortx/out/CIBERSORTx_Results.txt") %>% separate(Mixture, into=c("type", "TCGA_patient_barcode", "origin"), sep='_')
+```
+
+```{r}
+clin_and_deconv = clinical_data %>% inner_join(cibersort_res %>% select(-type), by="TCGA_patient_barcode") %>% left_join(age)
+```
+
+
+```{r}
+data = clin_and_deconv %>% filter(origin == "T", type == "LUAD")
+
+coxph(Surv(time, status) ~ `B cell` + Neutrophils + age + tumor_stage, data = data)
+```
+```{r}
+data_status = clin_and_deconv %>% filter(origin == "T", type == "LUSC") %>% mutate(var_status=ifelse(Neutrophils > 0.01, "high", ifelse(Neutrophils < 0.001, "low", NA)))
+
+fit <- survfit(Surv(time, status) ~ var_status, data = data_status)
+
+ggsurvplot(fit, data = data_status)
+```
+
+---
+
+# 1st generation methods
+```{r}
+deconv_res = deconvolute(expr, "timer", indications = rep("LUSC", ncol(expr)))
+```
+
+
+```{r}
+deconv_res_t = deconv_res |> column_to_rownames("cell_type") |> t() |> as_tibble(rownames="TCGA_patient_barcode")
+
+
+clin_and_deconv = clinical_data |> inner_join(deconv_res_t) |> inner_join(age) |>
+  mutate(stage = str_replace_all(ajcc_pathologic_tumor_stage, "[AB]?", "")) 
+```
+
+```{r}
+coxph(Surv(time, status) ~ Neutrophil, data = clin_and_deconv)
+
+```
+
+```{r}
+BPIFB1_status = ifelse(log10(tcga_expr[gene, ] + 1) > 2, "high", "low")
+BPIFB1_status = tibble(bpifb1_status = BPIFB1_status, TCGA_patient_barcode = names(BPIFB1_status) ,bpifb1 = log10(tcga_expr[gene, ] + 1)) %>%
+  inner_join(survival)
+
+fit <- survfit(Surv(OS_time, Status) ~ bpifb1_status, data = BPIFB1_status)
+
+ggsurvplot(fit, data = BPIFB1_status)
+```
+
+
+
+---
+
+```{r}
+# # TODO test/train split, put into separate script
+# lusc = read_tsv("../../data/13_tcga/TCGA-LUSC-SolidTissueNormal-TPM.txt.gz")
+# luad = read_tsv("../../data/13_tcga/TCGA-LUAD-SolidTissueNormal-TPM.txt.gz")
+# tcga_lung = luad %>%
+#   inner_join(lusc, by=c("ENSGID", "GeneName")) %>%
+#   select(-ENSGID) %>%
+#   group_by(GeneName) %>%
+#   summarise_all(sum) %>%
+#   tibble::column_to_rownames("GeneName") %>%
+#   as.matrix()
+# 
+# colnames_new = sapply(colnames(tcga_lung), function(x) {paste(str_split(x, pattern="-")[[1]][1:3], collapse="-")}, USE.NAMES = FALSE)
+# colnames(tcga_lung) = colnames_new
+# 
+# # for now, exclude duplicates
+# tcga_lung = tcga_lung[, !duplicated(colnames(tcga_lung))]
+# 
+# saveRDS(tcga_lung, "../../data/13_tcga/tcga-lung-normal-adjacent.rds", compress=FALSE)
+```
+
+```{r}
+survival = read_excel(params$survival_path, guess_max=1000000, na=c("", "[Not Available]")) %>% 
+  filter(type %in% c("LUAD", "LUSC")) %>% 
+  select(TCGA_patient_barcode=bcr_patient_barcode, OS_time=OS.time, Status=OS, stage=ajcc_pathologic_tumor_stage, gender, age=age_at_initial_pathologic_diagnosis) 
+tcga_expr = readRDS(params$tcga_tpm_path)
+
+common_patients = sort(intersect(colnames(tcga_expr), survival$TCGA_patient_barcode))
+
+survival = survival %>% 
+  filter(TCGA_patient_barcode %in% common_patients) %>% 
+  arrange(TCGA_patient_barcode)
+tcga_expr = tcga_expr[, common_patients]
+```
+
+```{r}
+gene = "BPIFB1"
+tcga_expr[gene, ,drop=FALSE] %>% 
+  as_tibble(rownames="gene") %>% 
+  pivot_longer(cols=-gene, names_to = "patient", values_to="TPM") %>%
+  ggplot(aes(x=gene, y=log10(TPM+1))) + 
+  geom_boxplot() + 
+  geom_jitter()
+
+```
+
+
+```{r}
+BPIFB1_status = ifelse(log10(tcga_expr[gene, ] + 1) > 2, "high", "low")
+BPIFB1_status = tibble(bpifb1_status = BPIFB1_status, TCGA_patient_barcode = names(BPIFB1_status) ,bpifb1 = log10(tcga_expr[gene, ] + 1)) %>%
+  inner_join(survival)
+
+fit <- survfit(Surv(OS_time, Status) ~ bpifb1_status, data = BPIFB1_status)
+
+ggsurvplot(fit, data = BPIFB1_status)
+```
+
+```{r}
+coxph(Surv(OS_time, Status) ~ bpifb1_status + gender + age + stage, data = BPIFB1_status)
+
+```
