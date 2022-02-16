@@ -97,6 +97,37 @@ order = (
     )
 )
 
+# %%
+adata.obs.columns
+
+# %%
+for title, tmp_adata in {
+    "counts per platform": adata,
+    "counts per platform (Epithelial cells)": adata[
+        adata.obs["cell_type_coarse"] == "Epithelial cell", :
+    ],
+}.items():
+    counts_per_platform = (
+        tmp_adata.obs.groupby(["sample", "platform"], observed=True)
+        .agg(total_counts=("total_counts", "median"))
+        .reset_index()
+    )
+    order = (
+        counts_per_platform.groupby("platform")
+        .median()
+        .sort_values("total_counts")
+        .index.tolist()
+    )
+    alt.Chart(counts_per_platform, title=title).mark_boxplot().encode(
+        x=alt.X("platform", sort=order[::-1]),
+        y=alt.Y("total_counts", scale=alt.Scale(type="log")),
+        color=alt.Color(
+            "platform",
+            scale=sh.colors.altair_scale("platform"),
+            legend=None,
+        ),
+    ).display()
+
 # %% [markdown]
 # # Neutrophil subset
 
@@ -147,6 +178,8 @@ tumor_vs_normal = [
     "FCGR3B",
     "CD83",
     "ARG1",
+    "CCL2",
+    "JUN",
 ]
 
 # %%
@@ -161,6 +194,7 @@ adata_tumor_normal = sh.pseudobulk.pseudobulk(
     tmp_adata, groupby=["dataset", "patient", "origin"]
 )
 sc.pp.normalize_total(adata_tumor_normal, target_sum=1e6)
+adata_tumor_normal.layers["cpm"] = adata_tumor_normal.X.copy()
 sc.pp.log1p(adata_tumor_normal)
 adata_tumor_normal.obs["origin2"] = [
     "T" if o == "tumor_primary" else "N" for o in adata_tumor_normal.obs["origin"]
@@ -193,6 +227,7 @@ sh.pairwise.plot_paired(
     pvalues=deseq2_res_tumor_normal.loc[tumor_vs_normal, "padj"],
     pvalue_template="DESeq2 FDR={:.2f}",
     ylabel="log norm counts",
+    n_cols=5,
 )
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
@@ -243,6 +278,16 @@ sh.pairwise.plot_paired(
     pvalue_template="DESeq2 FDR={:.4f}",
     ylabel="log norm counts",
 )
+
+# %%
+tmp_top = deseq2_res_tumor_normal.sort_values("padj").index.values[:30]
+sh.pairwise.plot_paired_fc(
+    adata_tumor_normal,
+    groupby="origin2",
+    paired_by="patient",
+    var_names=tmp_top,
+    layer="cpm",
+).properties(height=150)
 
 # %% [markdown]
 # # neutro fractions by tumor type
@@ -367,8 +412,7 @@ res.summary()
 res.pvalues["C(condition)[T.LUAD]"]
 
 # %% [markdown]
-# ## neutro recruitment signature
-# (LSCC vs. LUAD) 
+# ## neutro recruitment signature (LSCC vs. LUAD) 
 
 # %%
 recruitment_genes = [
@@ -416,6 +460,9 @@ sc.pl.matrixplot(
     tumor_cells_by_origin, var_names=recruitment_genes, groupby="condition"
 )
 
+# %% [markdown]
+# ### genes of interest
+
 # %%
 sh.pairwise.plot_paired(
     tumor_cells_by_origin,
@@ -427,6 +474,51 @@ sh.pairwise.plot_paired(
     ylabel="log norm counts",
     pvalues=deseq2_res_luad_lscc.loc[recruitment_genes, "padj"],
     pvalue_template="DESeq2 FDR={:.3f}",
+    n_cols=5,
+)
+
+# %% [markdown]
+# ### top genes
+
+# %%
+top_genes = deseq2_res_luad_lscc.index[:30]
+sh.pairwise.plot_paired(
+    tumor_cells_by_origin,
+    groupby="condition",
+    var_names=top_genes,
+    hue="dataset",
+    show_legend=False,
+    size=5,
+    ylabel="log norm counts",
+    pvalues=deseq2_res_luad_lscc.loc[top_genes, "padj"],
+    pvalue_template="DESeq2 FDR={:.3f}",
+    n_cols=10,
+)
+
+# %%
+sox2_genes = [
+    "ABCC6",
+    "CCND1",
+    "DLGAP1",
+    "GLI2",
+    "GLI3",
+    "HHAT",
+    # 'ISL1',
+    "NANOG",
+    "NTRK3",
+    # "RHO",
+]
+sh.pairwise.plot_paired(
+    tumor_cells_by_origin,
+    groupby="condition",
+    var_names=sox2_genes,
+    hue="dataset",
+    show_legend=False,
+    size=5,
+    ylabel="log norm counts",
+    pvalues=deseq2_res_luad_lscc.loc[sox2_genes, "padj"],
+    pvalue_template="DESeq2 FDR={:.3f}",
+    n_cols=5,
 )
 
 # %% [markdown]

@@ -668,3 +668,16 @@ for ct in tmp_cytosig["cell_type"].unique():
 results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
     sh.util.fdr_correction
 ).pipe(sh.lm.plot_lm_result_altair, title="Cytosig (tumor cells)")
+
+# %% [markdown]
+# ---
+
+# %%
+marker_genes = {}
+for tf in regulons.columns:
+    marker_genes[tf] = regulons[tf][lambda x: x!=0]
+
+# %%
+pd.concat(marker_genes).reset_index(name = "direction").rename(columns={"level_0" : "TF"}).to_csv("/home/sturm/Downloads/dorothea_signature.csv")
+
+# %%
