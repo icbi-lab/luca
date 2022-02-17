@@ -363,6 +363,15 @@ comparisons = {
         "contrasts": "Sum",
         "tools": ["dorothea", "progeny", "cytosig", "cpdb"],
     },
+    "patient_immune_infiltration_treatment_coding": {
+        "dataset": adata_primary_tumor,
+        "cell_type_column": "cell_type_major",
+        "pseudobulk_group_by": ["dataset", "patient"],
+        "column_to_test": "immune_infiltration",
+        "lm_covariate_str": "+ dataset",
+        "contrasts": "Treatment('-')",
+        "tools": ["dorothea", "progeny", "cytosig", "cpdb"],
+    },
     "luad_lscc": {
         "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LSCC"]), :
@@ -394,6 +403,13 @@ comparisons = {
     },
 }
 
+# %%
+comparisons = {
+    k: v
+    for k, v in comparisons.items()
+    if k == "patient_immune_infiltration_treatment_coding"
+}
+
 # %% [markdown]
 # ---
 
@@ -423,6 +439,7 @@ def prepare_dataset(
 ):
     """Split anndata by cell-type and run the different signature enrichment
     methods"""
+    tools = [t for t in tools if t in TOOLS]
     print(f"Preparing dataset for {id_}:")
     dataset = dataset[
         (dataset.obs[cell_type_column] != "other")
@@ -520,6 +537,14 @@ def compare_cpdb(
     tmp_res.to_csv(f"{artifact_dir}/differential_signature_{id_}_cpdb.tsv", sep="\t")
     return tmp_res
 
+
+# %%
+# sh.lm.test_lm(
+#     datasets["patient_immune_infiltration_treatment_coding"]["cytosig"]["Tumor cells"],
+#     "~C(immune_infiltration, Treatment('-')) + dataset",
+#     "immune_infiltration",
+#     contrasts="Treatment('-')",
+# )
 
 # %%
 datasets = {}
@@ -632,7 +657,7 @@ sh.pairwise.plot_paired(
 # ## Differentially expressed progeny pathways in tumor cells
 
 # %%
-results["patient_immune_infiltration"]["progeny"].loc[
+results["patient_immune_infiltration_treatment_coding"]["progeny"].loc[
     lambda x: x["cell_type"] == "Tumor cells", :
 ].pipe(sh.util.fdr_correction).pipe(
     sh.lm.plot_lm_result_altair, title="Differential pathways (tumor cells)"
@@ -647,8 +672,11 @@ results["luad_lscc"]["progeny"].loc[lambda x: x["cell_type"] == "Tumor cells", :
 # ## Differential cytokine signalling in selected cell-types
 
 # %%
+results["patient_immune_infiltration_treatment_coding"]["cytosig"]["group"].unique()
+
+# %%
 tmp_cytosig = (
-    results["patient_immune_infiltration"]["cytosig"]
+    results["patient_immune_infiltration_treatment_coding"]["cytosig"]
     .loc[
         lambda x: x["cell_type"].isin(["Tumor cells", "Stromal", "Endothelial cell"]), :
     ]
@@ -675,9 +703,17 @@ results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Tumor cells", :
 # %%
 marker_genes = {}
 for tf in regulons.columns:
-    marker_genes[tf] = regulons[tf][lambda x: x!=0]
+    marker_genes[tf] = regulons[tf][lambda x: x != 0]
 
 # %%
-pd.concat(marker_genes).reset_index(name = "direction").rename(columns={"level_0" : "TF"}).to_csv("/home/sturm/Downloads/dorothea_signature.csv")
+pd.concat(marker_genes).reset_index(name="direction").rename(
+    columns={"level_0": "TF"}
+).to_csv("/home/sturm/Downloads/dorothea_signature.csv")
+
+# %%
+marker_genes["SOX2"].index.tolist()
+
+# %%
+regulons["SOX2"][lambda x: x != 0]
 
 # %%

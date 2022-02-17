@@ -124,8 +124,7 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
   from = match(edges$from, nodes_ct_hierarchy$name)
   to = match(edges$to, nodes_ct_hierarchy$name)
   conn_meta = data.frame(from=nodes_ct_hierarchy[from,]$name, to=nodes_ct_hierarchy[to,]$name) |>
-    left_join(edges, by=c("from", "to")) |> 
-    mutate(log2_fc = )
+    left_join(edges, by=c("from", "to")) 
   
   # plot using ggraph
   p = ggraph(G_ct, layout="dendrogram", circular=TRUE) + 
@@ -186,6 +185,14 @@ cpdb_early_advanced |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
 ### LUAD LSCC
 
 Comparison of LUAD and LSCC samples. Blue = Upregulated in LUAD, Red = upregulated in LSCC
+
+```{r, fig.width=20, fig.height=12, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_luad_lscc |> filter(abs(log2_fc) > 1, fdr < 0.2,  cluster_2 == "Neutrophils") |> cpdb_plot(edge_color = "abs(log10(fdr))", edge_color_scale=scale_edge_color_viridis())
+```
+
+```{r, fig.width=14, fig.height=8, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_luad_lscc |> filter(abs(log2_fc) > 1, cluster_2 == "B cell") |> filter(fdr < 0.33) |> cpdb_plot()
+```
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 cpdb_luad_lscc |> filter(abs(log2_fc) > 1) |> mutate(group2 = if_else(log2_fc < 0, "LSCC", "LUAD")) |> group_by(group2) |> 

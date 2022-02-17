@@ -196,6 +196,19 @@ with plt.rc_context({"figure.figsize": (8, 8)}):
 # %%
 with plt.rc_context({"figure.figsize": (8, 8)}):
     sc.pl.umap(
+        adatas["immune"],
+        color="cell_type",
+        legend_loc="on data",
+        legend_fontsize=12,
+        legend_fontoutline=2,
+        frameon=False,
+        add_outline=True,
+        size=12,
+    )
+
+# %%
+with plt.rc_context({"figure.figsize": (8, 8)}):
+    sc.pl.umap(
         adatas["structural"],
         color="cell_type",
         legend_loc="on data",
