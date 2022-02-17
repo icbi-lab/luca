@@ -272,7 +272,7 @@ patient_strat2["dataset"] = patient_strat2["dataset"].astype(str)
 for var in ["ITHCNA", "ITHGEX", "cnv_score"]:
     # for var in ["cnvsum"]:
     print(var)
-    fig, (ax1, ax2, ax3, ax4) = plt.subplots(1, 4, figsize=(22, 5))
+    fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1, 5, figsize=(22, 5))
     sns.swarmplot(x="TMIG", y=var, data=patient_strat2, ax=ax1, hue="dataset")
     sns.boxplot(x="TMIG", y=var, data=patient_strat2, ax=ax1, width=0.2)
     ax1.get_legend().remove()
@@ -294,6 +294,12 @@ for var in ["ITHCNA", "ITHGEX", "cnv_score"]:
     )
     sns.boxplot(x="immune_infiltration", y=var, data=patient_strat2, ax=ax4, width=0.8)
     ax4.get_legend().remove()
+    
+    sns.swarmplot(
+        x="tumor_stage", y=var, data=patient_strat2, ax=ax5, hue="dataset"
+    )
+    sns.boxplot(x="tumor_stage", y=var, data=patient_strat2, ax=ax5, width=0.8)
+    ax5.get_legend().remove()
     plt.show()
 
 # %%
