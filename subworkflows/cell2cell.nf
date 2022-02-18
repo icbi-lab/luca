@@ -1,4 +1,5 @@
 include { SPLIT_ANNDATA }  from "../modules/local/scconversion/main.nf"
+include { JUPYTERNOTEBOOK as MAKE_CPDB_H5AD } from "../modules/local/jupyternotebook/main.nf"
 
 
 process SQUIDPY {
@@ -34,4 +35,12 @@ workflow cell2cell {
     ch_adata_annotated = adata_annotated.map{ it -> [it.baseName, it]}
     SPLIT_ANNDATA(ch_adata_annotated, "sample")
     SQUIDPY(SPLIT_ANNDATA.out.adata.flatten().map{it -> [it.baseName, it]}, "cell_type_major")
+    MAKE_CPDB_H5AD(
+        [[id: "61_make_cpdb_h5ad"], file("${baseDir}/analyses/60_cell2cell/61_make_cpdb_h5ad.py")],
+        [
+            "adata_atlas": "full_atlas_merged.h5ad",
+            "squidpy_dir": ".",
+        ],
+        adata_annotated.mix(SQUIDPY.out.out_file).collect()
+    )
 }
