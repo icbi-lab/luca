@@ -97,9 +97,10 @@ cell_types = {
     ],
     "structural": ["Endothelial cell", "Stromal"],
 }
-assert reduce(or_, [set(v) for v in cell_types.values()]) | {"other", "Neutrophils"} == set(
-    adata.obs["cell_type_major"]
-), "Some cell-types are missing"
+assert reduce(or_, [set(v) for v in cell_types.values()]) | {
+    "other",
+    "Neutrophils",
+} == set(adata.obs["cell_type_major"]), "Some cell-types are missing"
 
 # %%
 adata_primary_tumor = adata[
@@ -489,9 +490,22 @@ def get_stratum(infiltration_group, immune_type):
 
 
 # %%
+adata.obs.columns
+
+# %%
 plot_df = (
     adata.obs.loc[
-        :, ["patient", "sex", "uicc_stage", "ever_smoker", "age", "tumor_stage"]
+        :,
+        [
+            "patient",
+            "sex",
+            "uicc_stage",
+            "ever_smoker",
+            "age",
+            "tumor_stage",
+            "dataset",
+            "platform",
+        ],
     ]
     .drop_duplicates()
     .set_index("patient")
@@ -509,7 +523,7 @@ remap_tumor_type = {
     "LUSC": "LSCC",
     "LCLC": "NSCLC",
 }
-plot_df["condition"] = [remap_tumor_type.get(x,x) for x in plot_df["condition"]]
+plot_df["condition"] = [remap_tumor_type.get(x, x) for x in plot_df["condition"]]
 plot_df["sex"] = plot_df["sex"].cat.add_categories("unknown").fillna("unknown")
 plot_df.rename(
     columns={
@@ -533,7 +547,7 @@ plot_df
 # %%
 def get_row(col, color_scale=None):
     if color_scale is None:
-        color_scale=col
+        color_scale = col
     return (
         alt.Chart(plot_df.assign(ylab=col))
         .mark_rect()
@@ -544,7 +558,11 @@ def get_row(col, color_scale=None):
                 sort=plot_df["patient"].values,
             ),
             y=alt.Y("ylab", axis=alt.Axis(title=None)),
-            color=alt.Color(col, scale=sh.colors.altair_scale(color_scale), legend=alt.Legend(columns=4)),
+            color=alt.Color(
+                col,
+                scale=sh.colors.altair_scale(color_scale),
+                legend=alt.Legend(columns=4),
+            ),
         )
         .properties(width=800)
     )
@@ -552,14 +570,16 @@ def get_row(col, color_scale=None):
 
 p0 = (
     alt.vconcat(
-        get_row("tumor_type_annotated", "condition") & get_row("tumor_type_inferred", "condition"),
+        get_row("tumor_type_annotated", "condition")
+        & get_row("tumor_type_inferred", "condition"),
         get_row("sex"),
         get_row("tumor_stage"),
+        get_row("dataset"),
+        get_row("platform"),
         # get_row("infiltration_state"),
         # get_row("immune_infiltration"),
         get_row("immune_infiltration"),
-    )
-    .resolve_scale(color="independent")
+    ).resolve_scale(color="independent")
     # .resolve_legend("shared")
     .configure_concat(spacing=0)
 )
@@ -655,6 +675,30 @@ p0 & (p1 & p2).resolve_scale(x="shared")
 
 # %%
 tmp_ad.shape
+
+# %% [markdown]
+# ## groups by histological subtype
+
+# %%
+tumor_type_total = (
+    plot_df.groupby(["tumor_type_annotated"]).size().reset_index(name="total")
+)
+
+# %%
+tmp_df = (
+    plot_df.groupby(["immune_infiltration", "tumor_type_annotated"])
+    .size()
+    .reset_index(name="n")
+    .merge(tumor_type_total)
+    .assign(frac_of_total=lambda x: x["n"] / x["total"])
+)
+
+# %%
+alt.Chart(tmp_df).mark_bar().encode(
+    x=alt.X("tumor_type_annotated", title=None),
+    y="frac_of_total",
+    color=alt.Color("tumor_type_annotated", scale=sh.colors.altair_scale("tumor_type")),
+).facet(column="immune_infiltration")
 
 # %% [markdown]
 # # Write output

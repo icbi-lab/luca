@@ -153,7 +153,6 @@ comparisons = {
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient"],
         "column_to_test": "immune_infiltration",
-        # todo do I wan to include `+ condition` here?
         "lm_covariate_str": "+ dataset",
         "contrasts": "Sum",
         "tools": ["dorothea", "progeny", "cytosig"],
@@ -162,7 +161,7 @@ comparisons = {
         "dataset": adata_primary_tumor,
         "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
-        "pseudobulk_group_by": ["dataset", "patient"],
+        "pseudobulk_group_by": ["dataset", "patient", "condition"],
         "column_to_test": "immune_infiltration",
         "lm_covariate_str": "+ dataset + condition",
         "contrasts": "Sum",
@@ -178,24 +177,34 @@ comparisons = {
         "contrasts": "Treatment('-')",
         "tools": ["dorothea", "progeny", "cytosig"],
     },
+    "patient_immune_infiltration_treatment_coding_condition": {
+        "dataset": adata_primary_tumor,
+        "dataset_cpdb": adata_cpdb,
+        "cell_type_column": "cell_type_major",
+        "pseudobulk_group_by": ["dataset", "patient", "condition"],
+        "column_to_test": "immune_infiltration",
+        "lm_covariate_str": "+ dataset + condition",
+        "contrasts": "Treatment('-')",
+        "tools": ["dorothea", "progeny", "cytosig"],
+    },
     "luad_lscc": {
         "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LSCC"]), :
         ],
         "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
-        "pseudobulk_group_by": ["dataset", "patient"],
+        "pseudobulk_group_by": ["dataset", "patient", "tumor_stage"],
         "column_to_test": "condition",
-        "lm_covariate_str": "+ dataset",
+        "lm_covariate_str": "+ dataset + tumor_stage",
         "contrasts": "Treatment('LUAD')",
         "tools": ["dorothea", "progeny", "cytosig"],
     },
     "early_advanced": {
         "dataset": adata_primary_tumor,
         "cell_type_column": "cell_type_major",
-        "pseudobulk_group_by": ["dataset", "patient"],
+        "pseudobulk_group_by": ["dataset", "patient", "condition"],
         "column_to_test": "tumor_stage",
-        "lm_covariate_str": "+ dataset",
+        "lm_covariate_str": "+ dataset + condition",
         "contrasts": "Treatment('early')",
     },
 }
@@ -213,7 +222,8 @@ datasets = compare_groups.prepare_dataset(comparison, n_jobs=cpus, **comparison_
 results = compare_groups.compare_signatures(comparison, datasets, n_jobs=cpus, **comparison_config)
 
 # %%
-results["cpdb"] = compare_groups.compare_cpdb(comparison, n_jobs=cpus, **comparison_config)
+if "dataset_cpdb" in comparison_config:
+    results["cpdb"] = compare_groups.compare_cpdb(comparison, n_jobs=cpus, **comparison_config)
 
 # %%
 for tool, results in results.items():

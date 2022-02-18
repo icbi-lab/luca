@@ -8,6 +8,7 @@ include { de_analysis } from "../subworkflows/de_analysis.nf"
 include { scissor } from "../subworkflows/scissor.nf"
 include { cell2cell } from "../subworkflows/cell2cell.nf"
 include { infercnv } from "../subworkflows/infercnv.nf"
+include { plots_and_comparisons } from "../subworkflows/plots_and_comparisons.nf"
 include { JUPYTERNOTEBOOK as STRATIFY_PATIENTS } from "../modules/local/jupyternotebook/main.nf"
 
 workflow downstream_analyses {
@@ -37,9 +38,10 @@ workflow downstream_analyses {
     )
 
     de_analysis(final_atlas)
-    scissor(final_atlas)
+    // scissor(final_atlas)
     cell2cell(final_atlas)
     infercnv(final_atlas)
+    plots_and_comparisons(final_atlas, cell2cell.out.adata_cpdb, STRATIFY_PATIENTS.out.artifacts)
 }
 
 

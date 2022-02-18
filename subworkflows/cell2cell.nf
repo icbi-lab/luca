@@ -36,11 +36,14 @@ workflow cell2cell {
     SPLIT_ANNDATA(ch_adata_annotated, "sample")
     SQUIDPY(SPLIT_ANNDATA.out.adata.flatten().map{it -> [it.baseName, it]}, "cell_type_major")
     MAKE_CPDB_H5AD(
-        [[id: "61_make_cpdb_h5ad"], file("${baseDir}/analyses/60_cell2cell/61_make_cpdb_h5ad.py")],
+        Channel.value([[id: "61_make_cpdb_h5ad"], file("${baseDir}/analyses/60_cell2cell/61_make_cpdb_h5ad.py")]),
         [
             "adata_atlas": "full_atlas_merged.h5ad",
             "squidpy_dir": ".",
         ],
         adata_annotated.mix(SQUIDPY.out.out_file).collect()
     )
+
+    emit:
+    adata_cpdb = MAKE_CPDB_H5AD.out.artifacts
 }

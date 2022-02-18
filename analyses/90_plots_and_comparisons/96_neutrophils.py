@@ -412,7 +412,7 @@ res.summary()
 res.pvalues["C(condition)[T.LUAD]"]
 
 # %% [markdown]
-# ## neutro recruitment signature (LSCC vs. LUAD) 
+# # neutro recruitment signature (LSCC vs. LUAD) 
 
 # %%
 recruitment_genes = [
@@ -588,12 +588,12 @@ _ = plt.xticks(rotation=90)
 
 # %%
 tumor_normal_progeny = pd.read_csv(
-    "/home/sturm/Downloads/differential_signature_tumor_normal_progeny.tsv",
+    "../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/tumor_normal_progeny.tsv",
     sep="\t",
     index_col=0,
 )
 tumor_normal_cytosig = pd.read_csv(
-    "/home/sturm/Downloads/differential_signature_tumor_normal_cytosig.tsv",
+    "../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/tumor_normal_cytosig.tsv",
     sep="\t",
     index_col=0,
 )
@@ -607,3 +607,45 @@ tumor_normal_progeny.loc[lambda x: x["cell_type"] == "Neutrophils", :].query(
 tumor_normal_cytosig.loc[lambda x: x["cell_type"] == "Neutrophils", :].query(
     "pvalue < 0.1"
 )
+
+# %% [markdown]
+# # Differences in TANs between LUAD and LSCC
+
+# %%
+neutrophils_by_origin = sh.pseudobulk.pseudobulk(
+    adata_n[
+        (adata_n.obs["origin"] == "tumor_primary")
+        & adata_n.obs["condition"].isin(["LUAD", "LSCC"]),
+        :,
+    ].copy(),
+    groupby=["patient", "condition", "dataset"],
+)
+sc.pp.normalize_total(neutrophils_by_origin, target_sum=1000)
+sc.pp.log1p(neutrophils_by_origin)
+
+# %%
+neutrophils_by_origin.obs.sort_values(["dataset", "condition"])
+
+# %%
+deseq2_neutro_luad_lscc = pd.read_csv(
+    "../../data/30_downstream_analyses/de_analysis/luad_lscc/de_deseq2/adata_luad_lscc_neutrophils_DESeq2_result.tsv",
+    sep="\t",
+    index_col=0,
+).set_index("gene_id.1")
+
+# %%
+top_genes = deseq2_neutro_luad_lscc.index[:30]
+sh.pairwise.plot_paired(
+    neutrophils_by_origin,
+    groupby="condition",
+    var_names=top_genes,
+    hue="dataset",
+    show_legend=False,
+    size=5,
+    ylabel="log norm counts",
+    pvalues=deseq2_neutro_luad_lscc.loc[top_genes, "padj"],
+    pvalue_template="DESeq2 FDR={:.3f}",
+    n_cols=10,
+)
+
+# %%

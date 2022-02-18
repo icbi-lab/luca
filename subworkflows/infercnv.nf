@@ -59,7 +59,7 @@ workflow infercnv {
     H5AD_TO_SCE(ch_adatas_by_patient)
 
     RUN_INFERCNVPY(ch_adatas_by_patient)
-    RUN_SCEVAN(H5AD_TO_SCE.out.sce)
+    // RUN_SCEVAN(H5AD_TO_SCE.out.sce)
 }
 
 
