@@ -27,6 +27,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import scanpy_helpers as sh
+import statsmodels.formula.api as smf
 
 # %%
 alt.data_transformers.disable_max_rows()
@@ -348,6 +349,165 @@ adata.obs.loc[
         ),
     )
 )
+
+# %%
+adata.obs.loc[
+    lambda x: (x["origin"] == "tumor_primary")
+    & ~x["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"])
+].groupby(["tumor_stage", "cell_type_coarse"]).size().reset_index(name="n_cells").pipe(
+    lambda x: alt.Chart(x)
+    .mark_bar()
+    .encode(
+        x=alt.X("n_cells", stack="normalize"),
+        y="tumor_stage",
+        color=alt.Color(
+            "cell_type_coarse", scale=sh.colors.altair_scale("cell_type_coarse")
+        ),
+    )
+)
+
+# %% [markdown]
+# ### Compare cell-type fractions between LUAD und LSCC
+
+# %%
+import sccoda.util.cell_composition_data as scc_dat
+import sccoda.util.comp_ana as scc_ana
+import sccoda.util.data_visualization as scc_viz
+
+# %%
+frac_by_condition = (
+    adata.obs.loc[
+        lambda x: (x["origin"] == "tumor_primary")
+        & ~x["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"])
+        & x["condition"].isin(["LUAD", "LSCC"]) # & 
+        # (x["cell_type_coarse"] != "Epithelial cell")
+    ]
+    .groupby(["dataset", "condition", "tumor_stage", "patient"])
+    .apply(lambda x: x.value_counts("cell_type_major", normalize=False))
+    .reset_index(name="n_cells")
+    .assign(condition=lambda x: x["condition"].astype(str))
+)
+
+# %%
+frac_by_condition
+
+# %%
+frac_pivot = frac_by_condition.pivot(
+    index=["patient", "dataset", "condition", "tumor_stage"], columns="cell_type_major", values="n_cells"
+).reset_index()
+
+# %%
+data_all = scc_dat.from_pandas(frac_pivot, covariate_columns=["patient", "dataset", "condition", "tumor_stage"])
+
+# %%
+sccoda_mod = scc_ana.CompositionalAnalysis(data_all, formula="condition + dataset", reference_cell_type="Tumor cells")
+
+# %%
+sscoda_res = sccoda_mod.sample_hmc(num_results = 10000)
+
+# %%
+scc_viz.stacked_barplot(data_all, feature_name="condition")
+
+# %%
+scc_viz.boxplots(data_all, feature_name="condition", figsize=(12, 5))
+
+# %%
+sscoda_res.summary()
+
+# %%
+sscoda_res.credible_effects(est_fdr=0.1).reset_index().head(20)
+
+# %%
+fig, ax = plt.subplots(1, 1, figsize=(5, 8))
+sns.boxplot(
+    x="frac",
+    y="cell_type_coarse",
+    hue="condition",
+    data=frac_by_condition,
+    palette=sh.colors.COLORS.condition,
+    fliersize=0,
+    ax=ax,
+)
+sns.stripplot(
+    x="frac",
+    y="cell_type_coarse",
+    hue="condition",
+    data=frac_by_condition,
+    ax=ax,
+    dodge=True,
+    color="black",
+    size=3,
+    alpha=0.5,
+)
+
+# %%
+results = []
+for ct in adata.obs["cell_type_coarse"].unique():
+    mod = smf.ols(
+        f"Q('{ct}') ~ C(condition) + dataset",
+        data=frac_pivot,
+    )
+    res = mod.fit()
+    results.append(
+        {
+            "cell_type": ct,
+            "pvalue": res.pvalues["C(condition)[T.LUAD]"],
+            "coef": res.params["C(condition)[T.LUAD]"],
+        }
+    )
+
+# %%
+pd.DataFrame(results).sort_values("pvalue")
+
+# %% [markdown]
+# ### Compare cell-type fractions between early and late
+
+# %%
+fig, ax = plt.subplots(1, 1, figsize=(5, 8))
+sns.boxplot(
+    x="frac",
+    y="cell_type_coarse",
+    hue="tumor_stage",
+    data=frac_by_condition,
+    palette=sh.colors.COLORS.tumor_stage,
+    fliersize=0,
+    ax=ax,
+)
+sns.stripplot(
+    x="frac",
+    y="cell_type_coarse",
+    hue="tumor_stage",
+    data=frac_by_condition,
+    ax=ax,
+    dodge=True,
+    color="black",
+    size=3,
+    alpha=0.5,
+)
+
+# %%
+frac_pivot = frac_by_condition.pivot(
+    index=["patient", "dataset", "tumor_stage"], columns="cell_type_coarse", values="frac"
+).reset_index()
+
+# %%
+results = []
+for ct in adata.obs["cell_type_coarse"].unique():
+    mod = smf.ols(
+        f"Q('{ct}') ~ C(tumor_stage) + dataset",
+        data=frac_pivot,
+    )
+    res = mod.fit()
+    results.append(
+        {
+            "cell_type": ct,
+            "pvalue": res.pvalues["C(tumor_stage)[T.late]"],
+            "coef": res.params["C(tumor_stage)[T.late]"],
+        }
+    )
+
+# %%
+pd.DataFrame(results).sort_values("pvalue")
 
 # %% [markdown]
 # ---

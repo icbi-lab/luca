@@ -83,6 +83,8 @@ neutro_sig = c('ADGRG3',
 # These genes are a subset of the above. They are fewer, but even more specific. 
 neutro_sig2 = c('ADGRG3', 'CMTM2', 'CXCR1', 'CXCR2', 'FCGR3B', 'PROK2')
 
+neutro_sig3 = c("CMTM", "PROK2", "ADGRG3")
+
 # These are genes relatively specific for TANs vs. NANs and all other 
 # cell-types based on single-cell data from primary tumor and normal adjacent
 # data
@@ -151,6 +153,7 @@ In TCGA:
 tcga_scores = data.frame(
   sig_neutro=scoring_function(tcga_tpm, neutro_sig), 
   sig_neutro2=scoring_function(tcga_tpm, neutro_sig2),
+  sig_neutro3=scoring_function(tcga_tpm, neutro_sig3),
   sig_tan=scoring_function(tcga_tpm, tan_sig),
   sig_tan2=scoring_function(tcga_tpm, tan_sig2),
   sig_lcam_lo=scoring_function(tcga_tpm, lcam$`LCAM-lo genes`),
@@ -181,6 +184,7 @@ In response data:
   ici_scores = data.frame(
     sig_neutro=scoring_function(ici_tpm, neutro_sig), 
     sig_neutro2=scoring_function(ici_tpm, neutro_sig2),
+    sig_neutro3=scoring_function(ici_tpm, neutro_sig3),
     sig_tan=scoring_function(ici_tpm, tan_sig),
     sig_tan2=scoring_function(ici_tpm, tan_sig2),
     sig_lcam_lo=scoring_function(ici_tpm, lcam$`LCAM-lo genes`),

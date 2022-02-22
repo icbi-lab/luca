@@ -17,8 +17,10 @@ workflow plots_and_comparisons {
             "patient_immune_infiltration_condition",
             "patient_immune_infiltration_treatment_coding",
             "patient_immune_infiltration_treatment_coding_condition",
+            "patient_immune_infiltration_treatment_coding_condition2",
             "luad_lscc",
-            "early_advanced"
+            "early_advanced",
+            "early_advanced_condition",
         ]).map {
             it -> [
                 "comparison": it,

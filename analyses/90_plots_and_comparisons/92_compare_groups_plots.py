@@ -30,8 +30,11 @@ comparisons = [
     "patient_immune_infiltration",
     "patient_immune_infiltration_condition",
     "patient_immune_infiltration_treatment_coding",
+    "patient_immune_infiltration_treatment_coding_condition",
+    "patient_immune_infiltration_treatment_coding_condition2",
     "luad_lscc",
     "early_advanced",
+    "early_advanced_condition"
 ]
 
 # %%
@@ -48,14 +51,23 @@ for comparison in comparisons:
             pass
 
 # %% [markdown]
-# ## Differentially expressed dorothea TFs
-#
-#  * nothing significant for Neutrophils
+# ## Dorothea
+
+# %% [markdown]
+# ### Tumor cells
+
+# %%
+results["luad_lscc"]["dorothea"].loc[lambda x: x["cell_type"] == "Neutrophils", :].pipe(
+    sh.util.fdr_correction
+).pipe(plot_lm_result_altair, title="TFs (tumor cells LUAD/LSCC)")
 
 # %%
 results["luad_lscc"]["dorothea"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
     sh.util.fdr_correction
 ).pipe(plot_lm_result_altair, title="TFs (tumor cells LUAD/LSCC)")
+
+# %% [markdown]
+# ### Neutrophils
 
 # %%
 results["tumor_normal"]["dorothea"].loc[
@@ -70,32 +82,31 @@ results["tumor_normal"]["dorothea"].loc[
 )
 
 # %%
-# pb_dorothea = sh.pseudobulk.pseudobulk(
-#     datasets["tumor_normal"]["dorothea"]["Neutrophils"],
-#     groupby=["dataset", "patient", "origin"],
-#     aggr_fun=np.mean,
-# )
-
-# %%
-# tfoi = results["tumor_normal"]["dorothea"].loc[
-#     lambda x: x["cell_type"] == "Neutrophils", :
-# ]["variable"][:30]
-
-# %%
-# sh.pairwise.plot_paired_fc(
-#     pb_dorothea, groupby="origin", paired_by="patient", metric="diff", var_names=tfoi
-# ).properties(height=150)
-
-# %%
-# sh.pairwise.plot_paired(
-#     pb_dorothea, groupby="origin", paired_by="patient", var_names=tfoi
-# )
+results["early_advanced"]["].loc[
+    lambda x: x["cell_type"] == "Neutrophils", :
+].pipe(sh.util.fdr_correction).pipe(
+    plot_lm_result_altair, title="TFs (Neutrophils tumor/normal)"
+)
 
 # %% [markdown]
-# ## Differentially expressed progeny pathways in tumor cells
+# ## Progeny
 
 # %%
 results["patient_immune_infiltration_treatment_coding"]["progeny"].loc[
+    lambda x: x["cell_type"] == "Tumor cells", :
+].pipe(sh.util.fdr_correction).pipe(
+    plot_lm_result_altair, title="Differential pathways (tumor cells)"
+)
+
+# %%
+results["patient_immune_infiltration_treatment_coding_condition"]["progeny"].loc[
+    lambda x: x["cell_type"] == "Tumor cells", :
+].pipe(sh.util.fdr_correction).pipe(
+    plot_lm_result_altair, title="Differential pathways (tumor cells)"
+)
+
+# %%
+results["patient_immune_infiltration_treatment_coding_condition2"]["progeny"].loc[
     lambda x: x["cell_type"] == "Tumor cells", :
 ].pipe(sh.util.fdr_correction).pipe(
     plot_lm_result_altair, title="Differential pathways (tumor cells)"
@@ -110,12 +121,31 @@ results["luad_lscc"]["progeny"].loc[lambda x: x["cell_type"] == "Tumor cells", :
     p_cutoff=1
 )
 
+# %%
+results["early_advanced"]["progeny"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
+    sh.util.fdr_correction
+).pipe(
+    plot_lm_result_altair,
+    title="Differential pathways (tumor cells)",
+    p_cutoff=1
+)
+
+# %%
+results["early_advanced_condition"]["progeny"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
+    sh.util.fdr_correction
+).pipe(
+    plot_lm_result_altair,
+    title="Differential pathways (tumor cells)",
+    p_cutoff=1
+)
+
 # %% [markdown]
 # ## Differential cytokine signalling in selected cell-types
+# ### Infiltration subtypes
 
 # %%
 tmp_cytosig = (
-    results["patient_immune_infiltration_condition"]["cytosig"]
+    results["patient_immune_infiltration_treatment_coding"]["cytosig"]
     .loc[
         lambda x: x["cell_type"].isin(["Tumor cells", "Stromal", "Endothelial cell"]), :
     ]
@@ -132,25 +162,75 @@ for ct in tmp_cytosig["cell_type"].unique():
         pass
 
 # %%
+tmp_cytosig = (
+    results["patient_immune_infiltration_treatment_coding_condition"]["cytosig"]
+    .loc[
+        lambda x: x["cell_type"].isin(["Tumor cells", "Stromal", "Endothelial cell"]), :
+    ]
+    .pipe(sh.util.fdr_correction)
+)
+
+# %%
+for ct in tmp_cytosig["cell_type"].unique():
+    try:
+        plot_lm_result_altair(
+            tmp_cytosig.loc[lambda x: x["cell_type"] == ct], title=f"Cytosig for {ct}"
+        ).display()
+    except AttributeError:
+        pass
+
+# %%
+tmp_cytosig = (
+    results["patient_immune_infiltration_treatment_coding_condition2"]["cytosig"]
+    .loc[
+        lambda x: x["cell_type"].isin(["Tumor cells", "Stromal", "Endothelial cell"]), :
+    ]
+    .pipe(sh.util.fdr_correction)
+)
+
+# %%
+for ct in tmp_cytosig["cell_type"].unique():
+    try:
+        plot_lm_result_altair(
+            tmp_cytosig.loc[lambda x: x["cell_type"] == ct], title=f"Cytosig for {ct}"
+        ).display()
+    except AttributeError:
+        pass
+
+# %% [markdown]
+# ### LUAD / LUSC
+
+# %%
 results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
     sh.util.fdr_correction
 ).pipe(plot_lm_result_altair, title="Cytosig (tumor cells)")
 
+# %%
+results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Stromal", :].pipe(
+    sh.util.fdr_correction
+).pipe(plot_lm_result_altair, title="Cytosig (stromal cells)")
+
+# %%
+results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Neutrophils", :].pipe(
+    sh.util.fdr_correction
+).pipe(plot_lm_result_altair, title="Cytosig (Neutrophils cells)")
+
 # %% [markdown]
-# ---
+# ### Early/Advanced
 
 # %%
-marker_genes = {}
-for tf in regulons.columns:
-    marker_genes[tf] = regulons[tf][lambda x: x != 0]
+results["early_advanced_condition"]["cytosig"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
+    sh.util.fdr_correction
+).pipe(plot_lm_result_altair, title="Cytosig (Neutrophils cells)")
 
 # %%
-pd.concat(marker_genes).reset_index(name="direction").rename(
-    columns={"level_0": "TF"}
-).to_csv("/home/sturm/Downloads/dorothea_signature.csv")
+results["early_advanced_condition"]["cytosig"].loc[lambda x: x["cell_type"] == "Stromal", :].pipe(
+    sh.util.fdr_correction
+).pipe(plot_lm_result_altair, title="Cytosig (Neutrophils cells)")
 
 # %%
-marker_genes["SOX2"].index.tolist()
+results["early_advanced_condition"]["cytosig"].loc[lambda x: x["cell_type"] == "Neutrophils", :].pipe(
+    sh.util.fdr_correction
+).pipe(plot_lm_result_altair, title="Cytosig (Neutrophils cells)")
 
 # %%
-regulons["SOX2"][lambda x: x != 0]

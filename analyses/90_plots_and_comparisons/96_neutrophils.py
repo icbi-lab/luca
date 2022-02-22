@@ -27,6 +27,7 @@ import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
 import matplotlib
 import altair as alt
+from pathlib import Path
 
 # %%
 sc.settings.set_figure_params(figsize=(5, 5))
@@ -522,6 +523,45 @@ sh.pairwise.plot_paired(
 )
 
 # %% [markdown]
+# ### Signalling
+
+# %%
+interactions_of_interest = pd.read_excel(
+    "../../tables/gene_annotations/neutro_recruitment_chemokines.xlsx"
+)
+
+# %%
+dfs = []
+for p in Path(
+    "../../data/30_downstream_analyses/de_analysis/luad_lscc/de_deseq2/"
+).glob("*.tsv"):
+    cell_type = p.stem.replace("adata_luad_lscc_", "").replace("_DESeq2_result", "")
+    dfs.append(pd.read_csv(p, sep="\t").assign(cell_type=cell_type))
+
+# %%
+selected_de_res = (
+    pd.concat(dfs)
+    .drop("gene_id", axis="columns")
+    .rename(columns={"gene_id.1": "gene"})
+    .loc[lambda x: x["gene"].isin(interactions_of_interest["tme_ligand"])]
+    .loc[lambda x: ~pd.isnull(x["pvalue"])]
+    .pipe(sh.util.fdr_correction)
+    .sort_values("fdr")
+    .copy()
+)
+
+# %%
+selected_de_res.query("gene == 'CSF1
+
+# %%
+selected_de_res.pipe(
+    sh.compare_groups.pl.plot_lm_result_altair,
+    x="gene",
+    y="cell_type",
+    color="log2FoldChange",
+)
+
+# %% [markdown]
 # # VEGFA sources in NSCLC
 
 # %%
@@ -631,10 +671,13 @@ deseq2_neutro_luad_lscc = pd.read_csv(
     "../../data/30_downstream_analyses/de_analysis/luad_lscc/de_deseq2/adata_luad_lscc_neutrophils_DESeq2_result.tsv",
     sep="\t",
     index_col=0,
-).set_index("gene_id.1")
+).sort_values("padj")
 
 # %%
-top_genes = deseq2_neutro_luad_lscc.index[:30]
+top_genes = deseq2_neutro_luad_lscc["gene_id.1"][:30].values
+
+# %%
+top_genes = deseq2_neutro_luad_lscc["gene_id.1"][:30]
 sh.pairwise.plot_paired(
     neutrophils_by_origin,
     groupby="condition",
@@ -643,9 +686,28 @@ sh.pairwise.plot_paired(
     show_legend=False,
     size=5,
     ylabel="log norm counts",
-    pvalues=deseq2_neutro_luad_lscc.loc[top_genes, "padj"],
+    pvalues=deseq2_neutro_luad_lscc.set_index("gene_id.1").loc[top_genes, "padj"],
     pvalue_template="DESeq2 FDR={:.3f}",
     n_cols=10,
 )
+
+# %%
+deseq2_neutro_luad_lscc.iloc[:30].rename(columns={"gene_id.1": "gene"})
+
+# %%
+df = deseq2_neutro_luad_lscc.loc[lambda x: x["padj"] < 0.1].rename(
+    columns={"gene_id.1": "gene"}
+).assign(ymin = lambda x: x["log2FoldChange"] - x["lfcSE"], ymax = lambda x: x["log2FoldChange"] + x["lfcSE"])
+order = df.sort_values("log2FoldChange")["gene"].values.tolist()[::-1]
+(
+    alt.Chart(df)
+    .mark_bar()
+    .encode(
+        x=alt.X("gene", sort=order),
+        y=alt.Y("log2FoldChange", title="log2 fold change"),
+        color=alt.Color("log2FoldChange", scale=alt.Scale(scheme="redblue", reverse=True)),
+    )
+    .properties(height=100)
+) + alt.Chart(df).mark_errorbar().encode(x=alt.X("gene", sort=order), y=alt.Y("ymin:Q", title="log2 fold change"), y2="ymax:Q")
 
 # %%

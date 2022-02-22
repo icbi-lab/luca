@@ -109,6 +109,30 @@ adata_primary_tumor.obs["infiltration_type"] = [
     np.nan if i == "-" else i for i in adata_primary_tumor.obs["immune_infiltration"]
 ]
 
+# %%
+# LSCCness defined as the fraction of tumor cells of all tumor cells that are assigned to one of the LSCC clusters.
+lsccness = (
+    adata_primary_tumor.obs.groupby("patient")
+    .apply(
+        lambda x: np.sum(x["cell_type_tumor"].str.contains("LSCC"))
+        / np.sum(x["cell_type_major"] == "Tumor cells")
+    )
+    .reset_index(name="lsccness")
+    .merge(adata_primary_tumor.obs.loc[:, "patient"].reset_index())
+    .set_index("index")
+)
+
+# %%
+adata_primary_tumor.obs["lsccness"] = lsccness["lsccness"]
+
+# %%
+adata_cpdb.obs["lsccness"] = (
+    adata_primary_tumor.obs.loc[:, ["sample", "lsccness"]]
+    .drop_duplicates()
+    .assign(idx=lambda x: x["sample"].str.lower())
+    .set_index("idx")["lsccness"]
+)
+
 # %% [markdown]
 # # List of comparisons
 
@@ -158,12 +182,14 @@ comparisons = {
         "tools": ["dorothea", "progeny", "cytosig"],
     },
     "patient_immune_infiltration_condition": {
-        "dataset": adata_primary_tumor,
-        "dataset_cpdb": adata_cpdb,
+        "dataset": adata_primary_tumor[
+            ~adata_primary_tumor.obs["lsccness"].isnull(), :
+        ],
+        "dataset_cpdb": adata_cpdb[~adata_cpdb.obs["lsccness"].isnull(), :],
         "cell_type_column": "cell_type_major",
-        "pseudobulk_group_by": ["dataset", "patient", "condition"],
+        "pseudobulk_group_by": ["dataset", "patient", "lsccness"],
         "column_to_test": "immune_infiltration",
-        "lm_covariate_str": "+ dataset + condition",
+        "lm_covariate_str": "+ dataset + lsccness",
         "contrasts": "Sum",
         "tools": ["dorothea", "progeny", "cytosig"],
     },
@@ -178,7 +204,21 @@ comparisons = {
         "tools": ["dorothea", "progeny", "cytosig"],
     },
     "patient_immune_infiltration_treatment_coding_condition": {
-        "dataset": adata_primary_tumor,
+        "dataset": adata_primary_tumor[
+            ~adata_primary_tumor.obs["lsccness"].isnull(), :
+        ],
+        "dataset_cpdb": adata_cpdb[~adata_cpdb.obs["lsccness"].isnull(), :],
+        "cell_type_column": "cell_type_major",
+        "pseudobulk_group_by": ["dataset", "patient", "lsccness"],
+        "column_to_test": "immune_infiltration",
+        "lm_covariate_str": "+ dataset + lsccness",
+        "contrasts": "Treatment('-')",
+        "tools": ["dorothea", "progeny", "cytosig"],
+    },
+    "patient_immune_infiltration_treatment_coding_condition2": {
+        "dataset": adata_primary_tumor[
+            adata_primary_tumor.obs["condition"].isin(["LUAD", "LSCC"]), :
+        ],
         "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient", "condition"],
@@ -202,10 +242,22 @@ comparisons = {
     "early_advanced": {
         "dataset": adata_primary_tumor,
         "cell_type_column": "cell_type_major",
-        "pseudobulk_group_by": ["dataset", "patient", "condition"],
+        "pseudobulk_group_by": ["dataset", "patient"],
         "column_to_test": "tumor_stage",
-        "lm_covariate_str": "+ dataset + condition",
+        "lm_covariate_str": "+ dataset",
         "contrasts": "Treatment('early')",
+        "tools": ["dorothea", "progeny", "cytosig"],
+    },
+    "early_advanced_condition": {
+        "dataset": adata_primary_tumor[
+            ~adata_primary_tumor.obs["lsccness"].isnull(), :
+        ],
+        "cell_type_column": "cell_type_major",
+        "pseudobulk_group_by": ["dataset", "patient", "lsccness"],
+        "column_to_test": "tumor_stage",
+        "lm_covariate_str": "+ dataset + lsccness",
+        "contrasts": "Treatment('early')",
+        "tools": ["dorothea", "progeny", "cytosig"],
     },
 }
 
@@ -219,11 +271,15 @@ comparison_config = comparisons[comparison]
 datasets = compare_groups.prepare_dataset(comparison, n_jobs=cpus, **comparison_config)
 
 # %%
-results = compare_groups.compare_signatures(comparison, datasets, n_jobs=cpus, **comparison_config)
+results = compare_groups.compare_signatures(
+    comparison, datasets, n_jobs=cpus, **comparison_config
+)
 
 # %%
 if "dataset_cpdb" in comparison_config:
-    results["cpdb"] = compare_groups.compare_cpdb(comparison, n_jobs=cpus, **comparison_config)
+    results["cpdb"] = compare_groups.compare_cpdb(
+        comparison, n_jobs=cpus, **comparison_config
+    )
 
 # %%
 for tool, results in results.items():
