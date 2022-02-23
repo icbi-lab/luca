@@ -95,8 +95,7 @@ sc.pl.umap(adata_tumor_normal, color="cell_type")
 
 # %%
 adata_luad_lscc = adata[
-    adata.obs["condition"].isin(["LUAD", "LSCC"])
-    & (adata.obs["origin"] == "tumor_primary"),
+    (adata.obs["origin"] == "tumor_primary"),
     :,
 ].copy()
 
@@ -110,4 +109,4 @@ sc.pl.umap(adata_luad_lscc, color="cell_type")
 adata_tumor_normal.write_h5ad(f"{artifact_dir}/adata_tumor_normal.h5ad")
 
 # %%
-adata_luad_lscc.write_h5ad(f"{artifact_dir}/adata_luad_lscc.h5ad")
+adata_luad_lscc.write_h5ad(f"{artifact_dir}/adata_primary_tumor.h5ad")

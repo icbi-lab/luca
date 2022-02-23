@@ -1,15 +1,19 @@
 include { JUPYTERNOTEBOOK as PREPARE_FOR_DE }  from "../modules/local/jupyternotebook/main.nf"
 include {
     SPLIT_ANNDATA as SPLIT_ANNDATA_TUMOR_NORMAL;
-    SPLIT_ANNDATA as SPLIT_ANNDATA_LUAD_LSCC }  from "../modules/local/scconversion/main.nf"
+    SPLIT_ANNDATA as SPLIT_ANNDATA_LUAD_LSCC;
+    SPLIT_ANNDATA as SPLIT_ANNDATA_EARLY_ADVANCED }  from "../modules/local/scconversion/main.nf"
 include {
     PREPARE_ANNDATA as PREPARE_ANNDATA_TUMOR_NORMAL;
-    PREPARE_ANNDATA as PREPARE_ANNDATA_LUAD_LSCC }  from "../modules/local/scde/main.nf"
+    PREPARE_ANNDATA as PREPARE_ANNDATA_LUAD_LSCC;
+    PREPARE_ANNDATA as PREPARE_ANNDATA_EARLY_ADVANCED }  from "../modules/local/scde/main.nf"
 include {
     MAKE_PSEUDOBULK as MAKE_PSEUDOBULK_TUMOR_NORMAL;
-    MAKE_PSEUDOBULK as  MAKE_PSEUDOBULK_LUAD_LSCC }  from "../modules/local/scde/main.nf"
+    MAKE_PSEUDOBULK as  MAKE_PSEUDOBULK_LUAD_LSCC ;
+    MAKE_PSEUDOBULK as  MAKE_PSEUDOBULK_EARLY_ADVANCED }  from "../modules/local/scde/main.nf"
 include {
     DE_DESEQ2 as DE_DESEQ2_TUMOR_NORMAL;
+    DE_DESEQ2 as DE_DESEQ2_EARLY_ADVANCED;
     DE_DESEQ2 as DE_DESEQ2_LUAD_LSCC }  from "../modules/local/scde/main.nf"
 
 
@@ -58,10 +62,10 @@ workflow de_analysis {
 
     /** LUAD vs. LSCC comparison of pirmary tumor samples **/
     PREPARE_ANNDATA_LUAD_LSCC(
-        ch_prepare_adata.filter{ id, adata -> id == "adata_luad_lscc"},
+        ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
         "X",
         "condition",
-        [["LUAD"], "rest"]
+        [["LUAD"], ["LSCC"]]
     )
     SPLIT_ANNDATA_LUAD_LSCC(
         PREPARE_ANNDATA_LUAD_LSCC.out.adata,
@@ -81,6 +85,34 @@ workflow de_analysis {
             id, counts, samplesheet -> samplesheet.text.count("\n") >= 10
         },
         "condition",
+        "+ dataset"
+    )
+
+    /** Early vs. advanced comparison of pirmary tumor samples **/
+    PREPARE_ANNDATA_EARLY_ADVANCED(
+        ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
+        "X",
+        "tumor_stage",
+        [["early"], ["late"]]
+    )
+    SPLIT_ANNDATA_EARLY_ADVANCED(
+        PREPARE_ANNDATA_EARLY_ADVANCED.out.adata,
+        "cell_type_major"
+    )
+    MAKE_PSEUDOBULK_EARLY_ADVANCED (
+        SPLIT_ANNDATA_EARLY_ADVANCED.out.adata.flatten().map{it -> [it.baseName, it]},
+        "patient",
+        "tumor_stage",
+        [10, true]
+    )
+
+    DE_DESEQ2_EARLY_ADVANCED(
+        // only consider cell-types with at least 10 samples
+        // some samples will fail anyway due to not having a full rank matrix
+        MAKE_PSEUDOBULK_EARLY_ADVANCED.out.pseudobulk.filter{
+            id, counts, samplesheet -> samplesheet.text.count("\n") >= 10
+        },
+        "tumor_stage",
         "+ dataset"
     )
 
