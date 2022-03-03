@@ -22,6 +22,8 @@ import pandas as pd
 from nxfvars import nxfvars
 import numpy as np
 from scanpy_helpers import compare_groups
+import pickle
+import os
 
 sc.settings.set_figure_params(figsize=(5, 5))
 
@@ -286,3 +288,8 @@ for tool, results in results.items():
     results.to_csv(f"{artifact_dir}/{comparison}_{tool}.tsv", sep="\t")
 
 # %%
+for tool, adatas in datasets.items():
+    outdir = f"{artifact_dir}/{comparison}_{tool}"
+    os.makedirs(outdir, exist_ok=True)
+    for ct, ad in adatas.items():
+        ad.write_h5ad(f"{outdir}/{ct}.h5ad")

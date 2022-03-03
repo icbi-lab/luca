@@ -56,7 +56,7 @@ path_adata = nxfvars.get(
 adata = sc.read_h5ad(path_adata)
 
 # %%
-sc.pl.umap(adata, color="cell_type_coarse")
+sc.pl.umap(adata, color=["cell_type_coarse", "origin"])
 
 # %%
 scissor_res_files = {
@@ -64,7 +64,6 @@ scissor_res_files = {
         f"**/scissor_{id}.tsv"
     )
     for id in [
-        # TODO something is wrong with e.g. lambrechts 6149v2_3: the cell ids get lost, but only for survival!
         # "any_status_time",
         "any_tumor_type",
         # "any_tumor_stage",
@@ -144,7 +143,7 @@ sc.pl.umap(
 )
 
 # %% [markdown]
-# Scissor+ cells are associated with late stage or with having the corresponding mutation. 
+# Scissor+ cells are associated with late stage or with having the corresponding mutation.
 
 # %%
 # adata.obs["scissor_tumor_stage"] = [
@@ -307,7 +306,9 @@ def plot_scissor_df_ratio(df, *, title="scissor", fdr_cutoff=0.01):
         .encode(
             x=alt.X("cell_type_major", sort=order),
             y=alt.Y("log2_ratio", scale=alt.Scale(domain=[-13, 13])),
-            color=alt.Color("log2_ratio", scale=alt.Scale(scheme="redblue", domain=[-max_, max_]))
+            color=alt.Color(
+                "log2_ratio", scale=alt.Scale(scheme="redblue", domain=[-max_, max_])
+            )
             # color=alt.Color(
             #     "gini_better", scale=alt.Scale(scheme="magma", reverse=False)
             # ),

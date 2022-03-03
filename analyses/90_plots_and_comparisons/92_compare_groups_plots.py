@@ -20,6 +20,7 @@
 import pandas as pd
 import scanpy_helpers as sh
 from scanpy_helpers.compare_groups.pl import plot_lm_result_altair
+import scanpy as sc
 
 # %%
 tools = ["dorothea", "progeny", "cytosig", "cpdb"]
@@ -34,7 +35,7 @@ comparisons = [
     "patient_immune_infiltration_treatment_coding_condition2",
     "luad_lscc",
     "early_advanced",
-    "early_advanced_condition"
+    "early_advanced_condition",
 ]
 
 # %%
@@ -82,7 +83,7 @@ results["tumor_normal"]["dorothea"].loc[
 )
 
 # %%
-results["early_advanced"]["].loc[
+results["early_advanced"]["dorothea"].loc[
     lambda x: x["cell_type"] == "Neutrophils", :
 ].pipe(sh.util.fdr_correction).pipe(
     plot_lm_result_altair, title="TFs (Neutrophils tumor/normal)"
@@ -115,32 +116,24 @@ results["patient_immune_infiltration_treatment_coding_condition2"]["progeny"].lo
 # %%
 results["luad_lscc"]["progeny"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
     sh.util.fdr_correction
-).pipe(
-    plot_lm_result_altair,
-    title="Differential pathways (tumor cells)",
-    p_cutoff=1
+).pipe(plot_lm_result_altair, title="Differential pathways (tumor cells)", p_cutoff=1)
+
+# %%
+results["early_advanced"]["progeny"].loc[
+    lambda x: x["cell_type"] == "Tumor cells", :
+].pipe(sh.util.fdr_correction).pipe(
+    plot_lm_result_altair, title="Differential pathways (tumor cells)", p_cutoff=1
 )
 
 # %%
-results["early_advanced"]["progeny"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
-    sh.util.fdr_correction
-).pipe(
-    plot_lm_result_altair,
-    title="Differential pathways (tumor cells)",
-    p_cutoff=1
-)
-
-# %%
-results["early_advanced_condition"]["progeny"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
-    sh.util.fdr_correction
-).pipe(
-    plot_lm_result_altair,
-    title="Differential pathways (tumor cells)",
-    p_cutoff=1
+results["early_advanced_condition"]["progeny"].loc[
+    lambda x: x["cell_type"] == "Tumor cells", :
+].pipe(sh.util.fdr_correction).pipe(
+    plot_lm_result_altair, title="Differential pathways (tumor cells)", p_cutoff=1
 )
 
 # %% [markdown]
-# ## Differential cytokine signalling in selected cell-types
+# ## Cytosig 
 # ### Infiltration subtypes
 
 # %%
@@ -201,6 +194,15 @@ for ct in tmp_cytosig["cell_type"].unique():
 # ### LUAD / LUSC
 
 # %%
+ad_cyto_luad_lusc = sc.read_h5ad("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/luad_lscc_cytosig/Tumor cells.h5ad")
+
+# %%
+pb_cyto_laud_lusc = sh.pseudobulk.pseudobulk(ad_cyto_luad_lusc, groupby=["patient", "condition", "dataset"])
+
+# %%
+sh.pairwise.plot_paired(pb_cyto_laud_lusc, "condition", hue="dataset", var_names=["MCSF", "BMP2", "BMP4"], size=2, panel_size=(4, 4))
+
+# %%
 results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
     sh.util.fdr_correction
 ).pipe(plot_lm_result_altair, title="Cytosig (tumor cells)")
@@ -219,18 +221,24 @@ results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Neutrophils", :
 # ### Early/Advanced
 
 # %%
-results["early_advanced_condition"]["cytosig"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
-    sh.util.fdr_correction
-).pipe(plot_lm_result_altair, title="Cytosig (Neutrophils cells)")
+results["early_advanced_condition"]["cytosig"].loc[
+    lambda x: x["cell_type"] == "Tumor cells", :
+].pipe(sh.util.fdr_correction).pipe(
+    plot_lm_result_altair, title="Cytosig (Neutrophils cells)"
+)
 
 # %%
-results["early_advanced_condition"]["cytosig"].loc[lambda x: x["cell_type"] == "Stromal", :].pipe(
-    sh.util.fdr_correction
-).pipe(plot_lm_result_altair, title="Cytosig (Neutrophils cells)")
+results["early_advanced_condition"]["cytosig"].loc[
+    lambda x: x["cell_type"] == "Stromal", :
+].pipe(sh.util.fdr_correction).pipe(
+    plot_lm_result_altair, title="Cytosig (Neutrophils cells)"
+)
 
 # %%
-results["early_advanced_condition"]["cytosig"].loc[lambda x: x["cell_type"] == "Neutrophils", :].pipe(
-    sh.util.fdr_correction
-).pipe(plot_lm_result_altair, title="Cytosig (Neutrophils cells)")
+results["early_advanced_condition"]["cytosig"].loc[
+    lambda x: x["cell_type"] == "Neutrophils", :
+].pipe(sh.util.fdr_correction).pipe(
+    plot_lm_result_altair, title="Cytosig (Neutrophils cells)"
+)
 
 # %%

@@ -68,7 +68,6 @@ sc.pl.umap(adata, color=["cell_type_major", "origin"], ncols=1)
 adata.obs["cell_type_major"].value_counts().sort_index()
 
 # %%
-# # TODO cDC1 is missing; maybe use the new "cell_type_major" annotation
 cell_types = {
     "tumor": ["Tumor cells"],
     "healthy epithelial": [
@@ -86,7 +85,7 @@ cell_types = {
         "Mast cell",
         "Monocyte",
         "NK cell",
-        # "Neutrophils",
+        # "Neutrophils", # Neutrophils are excluded, because they only appear in a few datasets
         "Plasma cell",
         "T cell CD4",
         "T cell CD8",
