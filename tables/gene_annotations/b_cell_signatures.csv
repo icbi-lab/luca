@@ -1,0 +1,28 @@
+# B cell signatures from https://doi.org/10.1016/j.ccell.2022.02.002
+# Table S4
+gene_symbol,signature
+BANK1,Follicular B cells
+LINC00926,Follicular B cells
+FCER2,Follicular B cells
+GAPT,Follicular B cells
+HVCN1,Follicular B cells
+GCSAM,Germinal center B cells
+LRMP,Germinal center B cells
+AICDA,Germinal center B cells
+AC023590.1,Germinal center B cells
+SUSD3,Germinal center B cells
+MZB1,Plasma cells
+DERL3,Plasma cells
+JSRP1,Plasma cells
+TNFRSF17,Plasma cells
+SLAMF7,Plasma cells
+IGHG2,Plasma cells
+IGHGP,Plasma cells
+IGLV3-1,Plasma cells
+IGLV6-57,Plasma cells
+IGHA2,Plasma cells
+IGKV4-1,Plasma cells
+IGKV1-12,Plasma cells
+IGLC7,Plasma cells
+IGLL5,Plasma cells
+
