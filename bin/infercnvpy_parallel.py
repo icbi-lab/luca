@@ -16,7 +16,7 @@ sc.settings.set_figure_params(figsize=(5, 5))
 arg1 = sys.argv[1]
 adata = sc.read_h5ad(arg1)
 
-# TODO
+# TODO this is inefficient. Would be better to read in once and store in anndata before splitting.
 cnv.io.genomic_position_from_gtf(
     "/data/genomes/hg38/annotation/gencode/gencode.v33.primary_assembly.annotation.gtf",
     adata,
