@@ -28,6 +28,7 @@ import statsmodels.formula.api as smf
 import matplotlib
 import altair as alt
 from pathlib import Path
+from tqdm.auto import tqdm
 
 # %%
 sc.settings.set_figure_params(figsize=(5, 5))
@@ -134,17 +135,191 @@ for title, tmp_adata in {
 
 # %%
 adata_t = adata[adata.obs["cell_type"] == "Tumor cells", :].copy()
-adata_n = adata[adata.obs["cell_type_coarse"] == "Neutrophils", :].copy()
+adata_n = adata[
+    (adata.obs["cell_type_coarse"] == "Neutrophils")
+    & (adata.obs["condition"].isin(["LSCC", "LUAD", "NSCLC"])),
+    :,
+].copy()
 
 # %%
-ah.reprocess_adata_subset_scvi(adata_n, use_rep="X_scANVI")
+ah.reprocess_adata_subset_scvi(
+    adata_n, use_rep="X_scANVI", leiden_res=0.5, n_neighbors=15
+)
 
 # %%
 sc.pl.umap(
     adata_n,
-    color=["cell_type", "origin", "condition", "tumor_stage", "sex", "dataset"],
+    color=[
+        "leiden",
+        "origin",
+        "condition",
+        "tumor_stage",
+    ],
     wspace=0.5,
+    ncols=2,
 )
+
+# %%
+sc.pl.umap(
+    adata_n,
+    color=[
+        "cell_type",
+        "leiden",
+        "origin",
+        "condition",
+        "tumor_stage",
+        "sex",
+        "dataset",
+    ],
+    wspace=0.5,
+    ncols=3,
+)
+
+# %% [markdown]
+# ## subclustering
+
+# %%
+sc.pl.umap(
+    adata_n,
+    color=["FCGR3B", "CXCL2", "OLR1", "IFIT1", "CCL3", "CDK1"],
+    cmap="inferno",
+    size=20,
+    ncols=3,
+)
+
+# %%
+patient_fracs = (
+    adata_n.obs.groupby(["leiden"])
+    .apply(lambda x: x["patient"].value_counts(normalize=True))
+    .unstack()
+    .melt(ignore_index=False, var_name="patient", value_name="fraction")
+    .reset_index()
+)
+
+dataset_fracs = (
+    adata_n.obs.groupby(["leiden"])
+    .apply(lambda x: x["dataset"].value_counts(normalize=True))
+    .unstack()
+    .melt(ignore_index=False, var_name="dataset", value_name="fraction")
+    .reset_index()
+)
+
+# %%
+alt.Chart(dataset_fracs).mark_bar().encode(x="fraction", y="leiden", color="dataset")
+
+# %%
+alt.Chart(patient_fracs).mark_bar().encode(x="fraction", y="leiden", color="patient")
+
+# %%
+pb_n = sh.pseudobulk.pseudobulk(adata_n, groupby=["leiden", "patient"])
+
+# %%
+sc.pp.normalize_total(pb_n, target_sum=1e6)
+sc.pp.log1p(pb_n)
+
+# %%
+pb_n = pb_n[pb_n.obs["leiden"] != "7", :].copy()
+
+# %%
+sc.tl.rank_genes_groups(pb_n, groupby="leiden", method="wilcoxon", use_raw=False)
+
+# %%
+sc.pl.rank_genes_groups_matrixplot(pb_n, dendrogram=False)
+
+# %%
+sc.pl.umap(adata_n, color="leiden", legend_loc="on data", legend_fontoutline=2)
+
+# %%
+marker_genes = pd.DataFrame(pb_n.uns["rank_genes_groups"]["names"])
+
+# %%
+# markers from zillionis/klein
+sc.pl.umap(
+    adata_n, color=["IFIT1", "MMP8", "PALD1", "CXCL3", "CTSC", "CCL3"], cmap="inferno"
+)
+
+# %%
+for i, cl in enumerate(pb_n.obs["leiden"].cat.categories):
+    print(f"Leiden: {cl}")
+    sc.pl.umap(
+        adata_n,
+        color=marker_genes.iloc[:5, i].tolist(),
+        cmap="inferno",
+        size=20,
+        ncols=5,
+    )
+
+# %%
+ah.annotate_cell_types(
+    adata_n,
+    {
+        "TAN CTSC": [1],  # antigen presentation; also in zillionis/klein
+        "NAN S100A12": [4],  # also in zillionis/klein
+        "NAN CXCR2": [0],
+        "TAN IFIT": [6],  # also in zillionis/klein
+        "TAN RPL5": [3],
+        "TAN CXCL2": [5, 2],
+    },
+)
+
+# %%
+with plt.rc_context({"figure.dpi": 150}):
+    sc.pl.umap(
+        adata_n,
+        color="cell_type",
+        legend_loc="on data",
+        legend_fontoutline=2,
+        frameon=False,
+        legend_fontsize=10,
+        size=40,
+    )
+
+# %%
+sc.tl.rank_genes_groups(adata_n, "cell_type")
+
+# %%
+sc.pl.umap(
+    adata_n,
+    color=["CXCR2", "S100A12", "CTSC", "CXCL2", "IFIT1", "RPL5"],
+    cmap="inferno",
+    size=20,
+    ncols=3,
+    frameon=False,
+)
+
+# %%
+sc.pl.dotplot(
+    adata_n,
+    var_names=["CXCR2", "S100A12", "CTSC", "CXCL2", "IFIT1", "RPL5"],
+    groupby="cell_type",
+)
+
+# %%
+sc.pl.rank_genes_groups_dotplot(adata_n, dendrogram=False)
+
+# %%
+pb_n = sh.pseudobulk.pseudobulk(adata_n, groupby=["cell_type", "patient"])
+
+# %%
+sc.pp.normalize_total(pb_n, target_sum=1e6)
+sc.pp.log1p(pb_n)
+
+# %%
+pb_n = pb_n[pb_n.obs["cell_type"] != "other", :].copy()
+
+# %%
+sc.tl.rank_genes_groups(pb_n, groupby="cell_type", method="wilcoxon", use_raw=False)
+
+# %%
+sc.pl.matrixplot(
+    pb_n,
+    var_names=["CXCR2", "S100A12", "CTSC", "CXCL2", "IFIT1", "RPL5"],
+    groupby="cell_type",
+    cmap="bwr",
+)
+
+# %%
+sc.pl.rank_genes_groups_matrixplot(pb_n, dendrogram=False, cmap="bwr")
 
 # %% [markdown]
 # ## UKIM-V datasets only
@@ -160,7 +335,38 @@ adata_n_ukimv.obs
 
 # %%
 with plt.rc_context({"figure.figsize": (4, 4), "figure.dpi": 300}):
-    sc.pl.umap(adata_n_ukimv, color="origin", frameon=False, size=20)
+    sc.pl.umap(
+        adata_n,
+        color="origin",
+        frameon=False,
+        size=20,
+        groups=["normal_adjacent", "tumor_metastasis", "tumor_primary"],
+    )
+    sc.pl.umap(adata_n, color="condition", frameon=False, size=20)
+
+# %%
+tmp_df = (
+    adata_n.obs.groupby(["cell_type"])
+    .apply(lambda x: x["origin"].value_counts(normalize=True))
+    .unstack()
+    .melt(var_name="origin", value_name="fraction", ignore_index=False)
+    .reset_index().loc[lambda x: x["cell_type"] != "other"]
+)
+
+# %%
+alt.Chart(tmp_df).mark_bar().encode(x="fraction", y="cell_type", color="origin")
+
+# %%
+tmp_df = (
+    adata_n.obs.groupby(["cell_type"])
+    .apply(lambda x: x["condition"].value_counts(normalize=True))
+    .unstack()
+    .melt(var_name="condition", value_name="fraction", ignore_index=False)
+    .reset_index().loc[lambda x: x["cell_type"] != "other"]
+)
+
+# %%
+alt.Chart(tmp_df).mark_bar().encode(x="fraction", y="cell_type", color="condition")
 
 # %% [markdown]
 # # DE analysis tumor normal
@@ -290,8 +496,19 @@ sh.pairwise.plot_paired_fc(
     layer="cpm",
 ).properties(height=150)
 
+# %%
+sc.pl.umap(
+    adata_n,
+    color=deseq2_res_tumor_normal.sort_values("padj").index.values[:30],
+    cmap="inferno",
+    size=20,
+    ncols=5,
+)
+
 # %% [markdown]
-# # neutro fractions by tumor type
+# # LUAD vs. LSCC
+#
+# ## Neutro fractions
 
 # %%
 ct_fractions = (
@@ -358,62 +575,8 @@ res = mod.fit()
 # %%
 res.pvalues
 
-# %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
-# # T cell fractions by tumor type
-
-# %%
-tcell_fractions = ct_fractions.loc[lambda x: x["cell_type"].isin(["T cell CD8"]), :]
-
-# %%
-datasets_with_tcells = (
-    tcell_fractions.groupby("dataset")
-    .apply(lambda x: np.sum(x["fraction"]) > 0)
-    .where(lambda x: x)
-    .dropna()
-    .index.tolist()
-)
-
-# %%
-tcell_subset = tcell_fractions.loc[
-    lambda x: (
-        x["dataset"].isin(datasets_with_tcells) & x["condition"].isin(["LUAD", "LSCC"])
-    ),
-    :,
-].sort_values("fraction", ascending=False)
-tcell_subset.head()
-
-# %%
-fig, ax = plt.subplots()
-
-tcell_subset["condition"] = tcell_subset["condition"].astype(str)
-tcell_subset["dataset"] = tcell_subset["dataset"].astype(str)
-
-sns.stripplot(
-    data=tcell_subset,
-    x="condition",
-    y="fraction",
-    hue="dataset",
-    ax=ax,
-    size=7,
-    linewidth=2,
-)
-sns.boxplot(
-    data=tcell_subset, x="condition", y="fraction", ax=ax, width=0.5, fliersize=0
-)
-ax.legend(bbox_to_anchor=(1.1, 1.05))
-
-# %%
-mod = smf.ols("fraction ~ C(condition) + dataset", data=tcell_subset)
-res = mod.fit()
-
-# %%
-res.summary()
-
-# %%
-res.pvalues["C(condition)[T.LUAD]"]
-
 # %% [markdown]
-# # neutro recruitment signature (LSCC vs. LUAD) 
+# ## neutro recruitment signature (LSCC vs. LUAD) 
 
 # %%
 recruitment_genes = [
@@ -428,6 +591,7 @@ recruitment_genes = [
     # "IL17A", (<10 reads)
     "TNF",
     "LTA",
+    "CSF1",
     "CSF2",
     "CSF3",
     "CCL2",
@@ -439,7 +603,7 @@ recruitment_genes = [
 
 # %%
 deseq2_res_luad_lscc = pd.read_csv(
-    "../../data/30_downstream_analyses/de_analysis/luad_lscc/de_deseq2/adata_luad_lscc_tumor_cells_DESeq2_result.tsv",
+    "../../data/30_downstream_analyses/de_analysis/luad_lscc/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
     sep="\t",
     index_col=0,
 ).set_index("gene_id.1")
@@ -535,7 +699,7 @@ dfs = []
 for p in Path(
     "../../data/30_downstream_analyses/de_analysis/luad_lscc/de_deseq2/"
 ).glob("*.tsv"):
-    cell_type = p.stem.replace("adata_luad_lscc_", "").replace("_DESeq2_result", "")
+    cell_type = p.stem.replace("adata_primary_tumor_", "").replace("_DESeq2_result", "")
     dfs.append(pd.read_csv(p, sep="\t").assign(cell_type=cell_type))
 
 # %%
@@ -551,9 +715,6 @@ selected_de_res = (
 )
 
 # %%
-selected_de_res.query("gene == 'CSF1
-
-# %%
 selected_de_res.pipe(
     sh.compare_groups.pl.plot_lm_result_altair,
     x="gene",
@@ -562,7 +723,7 @@ selected_de_res.pipe(
 )
 
 # %% [markdown]
-# # VEGFA sources in NSCLC
+# # early vs late
 
 # %%
 adata_primary = sh.pseudobulk.pseudobulk(
@@ -571,11 +732,24 @@ adata_primary = sh.pseudobulk.pseudobulk(
         & ~adata.obs["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"]),
         :,
     ].copy(),
-    groupby=["dataset", "patient", "cell_type_major"],
+    groupby=["dataset", "patient", "condition", "tumor_stage", "cell_type_major"],
     min_obs=20,
 )
 sc.pp.normalize_total(adata_primary, target_sum=1e6)
 sc.pp.log1p(adata_primary)
+
+# %%
+sh.pairwise.plot_paired(
+    adata_primary[adata_primary.obs["cell_type_major"] == "Neutrophils", :],
+    groupby="tumor_stage",
+    var_names=["IGHA2", "DDX3Y"],
+    ylabel="log norm counts",
+    hue="dataset",
+    panel_size=(7, 4),
+)
+
+# %% [markdown]
+# # VEGFA sources in NSCLC
 
 # %%
 pd.set_option("display.max_rows", 200)
@@ -695,9 +869,14 @@ sh.pairwise.plot_paired(
 deseq2_neutro_luad_lscc.iloc[:30].rename(columns={"gene_id.1": "gene"})
 
 # %%
-df = deseq2_neutro_luad_lscc.loc[lambda x: x["padj"] < 0.1].rename(
-    columns={"gene_id.1": "gene"}
-).assign(ymin = lambda x: x["log2FoldChange"] - x["lfcSE"], ymax = lambda x: x["log2FoldChange"] + x["lfcSE"])
+df = (
+    deseq2_neutro_luad_lscc.loc[lambda x: x["padj"] < 0.1]
+    .rename(columns={"gene_id.1": "gene"})
+    .assign(
+        ymin=lambda x: x["log2FoldChange"] - x["lfcSE"],
+        ymax=lambda x: x["log2FoldChange"] + x["lfcSE"],
+    )
+)
 order = df.sort_values("log2FoldChange")["gene"].values.tolist()[::-1]
 (
     alt.Chart(df)
@@ -705,9 +884,60 @@ order = df.sort_values("log2FoldChange")["gene"].values.tolist()[::-1]
     .encode(
         x=alt.X("gene", sort=order),
         y=alt.Y("log2FoldChange", title="log2 fold change"),
-        color=alt.Color("log2FoldChange", scale=alt.Scale(scheme="redblue", reverse=True)),
+        color=alt.Color(
+            "log2FoldChange", scale=alt.Scale(scheme="redblue", reverse=True)
+        ),
     )
     .properties(height=100)
-) + alt.Chart(df).mark_errorbar().encode(x=alt.X("gene", sort=order), y=alt.Y("ymin:Q", title="log2 fold change"), y2="ymax:Q")
+) + alt.Chart(df).mark_errorbar().encode(
+    x=alt.X("gene", sort=order),
+    y=alt.Y("ymin:Q", title="log2 fold change"),
+    y2="ymax:Q",
+)
 
 # %%
+
+# %% [markdown]
+# ---
+
+# %%
+signature_genes = []
+for cl in tqdm(pb_n.obs["leiden"].unique()):
+    signature_genes.append(
+        pd.DataFrame().assign(
+            gene_symbol=pb_n.var_names,
+            fold_change=sh.signatures.fold_change(
+                pb_n, obs_col="leiden", positive_class=cl, inplace=False
+            ),
+            specific_fold_change=sh.signatures.specific_fold_change(
+                pb_n, obs_col="leiden", positive_class=cl, inplace=False
+            ),
+            roc_auc=sh.signatures.roc_auc(
+                pb_n, obs_col="leiden", positive_class=cl, inplace=False
+            ),
+            leiden=cl,
+        )
+    )
+
+# %%
+signature_genes_df = (
+    pd.concat(signature_genes)
+    .loc[
+        lambda x: (x["fold_change"] > 0.5)
+        & (x["specific_fold_change"] > 0.5)
+        & (x["roc_auc"] > 0.7)
+    ]
+    .sort_values(["roc_auc", "specific_fold_change"], ascending=False)
+    .groupby("leiden")
+    .apply(lambda x: x.head(10))
+)
+
+# %%
+gene_dict_for_plot = {}
+for leiden in signature_genes_df["leiden"].unique():
+    gene_dict_for_plot[leiden] = signature_genes_df.loc[
+        lambda x: x["leiden"] == leiden
+    ]["gene_symbol"].tolist()
+
+# %%
+signature_genes_df
