@@ -1,0 +1,82 @@
+# Different Neutrophil signatures derived from comparison of Neutrophils with all other clusters
+# and by comparing TANs with NANs.
+#
+# neutro_sig: These are genes highly specific for the Neutrophil cluster in primary tumor samples
+# neutro_sig2: These genes are a subset of the above. They are fewer, but even more specific.
+# neutro_sig3: Only the canonical marker gene
+# sig_pd1: PD1 expression signature
+# tan_sig: |
+#   These are genes relatively specific for TANs vs. NANs and all other cell-types based on single-cell data
+#   from primary tumor and normal adjacent data
+# tan_sig2: |
+#   These are the top genes differentially expressed between TANs and NANs
+#   They are not necessarily specific for the Neutrophil cluster.
+gene_symbol,signature
+ADGRG3,neutro_sig
+BCL6,neutro_sig
+CMTM2,neutro_sig
+CSF3R,neutro_sig
+CXCR1,neutro_sig
+CXCR2,neutro_sig
+FCGR3B,neutro_sig
+FFAR2,neutro_sig
+HCAR3,neutro_sig
+IFITM2,neutro_sig
+IL1R2,neutro_sig
+IVNS1ABP,neutro_sig
+LITAF,neutro_sig
+MBD6,neutro_sig
+MX2,neutro_sig
+NAMPT,neutro_sig
+NSMAF,neutro_sig
+PROK2,neutro_sig
+R3HDM4,neutro_sig
+RNF149,neutro_sig
+SLC25A37,neutro_sig
+SMCHD1,neutro_sig
+TRIB1,neutro_sig
+TRIM25,neutro_sig
+USP15,neutro_sig
+ADGRG3,neutro_sig2
+CMTM2,neutro_sig2
+CXCR1,neutro_sig2
+CXCR2,neutro_sig2
+FCGR3B,neutro_sig2
+PROK2,neutro_sig2
+FCGR3B,neutro_sig3
+PDCD1,sig_pd1
+ADGRG3,tan_sig
+BCL2A1,tan_sig
+CLEC4E,tan_sig
+DDX60L,tan_sig
+GK,tan_sig
+HCAR3,tan_sig
+IER3,tan_sig
+ITGAX,tan_sig
+LCP2,tan_sig
+LILRA2,tan_sig
+NFKBIZ,tan_sig
+NSMAF,tan_sig
+PHACTR1,tan_sig
+PPIF,tan_sig
+SLC11A1,tan_sig
+PLIN2,tan_sig2
+OLR1,tan_sig2
+TNFSF15,tan_sig2
+CISH,tan_sig2
+P4HA1,tan_sig2
+CDKN1A,tan_sig2
+ACVR1B,tan_sig2
+LINC00847,tan_sig2
+HSD17B4,tan_sig2
+HIC1,tan_sig2
+SEMA7A,tan_sig2
+CD22,tan_sig2
+TGM2,tan_sig2
+BHLHE40,tan_sig2
+VPS18,tan_sig2
+IL18BP,tan_sig2
+FAM210A,tan_sig2
+RALGDS,tan_sig2
+C3AR1,tan_sig2
+CBFA2T2,tan_sig2
