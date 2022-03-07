@@ -39,6 +39,9 @@ workflow scissor {
         Channel.from(
             [
                 "--column tumor_stage",
+                "--column response_to_chemotherapy",
+                "--tumor_type LUAD --column response_to_chemotherapy",
+                "--tumor_type LUAD --column response_to_chemotherapy",
                 // // "--column kras_mutation",
                 // // "--column braf_mutation",
                 // // "--column egfr_mutation",
@@ -49,14 +52,16 @@ workflow scissor {
                 // "--tumor_type LUAD --column egfr_mutation",
                 // "--tumor_type LUAD --column tumor_stage",
                 // "--tumor_type LUAD --column tp53_mutation",
-                // "--tumor_type LUAD --column random",
+                "--tumor_type LUAD --column stk11_mutation",
+                "--tumor_type LUAD --column random",
                 // "--tumor_type LUAD --surv_time time --surv_status status",
                 // "--tumor_type LUSC --column kras_mutation",
                 // "--tumor_type LUSC --column braf_mutation",
                 // "--tumor_type LUSC --column egfr_mutation",
                 // "--tumor_type LUSC --column tp53_mutation",
                 // "--tumor_type LUSC --column tumor_stage",
-                // "--tumor_type LUSC --column random",
+                "--tumor_type LUSC --column stk11_mutation",
+                "--tumor_type LUSC --column random",
                 // "--tumor_type LUSC --surv_time time --surv_status status"
             ]
         )

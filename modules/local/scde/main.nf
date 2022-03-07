@@ -4,7 +4,8 @@ nextflow.enable.dsl = 2
 
 process PREPARE_ANNDATA {
     cpus 1
-    conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
+    container "${baseDir}/containers/seuratdisk.sif"
+    // conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
 
     input:
     tuple val(id), path(input_adata)
@@ -75,7 +76,8 @@ process PREPARE_ANNDATA {
 
 process MAKE_PSEUDOBULK {
     cpus 1
-    conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
+    container "${baseDir}/containers/seuratdisk.sif"
+    // conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
 
     input:
     tuple val(id), path(input_adata)
@@ -165,7 +167,8 @@ process DE_DESEQ2 {
      * For standard pseudobulk analysis
      */
     cpus 2
-    conda "/data/scratch/sturm/conda/envs/2020-pircher-deseq2"
+    container "${baseDir}/containers/deseq2.sif"
+    // conda "/data/scratch/sturm/conda/envs/2020-pircher-deseq2"
 
     input:
     tuple val(id), path(counts), path(samplesheet)
@@ -197,7 +200,8 @@ process DE_DREAM {
      * by the experimental design
      */
     cpus 1
-    conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
+    // conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
+    container "${baseDir}/containers/seuratdisk.sif"
 
     input:
     tuple val(id), path(counts), path(samplesheet)
