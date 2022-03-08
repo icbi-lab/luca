@@ -101,6 +101,9 @@ clinical_data = read_excel("../../tables/tcga/mmc1.xlsx", guess_max=1000000, na=
     stk11_mutation = if_else(TCGA_patient_barcode %in% read_tsv("../../tables/tcga/stk11_mutated.tsv")$case_submitter_id, 1, 0),
     tumor_type = if_else(type == "LUAD", 0, 1),
     random = if_else(runif(nrow(.)) < 0.25, 1, 0)
+  ) %>%
+  mutate(
+    stk11_kras_mutation = stk11_mutation * kras_mutation
   )
 ```
 
