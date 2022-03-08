@@ -5,11 +5,12 @@ output: html_document
 
 ```{r}
 library(readr)
+library(ggbeeswarm)
 conflict_prefer("filter", "dplyr")
 ```
 
 ```{r}
-cpdb = read_tsv("~/Downloads/differential_signature_patient_immune_infiltration_cpdb.tsv")
+cpdb = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_treatment_coding_cpdb.tsv")
 # cpdb = read_tsv("~/Downloads/differential_signature_infiltration_status_cpdb.tsv")
 
 chr5 = read_tsv("~/Downloads/cna_lung/chr5.tsv", col_names = c("i", "ensg", "start", "end", "strand", "hgnc", "chr"), skip=1)
@@ -19,15 +20,15 @@ chr20 = read_tsv("~/Downloads/cna_lung/chr20.tsv", col_names = c("i", "ensg", "s
 ```
 
 ```{r}
-chr5_interactions = cpdb |> filter(source %in% chr5$hgnc, cluster_1 == "Tumor cells")
+chr5_interactions = cpdb |> filter(source %in% chr5$hgnc, cluster_1 == "Tumor cells") 
 
 chr13_interactions = cpdb |> filter(source %in% chr13$hgnc, cluster_1 == "Tumor cells") 
 
-chr20_interactions = cpdb |> filter(source %in% chr20$hgnc, cluster_1 == "Tumor cells") 
+chr20_interactions = cpdb |> filter(source %in% chr20$hgnc, cluster_1 == "Tumor cells")
 ```
 
 ```{r}
-choose_interactions = function(df, fdr_cutoff = 0.3) {
+choose_interactions = function(df, fdr_cutoff = 0.1) {
   source_genes = df |> filter(fdr < fdr_cutoff) |> pull(source) |> unique()
   df |> filter(source %in% source_genes, cluster_2 %in% c("cDC1", "cDC2", "pDC"))
 }
@@ -45,6 +46,6 @@ chr13_interactions |> choose_interactions() |>  ggplot(aes(x=group, y=coef)) +  
 ```
 
 ```{r, fig.width=4, fig.height=4}
-chr20_interactions |> filter(fdr < 0.5) |>  ggplot(aes(x=group, y=coef)) +  geom_hline(yintercept=0) + geom_quasirandom(aes(color=group)) + geom_boxplot(width=0.2, outlier.alpha = 0)
+chr20_interactions |>  choose_interactions() |>  ggplot(aes(x=group, y=coef)) +  geom_hline(yintercept=0) + geom_quasirandom(aes(color=group)) + geom_boxplot(width=0.2, outlier.alpha = 0)
 
 ```

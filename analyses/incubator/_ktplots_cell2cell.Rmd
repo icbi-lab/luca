@@ -151,19 +151,14 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
 ```
 
 ```{r, include=FALSE}
-cpdb_early_advanced = read_tsv("/home/sturm/Downloads/differential_signature_early_advanced_cpdb.tsv")
-cpdb_luad_lscc = read_tsv("/home/sturm/Downloads/differential_signature_luad_lscc_cpdb.tsv")
-cpdb_infiltration_status = read_tsv("/home/sturm/Downloads/differential_signature_infiltration_status_cpdb.tsv")
+cpdb_luad_lscc = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/luad_lscc_cpdb.tsv")
 
-# nothing to see here
-# cpdb_infiltration_type = read_tsv("/home/sturm/Downloads/differential_signature_infiltration_type_cpdb.tsv")
+cpdb_infiltration = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_cpdb.tsv")
+cpdb_infiltration_treatment_condition = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_treatment_coding_condition_cpdb.tsv")
 
-cpdb_infiltration = read_tsv("/home/sturm/Downloads/differential_signature_patient_immune_infiltration_cpdb.tsv")
-cpdb_tumor_normal = read_tsv("/home/sturm/Downloads/differential_signature_tumor_normal_cpdb.tsv")
+cpdb_tumor_normal = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/tumor_normal_cpdb.tsv")
 
-cpdb_cell_types = read_tsv("/home/sturm/Downloads/differential_signature_cell_types_cpdb.tsv")
-
-cytosig = read_tsv("/home/sturm/Downloads/differential_signature_patient_immune_infiltration_cytosig.tsv")
+cytosig = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_cytosig.tsv")
 ```
 
 ## Explanation of the plots
@@ -179,7 +174,7 @@ cytosig = read_tsv("/home/sturm/Downloads/differential_signature_patient_immune_
 Comparison between early and advanced tumor stages. Red = upregulated in advanced, blue = upregulated in early. 
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_early_advanced |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
+# cpdb_early_advanced |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
 ```
 
 ### LUAD LSCC
@@ -187,11 +182,11 @@ cpdb_early_advanced |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
 Comparison of LUAD and LSCC samples. Blue = Upregulated in LUAD, Red = upregulated in LSCC
 
 ```{r, fig.width=20, fig.height=12, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lscc |> filter(abs(log2_fc) > 1, fdr < 0.2,  cluster_2 == "Neutrophils") |> cpdb_plot(edge_color = "abs(log10(fdr))", edge_color_scale=scale_edge_color_viridis())
+cpdb_luad_lscc |> filter(abs(log2_fc) > 1, fdr < 0.1,  cluster_2 == "Neutrophils") |> cpdb_plot(edge_color = "abs(log10(fdr))", edge_color_scale=scale_edge_color_viridis())
 ```
 
 ```{r, fig.width=14, fig.height=8, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lscc |> filter(abs(log2_fc) > 1, cluster_2 == "B cell") |> filter(fdr < 0.33) |> cpdb_plot()
+cpdb_luad_lscc |> filter(abs(log2_fc) > 1, cluster_2 == "B cell") |> filter(fdr < 0.1) |> cpdb_plot()
 ```
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
@@ -213,7 +208,7 @@ cpdb_luad_lscc |> filter(abs(log2_fc) > 1, fdr < 0.1,  cluster_1 == "Neutrophils
 Comparison of "infiltration status", i.e. immune desert vs. infiltrated (all three groups). 
 Blue = interaction increased in desert, Red = interaction increased in infiltration. 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_infiltration_status |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
+# cpdb_infiltration_status |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
 ```
 
 ### Infiltration status (only tumor and structural cells)
@@ -221,7 +216,7 @@ cpdb_infiltration_status |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
 Same as above, but only focusing on ligands on Tumor, stromal and endothelial cells. 
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_infiltration_status |> filter(abs(log2_fc) > 1, cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell")) |> head(100) |> cpdb_plot()
+# cpdb_infiltration_status |> filter(abs(log2_fc) > 1, cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell")) |> head(100) |> cpdb_plot()
 ```
 
 ### Infiltration type (originating from Tumor, stromal, endothelial cells)
@@ -241,6 +236,17 @@ mutate(fdr=p.adjust(pvalue, method="fdr")) |>
   cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
 ```
 
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+
+cpdb_infiltration_treatment_condition |> rename(variable=`...1`) |>
+  filter(log2_fc > 1) |>
+  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |> 
+mutate(fdr=p.adjust(pvalue, method="fdr")) |> 
+  group_by(group) |> 
+  filter(row_number() < 20) |>  
+  ungroup() |> 
+  cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
+```
 
 ### Tumor vs normal
 
@@ -285,7 +291,7 @@ neutro_genes_of_interest = read_excel("../../tables/gene_annotations/neutro_recr
 <!-- ``` -->
 
 ## Selected interactions (Neutrophils)
-```{r, fig.width=13, fig.height=7, message=FALSE, warning=FALSE, results=FALSE}
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 neutro_goi = c(neutro_genes_of_interest$`TME Ligand`, neutro_genes_of_interest$`(neutrophil) receptor`)
 
 cpdb_luad_lscc |> filter(
