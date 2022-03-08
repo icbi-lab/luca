@@ -84,6 +84,7 @@ workflow annotate_dataset {
     )
     ch_atlas = EXPORT_ATLAS.out.artifacts.flatten().filter{ it -> it.baseName.equals("full_atlas_annotated") }
 
+    // re-compute model on final atlas, to be used as reference for scArches
     SCVI(
         ch_atlas.map{ it -> ['full_atlas', it]},
         1,
