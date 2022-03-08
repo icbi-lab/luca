@@ -31,22 +31,34 @@ import sccoda.util.data_visualization as scc_viz
 # %%
 alt.data_transformers.disable_max_rows()
 
+# %% [markdown]
+# # Input data
+
 # %%
 sc.set_figure_params(figsize=(5, 5))
 
 # %%
-artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
-
-# %%
-main_adata = nxfvars.get(
+cell_type_column = nxfvars.get("cell_type_column", "cell_type_major")
+reference_cell_type = nxfvars.get("reference_cell_type", "Tumor cells")
+# Using 500k MCMC iterations. With fewer (tested up to 100k) the results differed 
+# due to limited random sampling. 
+mcmc_iterations = nxfvars.get("mcmc_iterations", 500000)
+main_adata_file = nxfvars.get(
     "main_adata",
     "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad",
 )
+artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
+
 
 # %%
-adata = sc.read_h5ad(main_adata)
+adata = sc.read_h5ad(main_adata_file)
+
+# %% [markdown]
+# # Cell-type fractions
 
 # %%
+# only on primary tumor samples; 
+# exclude datasets with only a single cell-type
 frac_by_condition = (
     adata.obs.loc[
         lambda x: (x["origin"] == "tumor_primary")
@@ -54,7 +66,7 @@ frac_by_condition = (
         & x["condition"].isin(["LUAD", "LSCC"])
     ]
     .groupby(["dataset", "condition", "tumor_stage", "patient"])
-    .apply(lambda x: x.value_counts("cell_type_major", normalize=False))
+    .apply(lambda x: x.value_counts(cell_type_column, normalize=False))
     .reset_index(name="n_cells")
     .assign(condition=lambda x: x["condition"].astype(str))
 )
@@ -62,7 +74,7 @@ frac_by_condition = (
 # %%
 frac_pivot = frac_by_condition.pivot(
     index=["patient", "dataset", "condition", "tumor_stage"],
-    columns="cell_type_major",
+    columns=cell_type_column,
     values="n_cells",
 ).reset_index()
 
@@ -78,6 +90,9 @@ scc_viz.boxplots(data_all, feature_name="condition", figsize=(12, 5))
 scc_viz.stacked_barplot(data_all, feature_name="condition")
 
 
+# %% [markdown]
+# # scCODA
+
 # %%
 def run_sccoda(sccoda_data, reference_cell_type, n):
     sccoda_mod = scc_ana.CompositionalAnalysis(
@@ -89,48 +104,8 @@ def run_sccoda(sccoda_data, reference_cell_type, n):
     return sccoda_res
 
 
-# %% [markdown]
-# ## Tumor cells as reference cell-type
-#
-# Using 500k MCMC iterations. With fewer (tested up to 100k) the results differed 
-# due to limited random sampling. 
-
 # %%
-res_tumor_ref2 = run_sccoda(data_all, "Tumor cells", 500000)
-
-# %%
-credible_effects_condition = res_tumor_ref2.credible_effects(est_fdr=0.1)["condition[T.LUAD]"]
-credible_effects_stage = res_tumor_ref2.credible_effects(est_fdr=0.1)["tumor_stage[T.late]"]
-
-# %%
-(alt.Chart(
-    res_tumor_ref2.effect_df.loc["condition[T.LUAD]"]
-    .loc[credible_effects_condition].reset_index(),
-    title="condition",
-).mark_bar().encode(
-    x=alt.X("Cell Type", sort="y"),
-    y="log2-fold change",
-    color=alt.Color("Cell Type"),
-) | alt.Chart(
-    res_tumor_ref2.effect_df.loc["tumor_stage[T.late]"]
-    .loc[credible_effects_stage]
-    .reset_index(),
-    title="tumor_stage",
-).mark_bar().encode(
-    x=alt.X("Cell Type", sort="y"),
-    y="log2-fold change",
-    color=alt.Color("Cell Type"),
-)).resolve_scale(y="shared")
-
-# %%
-res_tumor_ref2.effect_df.loc["condition[T.LUAD]"]
-
-# %% [markdown]
-# ## Stromal cells as reference
-# (for comparison)
-
-# %%
-res_tumor_ref2 = run_sccoda(data_all, "Stromal", 500000)
+res_tumor_ref2 = run_sccoda(data_all, reference_cell_type, mcmc_iterations)
 
 # %%
 credible_effects_condition = res_tumor_ref2.credible_effects(est_fdr=0.1)["condition[T.LUAD]"]

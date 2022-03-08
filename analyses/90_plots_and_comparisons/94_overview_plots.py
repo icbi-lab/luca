@@ -28,6 +28,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import scanpy_helpers as sh
 import statsmodels.formula.api as smf
+from tqdm.contrib.concurrent import process_map
+import itertools
+import progeny
+import dorothea
 
 # %%
 alt.data_transformers.disable_max_rows()
@@ -107,8 +111,8 @@ ch + (ch).mark_text(align="left", dx=3).encode(
 def process_subset(mask):
     print(np.sum(mask))
     adata_sub = adata[mask, :].copy()
-    sc.pp.neighbors(adata_sub, use_rep="X_scANVI")
-    sc.tl.umap(adata_sub)
+    # sc.pp.neighbors(adata_sub, use_rep="X_scANVI")
+    # sc.tl.umap(adata_sub)
     return adata_sub
 
 
@@ -118,7 +122,7 @@ adatas = {
     for label, ct in {
         "epithelial": (adata.obs["cell_type_coarse"] == "Epithelial cell")
         & (adata.obs["cell_type_major"] != "other"),
-        "tumor": (adata.obs["cell_type"] == "Tumor cells"),
+        "tumor": (adata.obs["cell_type_major"] == "Tumor cells") & (adata.obs["cell_type_tumor"] != "Club"),
         "immune": adata.obs["cell_type_coarse"].isin(
             [
                 "T cell",
@@ -137,6 +141,83 @@ adatas = {
         ),
     }.items()
 }
+
+# %% [markdown]
+# ### Tumor stages
+
+# %%
+adata.obs.loc[:, ["dataset", "patient", "tumor_stage"]].drop_duplicates().groupby(["dataset", "tumor_stage"]).size().unstack()
+
+# %% [markdown]
+# ### Progeny and dorothea for tumor cell clusters
+
+# %%
+model = progeny.load_model(
+    organism="Human",  # If working with mouse, set to Mouse
+    top=1000,  # For sc we recommend ~1k target genes since there are dropouts
+)
+
+# %%
+progeny.run(
+    adatas["tumor"],  # Data to use
+    model,  # PROGENy network
+    center=True,  # Center gene expression by mean per cell
+    num_perm=100,  # Simulate m random activities
+    norm=True,  # Normalize by number of edges to correct for large regulons
+    scale=True,  # Scale values per feature so that values can be compared across cells
+    use_raw=True,  # Use raw adata, where we have the lognorm gene expression
+    min_size=5,  # Pathways with less than 5 targets will be ignored
+)
+
+# %%
+regulons = dorothea.load_regulons(
+    [
+        "A",
+        "B",
+    ],  # Which levels of confidence to use (A most confident, E least confident)
+    organism="Human",  # If working with mouse, set to Mouse
+)
+
+# %%
+dorothea.run(
+    adatas["tumor"],  # Data to use
+    regulons,  # Dorothea network
+    center=True,  # Center gene expression by mean per cell
+    num_perm=100,  # Simulate m random activities
+    norm=True,  # Normalize by number of edges to correct for large regulons
+    scale=True,  # Scale values per feature so that values can be compared across cells
+    use_raw=True,  # Use raw adata, where we have the lognorm gene expression
+    min_size=5,  # TF with less than 5 targets will be ignored
+)
+
+# %%
+ad_tumor_progeny = progeny.extract(adatas["tumor"])
+
+# %%
+sc.pl.matrixplot(
+    ad_tumor_progeny,
+    var_names=ad_tumor_progeny.var_names,
+    groupby="cell_type_tumor",
+    cmap="bwr",
+    vmin=-1,
+    vmax=1,
+)
+
+# %%
+ad_tumor_dorothea = dorothea.extract(adatas["tumor"])
+
+# %%
+sc.pl.matrixplot(
+    ad_tumor_dorothea,
+    var_names=ad_tumor_dorothea.var_names,
+    groupby="cell_type_tumor",
+    cmap="bwr",
+    vmin=-3,
+    vmax=3,
+)
+
+# %% [markdown]
+# ### UMAP plots
 
 # %%
 with plt.rc_context({"figure.figsize": (8, 8), "figure.dpi": 300}):
@@ -365,149 +446,6 @@ adata.obs.loc[
         ),
     )
 )
-
-# %% [markdown]
-# ### Compare cell-type fractions between LUAD und LSCC
-
-# %%
-import sccoda.util.cell_composition_data as scc_dat
-import sccoda.util.comp_ana as scc_ana
-import sccoda.util.data_visualization as scc_viz
-
-# %%
-frac_by_condition = (
-    adata.obs.loc[
-        lambda x: (x["origin"] == "tumor_primary")
-        & ~x["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"])
-        & x["condition"].isin(["LUAD", "LSCC"]) # & 
-        # (x["cell_type_coarse"] != "Epithelial cell")
-    ]
-    .groupby(["dataset", "condition", "tumor_stage", "patient"])
-    .apply(lambda x: x.value_counts("cell_type_major", normalize=False))
-    .reset_index(name="n_cells")
-    .assign(condition=lambda x: x["condition"].astype(str))
-)
-
-# %%
-frac_by_condition
-
-# %%
-frac_pivot = frac_by_condition.pivot(
-    index=["patient", "dataset", "condition", "tumor_stage"], columns="cell_type_major", values="n_cells"
-).reset_index()
-
-# %%
-data_all = scc_dat.from_pandas(frac_pivot, covariate_columns=["patient", "dataset", "condition", "tumor_stage"])
-
-# %%
-sccoda_mod = scc_ana.CompositionalAnalysis(data_all, formula="condition + dataset", reference_cell_type="Tumor cells")
-
-# %%
-sscoda_res = sccoda_mod.sample_hmc(num_results = 10000)
-
-# %%
-scc_viz.stacked_barplot(data_all, feature_name="condition")
-
-# %%
-scc_viz.boxplots(data_all, feature_name="condition", figsize=(12, 5))
-
-# %%
-sscoda_res.summary()
-
-# %%
-sscoda_res.credible_effects(est_fdr=0.1).reset_index().head(20)
-
-# %%
-fig, ax = plt.subplots(1, 1, figsize=(5, 8))
-sns.boxplot(
-    x="frac",
-    y="cell_type_coarse",
-    hue="condition",
-    data=frac_by_condition,
-    palette=sh.colors.COLORS.condition,
-    fliersize=0,
-    ax=ax,
-)
-sns.stripplot(
-    x="frac",
-    y="cell_type_coarse",
-    hue="condition",
-    data=frac_by_condition,
-    ax=ax,
-    dodge=True,
-    color="black",
-    size=3,
-    alpha=0.5,
-)
-
-# %%
-results = []
-for ct in adata.obs["cell_type_coarse"].unique():
-    mod = smf.ols(
-        f"Q('{ct}') ~ C(condition) + dataset",
-        data=frac_pivot,
-    )
-    res = mod.fit()
-    results.append(
-        {
-            "cell_type": ct,
-            "pvalue": res.pvalues["C(condition)[T.LUAD]"],
-            "coef": res.params["C(condition)[T.LUAD]"],
-        }
-    )
-
-# %%
-pd.DataFrame(results).sort_values("pvalue")
-
-# %% [markdown]
-# ### Compare cell-type fractions between early and late
-
-# %%
-fig, ax = plt.subplots(1, 1, figsize=(5, 8))
-sns.boxplot(
-    x="frac",
-    y="cell_type_coarse",
-    hue="tumor_stage",
-    data=frac_by_condition,
-    palette=sh.colors.COLORS.tumor_stage,
-    fliersize=0,
-    ax=ax,
-)
-sns.stripplot(
-    x="frac",
-    y="cell_type_coarse",
-    hue="tumor_stage",
-    data=frac_by_condition,
-    ax=ax,
-    dodge=True,
-    color="black",
-    size=3,
-    alpha=0.5,
-)
-
-# %%
-frac_pivot = frac_by_condition.pivot(
-    index=["patient", "dataset", "tumor_stage"], columns="cell_type_coarse", values="frac"
-).reset_index()
-
-# %%
-results = []
-for ct in adata.obs["cell_type_coarse"].unique():
-    mod = smf.ols(
-        f"Q('{ct}') ~ C(tumor_stage) + dataset",
-        data=frac_pivot,
-    )
-    res = mod.fit()
-    results.append(
-        {
-            "cell_type": ct,
-            "pvalue": res.pvalues["C(tumor_stage)[T.late]"],
-            "coef": res.params["C(tumor_stage)[T.late]"],
-        }
-    )
-
-# %%
-pd.DataFrame(results).sort_values("pvalue")
 
 # %% [markdown]
 # ---
