@@ -63,7 +63,7 @@ dataset_path_annotated = nxfvars.get(
     "../../data/20_integrate_scrnaseq_data/integrate_datasets/11_seed_annotations/artifacts/",
 )
 dataset_path = nxfvars.get(
-    "dataset_path", "../../data/20_integrate_scrnaseq_data/integrate_datasets/02_qc_and_filtering/"
+    "dataset_path", "../../data/20_build_atlas/integrate_datasets/02_qc_and_filtering/"
 )
 
 # %%
