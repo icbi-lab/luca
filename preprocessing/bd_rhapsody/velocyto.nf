@@ -31,9 +31,9 @@ process prepare_bam {
 }
 
 process velocyto {
-    // Velocyto writes into the original directory - need to make
+    // Velocyto otherwise resolves the symbolic link and writes into the original directory - need to make
     // a copy to stay clean.
-    // stageInMode 'copy'
+    stageInMode 'copy'
 
     input:
     path bam
@@ -41,7 +41,7 @@ process velocyto {
     path repeat_mask
 
     output:
-    path "*.loom", emit: loom
+    path "velocyto/*.loom", emit: loom
 
     script:
     """
