@@ -56,17 +56,10 @@ def main(
 
     print(f"batch_key={batch_key}, labels_key={labels_key}")
 
-    def _setup_anndata(*args, **kwargs):
-        """Setup anndata compatible with different scvi-tools versions"""
-        try:
-            return scvi.data.setup_anndata(*args, **kwargs)
-        except AttributeError:
-            return scvi.model.SCANVI.setup_anndata(*args, **kwargs)
-
     adata = sc.read_h5ad(adata_in)
 
     vae = scvi.model.SCVI.load(model_in, adata, use_gpu=False)
-    _setup_anndata(adata, batch_key=batch_key, labels_key=labels_key)
+    scvi.data.setup_anndata(adata, batch_key=batch_key, labels_key=labels_key)
     lvae = scvi.model.SCANVI.from_scvi_model(vae, "unknown", adata=adata)
 
     lvae.train(use_gpu=False)

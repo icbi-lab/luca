@@ -90,17 +90,10 @@ def main(
             subset=True,
         )
 
-    def _setup_anndata(*args, **kwargs):
-        """Setup anndata compatible with different scvi-tools versions"""
-        try:
-            return scvi.data.setup_anndata(*args, **kwargs)
-        except AttributeError:
-            return scvi.model.SCVI.setup_anndata(*args, **kwargs)
-
     if labels_key is not None:
-        _setup_anndata(adata, batch_key=batch_key, labels_key=labels_key)
+        scvi.data.setup_anndata(adata, batch_key=batch_key, labels_key=labels_key)
     else:
-        _setup_anndata(adata, batch_key=batch_key)
+        scvi.data.setup_anndata(adata, batch_key=batch_key)
 
     vae = scvi.model.SCVI(adata, **extra_params)
 
