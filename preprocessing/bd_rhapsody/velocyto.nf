@@ -52,6 +52,7 @@ process velocyto {
     velocyto run \\
         -m ${repeat_mask} \\
         --samtools-threads ${task.cpus} \\
+        --samtools-memory ${task.memory.toMega()} \\
         $bam \\
         GTFFILE.gtf
     """
