@@ -183,15 +183,18 @@ for i, cl in enumerate(pb_n.obs["leiden"].cat.categories):
 # ## Annotate clusters
 
 # %%
+sc.pl.umap(adata_n, color="leiden", legend_loc="on data", legend_fontoutline=2)
+
+# %%
 ah.annotate_cell_types(
     adata_n,
     {
-        "TAN CTSC": [1],  # antigen presentation; also in zillionis/klein
-        "NAN S100A12": [4],  # also in zillionis/klein
-        "NAN CXCR2": [0],
-        "TAN IFIT": [6],  # also in zillionis/klein
-        "TAN RPL5": [3],
-        "TAN CXCL2": [5, 2],
+        "TAN-2": [4],  # antigen presentation; also in zillionis/klein
+        "NAN-1": [2],  # also in zillionis/klein
+        "NAN-2": [1],
+        "TAN-4": [5],  # also in zillionis/klein
+        "TAN-1": [3, 6],
+        "TAN-3": [0],
     },
 )
 
@@ -208,87 +211,6 @@ with plt.rc_context({"figure.dpi": 150}):
     )
 
 # %% [markdown]
-# ## Heatmaps by neutrophil clusters
-
-# %%
-sc.tl.rank_genes_groups(adata_n, "cell_type")
-
-# %%
-sc.pl.umap(
-    adata_n,
-    color=["CXCR2", "S100A12", "CTSC", "CXCL2", "IFIT1", "RPL5"],
-    cmap="inferno",
-    size=20,
-    ncols=3,
-    frameon=False,
-)
-
-# %%
-sc.pl.dotplot(
-    adata_n,
-    var_names=["CXCR2", "S100A12", "CTSC", "CXCL2", "IFIT1", "RPL5"],
-    groupby="cell_type",
-)
-
-# %%
-sc.pl.rank_genes_groups_dotplot(adata_n, dendrogram=False)
-
-# %%
-pb_n = sh.pseudobulk.pseudobulk(adata_n, groupby=["cell_type", "patient"])
-
-# %%
-sc.pp.normalize_total(pb_n, target_sum=1e6)
-sc.pp.log1p(pb_n)
-
-# %%
-pb_n = pb_n[pb_n.obs["cell_type"] != "other", :].copy()
-
-# %%
-sc.tl.rank_genes_groups(pb_n, groupby="cell_type", method="wilcoxon", use_raw=False)
-
-# %%
-sc.pl.matrixplot(
-    pb_n,
-    var_names=["CXCR2", "S100A12", "CTSC", "CXCL2", "IFIT1", "RPL5"],
-    groupby="cell_type",
-    cmap="bwr",
-)
-
-# %%
-sc.pl.rank_genes_groups_matrixplot(pb_n, dendrogram=False, cmap="bwr")
-
-# %%
-signature_dict = {}
-for sig in signatures["signature"].unique():
-    signature_dict[sig] = signatures.loc[
-        lambda x: x["signature"] == sig, "gene_symbol"
-    ].tolist()
-
-# %%
-sc.pl.matrixplot(pb_n, var_names=signature_dict, cmap="bwr", groupby="cell_type")
-
-# %%
-for sig, genes in signature_dict.items():
-    sc.tl.score_genes(pb_n, genes, score_name=sig)
-    sc.tl.score_genes(adata_n, genes, score_name=sig)
-
-# %%
-sc.pl.matrixplot(
-    pb_n, var_names=list(signature_dict.keys()), cmap="bwr", groupby="cell_type"
-)
-
-# %%
-sc.pl.matrixplot(
-    adata_n[adata_n.obs["cell_type"] != "other"],
-    var_names=list(signature_dict.keys()),
-    cmap="bwr",
-    groupby="cell_type",
-)
-
-# %%
-sc.pl.umap(adata_n, color=list(signature_dict.keys()), cmap="inferno", size=20, ncols=3)
-
-# %% [markdown]
 # ## Merge annotation into atlas
 
 # %%
@@ -296,54 +218,14 @@ adata_n.obs["cell_type_neutro"] = adata_n.obs["cell_type"]
 adata.obs["cell_type_neutro"] = adata.obs["cell_type_major"]
 ah.integrate_back(adata, adata_n, variable="cell_type_neutro")
 
-# %% [markdown]
-# ## UKIM-V datasets only
-
 # %%
-adata_n_ukimv = adata_n[adata_n.obs["dataset"].str.startswith("UKIM-V"), :].copy()
-
-# %%
-ah.reprocess_adata_subset_scvi(adata_n_ukimv, use_rep="X_scANVI")
-
-# %%
-adata_n_ukimv.obs
-
-# %%
-with plt.rc_context({"figure.figsize": (4, 4), "figure.dpi": 300}):
-    sc.pl.umap(
-        adata_n,
-        color="origin",
-        frameon=False,
-        size=20,
-        groups=["normal_adjacent", "tumor_metastasis", "tumor_primary"],
-    )
-    sc.pl.umap(adata_n, color="condition", frameon=False, size=20)
-
-# %%
-tmp_df = (
-    adata_n.obs.groupby(["cell_type"])
-    .apply(lambda x: x["origin"].value_counts(normalize=True))
-    .unstack()
-    .melt(var_name="origin", value_name="fraction", ignore_index=False)
-    .reset_index()
-    .loc[lambda x: x["cell_type"] != "other"]
-)
-
-# %%
-alt.Chart(tmp_df).mark_bar().encode(x="fraction", y="cell_type", color="origin")
-
-# %%
-tmp_df = (
-    adata_n.obs.groupby(["cell_type"])
-    .apply(lambda x: x["condition"].value_counts(normalize=True))
-    .unstack()
-    .melt(var_name="condition", value_name="fraction", ignore_index=False)
-    .reset_index()
-    .loc[lambda x: x["cell_type"] != "other"]
-)
-
-# %%
-alt.Chart(tmp_df).mark_bar().encode(x="fraction", y="cell_type", color="condition")
+adata.obs["cell_type_neutro_coarse"] = adata.obs["cell_type_major"].astype(str)
+adata.obs.loc[
+    adata.obs["cell_type_neutro"].str.startswith("NAN"), "cell_type_neutro_coarse"
+] = "NAN"
+adata.obs.loc[
+    adata.obs["cell_type_neutro"].str.startswith("TAN"), "cell_type_neutro_coarse"
+] = "TAN"
 
 # %% [markdown]
 # # Save result
@@ -351,5 +233,3 @@ alt.Chart(tmp_df).mark_bar().encode(x="fraction", y="cell_type", color="conditio
 # %%
 adata_n.write_h5ad(f"{artifact_dir}/adata_neutrophil_clusters.h5ad")
 adata.write_h5ad(f"{artifact_dir}/full_atlas_neutrophil_clusters.h5ad")
-
-# %%
