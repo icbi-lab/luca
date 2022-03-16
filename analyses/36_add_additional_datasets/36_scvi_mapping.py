@@ -36,6 +36,7 @@ import matplotlib.pyplot as plt
 import scanpy_helpers as sh
 from scanpy_helpers.annotation import AnnotationHelper
 import numpy as np
+from tqdm import tqdm
 
 # %% [markdown]
 # ## Get Input data
@@ -44,14 +45,16 @@ import numpy as np
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
 # %%
-threadpool_limits(nxfvars.get("cpus", 16))
-query = sc.read_h5ad(
-    nxfvars.get(
-        "query",
-        "../../data/30_downstream_analyses/01_qc_and_filtering/UKIM-V-2/UKIM-V-2.qc.h5ad",
-    )
+dataset_table = pd.read_csv(
+    nxfvars.get("samplesheet", "../../tables/samplesheet_scrnaseq_preprocessing2.csv")
 )
-reference = sc.read_h5ad(
+dataset_path = nxfvars.get(
+    "dataset_path", "../../data/30_downstream_analyses/01_qc_and_filtering/"
+)
+
+# %%
+threadpool_limits(nxfvars.get("cpus", 16))
+reference_scanvi = sc.read_h5ad(
     nxfvars.get(
         "reference_scanvi_h5ad",
         "../../data/20_build_atlas/annotate_datasets/35_final_atlas/full_atlas_hvg_integrated_scvi_integrated_scanvi.h5ad",
@@ -66,12 +69,12 @@ reference_atlas = sc.read_h5ad(
 )
 
 # %%
-vae_ref = scvi.model.SCANVI.load(
+vae_ref_scanvi = scvi.model.SCANVI.load(
     nxfvars.get(
         "reference_scanvi_model",
         "../../data/20_build_atlas/annotate_datasets/35_final_atlas/full_atlas_hvg_integrated_scvi_scanvi_model/",
     ),
-    adata=reference,
+    adata=reference_scanvi,
 )
 
 # %%
@@ -85,65 +88,105 @@ gene_symbol_dict = {
 }
 
 # %%
-sc.pl.umap(reference, color="cell_type")
+datasets = {
+    dataset_id: sc.read_h5ad(
+        f"{dataset_id}.qc.h5ad"
+        if dataset_path == "."
+        else f"{dataset_path}/{dataset_id}/{dataset_id}.qc.h5ad"
+    )
+    for dataset_id in tqdm(dataset_table["id"])
+}
+
+# %%
+sc.pl.umap(reference_scanvi, color="cell_type")
 
 # %% [markdown]
 # ## Standardize query dataset
 # metadata, gene symbols, etc.
 
 # %%
-query.obs["dataset"] = "UKIM-V-2"
-query.obs["patient"] = [f"UKIM-V-2_{p}" for p in query.obs["patient"]]
-query.obs["tissue"] = "lung"
-query.obs["tumor_stage"] = np.nan
-query.obs.loc[query.obs["uicc_stage"].isin(["I", "II", "IA"]), "tumor_stage"] = "early"
-query.obs.loc[
-    query.obs["uicc_stage"].isin(["III", "IV", "IIIA", "IIIB", "III or IV"]),
+datasets["UKIM-V-2"].obs["dataset"] = "UKIM-V-2"
+datasets["UKIM-V-2"].obs["patient"] = [
+    f"UKIM-V-2_{p}" for p in datasets["UKIM-V-2"].obs["patient"]
+]
+datasets["UKIM-V-2"].obs["tissue"] = "lung"
+datasets["UKIM-V-2"].obs["tumor_stage"] = np.nan
+datasets["UKIM-V-2"].obs.loc[
+    datasets["UKIM-V-2"].obs["uicc_stage"].isin(["I", "II", "IA"]), "tumor_stage"
+] = "early"
+datasets["UKIM-V-2"].obs.loc[
+    datasets["UKIM-V-2"]
+    .obs["uicc_stage"]
+    .isin(["III", "IV", "IIIA", "IIIB", "III or IV"]),
     "tumor_stage",
 ] = "late"
-assert np.all(pd.isnull(query.obs["uicc_stage"]) == pd.isnull(query.obs["tumor_stage"]))
+assert np.all(
+    pd.isnull(datasets["UKIM-V-2"].obs["uicc_stage"])
+    == pd.isnull(datasets["UKIM-V-2"].obs["tumor_stage"])
+)
 
 # %%
-sanitize_adata(query)
+for dataset_id, adata in datasets.items():
+    adata.obs["dataset"] = dataset_id
+    print(f"Validating {dataset_id}")
+    sanitize_adata(adata)
+    validate_adata(adata)
+
+# %% [markdown]
+# ### Gene identifier remapping
 
 # %%
-validate_adata(query)
+for id_, query in datasets.items():
+    # remap gene symbols
+    query.var_names = [gene_symbol_dict.get(x, x) for x in query.var_names]
+    query = aggregate_duplicate_gene_symbols(query)
+    query.obs = query.obs.loc[
+        :, [x for x in query.obs.columns if x in reference_atlas.obs.columns]
+    ]
+    datasets[id_] = query
+
+# %% [markdown]
+# ### aggregate duplicate gene symbols
 
 # %%
-# remap gene symbols
-query.var_names = [gene_symbol_dict.get(x, x) for x in query.var_names]
-query = aggregate_duplicate_gene_symbols(query)
+for dataset_id, dataset in datasets.items():
+    print(dataset_id)
+    datasets[dataset_id] = aggregate_duplicate_gene_symbols(dataset)
+
+# %% [markdown]
+# ### Log-transform and normalize
 
 # %%
-query.obs = query.obs.loc[
-    :, [x for x in query.obs.columns if x in reference_atlas.obs.columns]
-]
+for id_, query in datasets.items():
+    query_raw = query.copy()
+    sc.pp.normalize_total(query_raw)
+    sc.pp.log1p(query_raw)
+    query.raw = query_raw
 
 # %%
-query_raw = query.copy()
-sc.pp.normalize_total(query_raw)
-sc.pp.log1p(query_raw)
-query.raw = query_raw
+# set variables for scvi
+for query in datasets.values():
+    query.obs["batch"] = query.obs["sample"]
+    query.obs["cell_type"] = "unknown"
 
 # %%
-# There are a few gene symbols in the 6000 variable genes of the reference that don't appear in the query:
-len(set(reference.var_names) - set(query.var_names))
+# keep all gene symbols, will reindex later to same genes as reference dataset
+query_merged = sh.integration.merge_datasets(datasets.values(), symbol_in_n_datasets=1)
 
 # %%
-# Therefore, we re-index the query anndata object to fill those genes with zeros
-query_hvg = sh.util.reindex_adata(query, reference.var_names)
+query_merged = query_merged[:, reference_atlas.var_names].copy()
+
+# %%
+query_merged_hvg = query_merged[:, reference_scanvi.var_names].copy()
 
 # %% [markdown]
 # ## Integrate using scANVI
 # (using the scArches approach, but as implemented in the scvi package)
 
 # %%
-# set variables for scvi
-query_hvg.obs["batch"] = query_hvg.obs["sample"]
-query_hvg.obs["cell_type"] = "unknown"
-
-# %%
-vae_q = scvi.model.SCANVI.load_query_data(query_hvg, vae_ref)
+# the model version warning doesn't matter see
+# https://github.com/scverse/scvi-tools/pull/1431
+vae_q = scvi.model.SCANVI.load_query_data(query_merged_hvg, vae_ref_scanvi)
 
 # %%
 vae_q.train(
@@ -153,36 +196,62 @@ vae_q.train(
 )
 
 # %%
-query.obsm["X_scANVI"] = vae_q.get_latent_representation()
-query.obs["_predictions"] = vae_q.predict()
+new_samples = query_merged_hvg.obs["sample"].unique()
+
+# %%
+query_merged_hvg.obs["doublet_status"] = None
+
+@sh.util.suppress_stdout
+def predict_solo(batch):
+    scvi.settings.verbosity = scvi.logging.CRITICAL
+    tmp_solo = scvi.external.SOLO.from_scvi_model(
+        vae_q, restrict_to_batch=s
+    )
+    tmp_solo.train(train_size=0.9)
+    doublet_prediction = tmp_solo.predict(False)
+    # for whatever reason, another "-0" is appended to the index. 
+    doublet_prediction.index = doublet_prediction.index.str.replace("-0$", "", regex=True)
+    scvi.settings.verbosity = scvi.logging.INFO
+    return doublet_prediction
+
+for s in tqdm(new_samples):
+    doublet_prediction = predict_solo(s)
+    query_merged_hvg.obs.loc[lambda x: x["sample"] == s, "doublet_status"] = doublet_prediction
+
+# %%
+query_merged_hvg.obs["doublet_status"].value_counts(dropna=False)
+
+# %%
+query_merged_hvg.obsm["X_scANVI"] = vae_q.get_latent_representation()
+query_merged_hvg.obs["_predictions"] = vae_q.predict()
 
 
 # %% [markdown]
 # ## Visualize query dataset
 
 # %%
-sc.pp.neighbors(query, use_rep="X_scANVI")
-sc.tl.leiden(query, key_added="_leiden")
-sc.tl.umap(query)
+sc.pp.neighbors(query_merged_hvg, use_rep="X_scANVI")
+sc.tl.leiden(query_merged_hvg, key_added="_leiden")
+sc.tl.umap(query_merged_hvg)
 
 # %%
-sc.pl.umap(query, color=["_predictions", "_leiden"], wspace=1)
+sc.pl.umap(query_merged_hvg, color=["_predictions", "_leiden", "doublet_status"], wspace=1)
 
 # %%
 ah = AnnotationHelper()
 
 # %% tags=[]
-ah.plot_dotplot(query, groupby="_predictions")
+ah.plot_dotplot(query_merged_hvg, groupby="_predictions")
 
 # %% [markdown]
 # ## Merge query and reference
 
 # %%
-reference_atlas.obsm["X_scANVI"] = reference.obsm["X_scANVI"]
+reference_atlas.obsm["X_scANVI"] = reference_scanvi.obsm["X_scANVI"]
 
 # %%
 adata_full = anndata.concat(
-    [reference_atlas, sh.util.reindex_adata(query, reference_atlas.var_names)],
+    [reference_atlas, query_merged_hvg],
     merge="first",
     uns_merge="first",
     join="outer",
@@ -198,12 +267,17 @@ sc.pp.log1p(adata_full_raw)
 adata_full.raw = adata_full_raw
 
 # %%
+# Excluding Maier_Merad_2020 which is a subset of Leader_Merad_2021
+adata_full = adata_full[adata_full.obs["dataset"] != "Maier_Merad_2020", :]
+adata_full = adata_full[adata_full.obs["doublet_status"] != "doublet", :].copy()
+
+# %%
 sc.pp.neighbors(adata_full, use_rep="X_scANVI")
 
 
 # %%
 # initalize umap with the original coordinates. Missing values (=query) are initialized with random values.
-init_pos_df = pd.DataFrame(reference.obsm["X_umap"], index=reference.obs_names).reindex(
+init_pos_df = pd.DataFrame(reference_scanvi.obsm["X_umap"], index=reference_scanvi.obs_names).reindex(
     adata_full.obs_names
 )
 for col in init_pos_df.columns:
@@ -230,8 +304,8 @@ for col in annot_cols:
     sh.annotation.classify_cell_types_nearest_neighbors(
         adata_full,
         col,
-        mask_reference=adata_full.obs["dataset"] != "UKIM-V-2",
-        mask_query=adata_full.obs["dataset"] == "UKIM-V-2",
+        mask_reference=~adata_full.obs["dataset"].isin(datasets.keys()),
+        mask_query=adata_full.obs["dataset"].isin(datasets.keys()),
         key_added=f"_{col}_predicted",
     )
     # ... but also merged back into the original column
@@ -240,8 +314,11 @@ for col in annot_cols:
     ] = adata_full.obs[f"_{col}_predicted"]
 
 # %%
+list(datasets.keys())
+
+# %%
 with plt.rc_context({"figure.figsize": (8, 8)}):
-    sc.pl.umap(adata_full, color="dataset", groups=["UKIM-V-2"], size=4)
+    sc.pl.umap(adata_full, color="dataset", groups=list(datasets.keys()), size=4)
 
 # %%
 with plt.rc_context({"figure.figsize": (8, 8)}):

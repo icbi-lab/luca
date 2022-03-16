@@ -27,7 +27,8 @@ workflow  add_additional_datasets {
     INTEGRATE_INTO_ATLAS(
         [ [id: 'integrate_into_atlas'], file("$baseDir/analyses/36_add_additional_datasets/36_scvi_mapping.py") ],
         [
-            "query": "UKIM-V-2.qc.h5ad",
+            "dataset_path": ".",
+            "samplesheet": "samplesheet_scrnaseq_preprocessing2.csv",
             "reference_atlas": "full_atlas_annotated.h5ad",
             "reference_scanvi_h5ad": "full_atlas_hvg_integrated_scvi_integrated_scanvi.h5ad",
             "reference_scanvi_model": "full_atlas_hvg_integrated_scvi_scanvi_model",
@@ -37,7 +38,8 @@ workflow  add_additional_datasets {
             Channel.from(reference_atlas_h5ad),
             Channel.from(reference_scanvi_h5ad),
             Channel.from(reference_scanvi_model),
-            Channel.fromPath("${baseDir}/tables/gene_symbol_dict.csv")
+            Channel.fromPath("${baseDir}/tables/gene_symbol_dict.csv"),
+            Channel.fromPath("${baseDir}/tables/samplesheet_scrnaseq_preprocessing2.csv")
         ).collect()
     )
 

@@ -104,5 +104,6 @@ def reindex_adata(adata, new_var_names):
         uns=adata.uns,
     )
     old_var_names = [x for x in new_var_names if x in adata.var_names]
-    tmp_ad.X[:, new_var_names.isin(adata.var_names)] = adata[:, old_var_names].X
+    var_name_to_idx = {var: i for i, var in enumerate(tmp_ad.var_names)}
+    tmp_ad.X[:, [var_name_to_idx[v] for v in old_var_names]] = adata[:, old_var_names].X
     return tmp_ad
