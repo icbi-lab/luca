@@ -143,7 +143,7 @@ ad_tumor_subtypes.obs
 ad_immune = sc.AnnData(
     X=(
         adata_primary_tumor.obs.loc[
-            lambda x: ~x["cell_type_major"].isin(EXCLUDE_CELL_TYPES)
+            lambda x: ~x["cell_type_major"].isin(EXCLUDE_CELL_TYPES) & x["patient"].isin(ad_tumor_subtypes.obs.index) 
         ]
         .groupby(["dataset", "patient", "cell_type_major"], observed=True)
         .size()
@@ -233,8 +233,8 @@ sc.tl.rank_genes_groups(ad_immune, groupby="leiden", method="t-test")
 ad_immune.obs["immune_type"] = [
     {
         "0": "desert",
-        "1": "M",
-        "2": "mixed",
+        "1": "mixed",
+        "2": "M",
         "3": "T",
         "4": "T",
         "5": "mixed",
@@ -267,21 +267,8 @@ sc.pl.heatmap(
 adata_primary_tumor.obs["patient"].nunique()
 
 # %%
-# Minus 5 patients with no "tumor cells" in primary tumor samplese
+# Minus patients with no "tumor cells" in primary tumor samples (they can't be used to infer tumor type)
 adata_tumor_cells.obs["patient"].nunique()
-
-
-# %%
-def get_stratum(infiltration_group, immune_type):
-    if pd.isnull(infiltration_group) or pd.isnull(immune_type):
-        return np.nan
-    stratum = ["-", "-"]
-    if "I" in infiltration_group:
-        stratum[0] = immune_type
-    if "S" in infiltration_group:
-        stratum[1] = "S"
-    return "/".join(stratum)
-
 
 # %%
 plot_df = (
@@ -300,12 +287,13 @@ plot_df = (
     ]
     .drop_duplicates()
     .set_index("patient")
-    .join(ad_immune.obs, how="left")
-    .join(ad_tumor_subtypes.obs, how="inner")
+    .join(ad_immune.obs, how="inner")
+    .join(ad_tumor_subtypes.obs, how="left")
 )
-plot_df["tumor_stage"] = (
-    plot_df["tumor_stage"].astype(str).str.replace("None", "unknown")
-)
+plot_df["tumor_stage"] = [
+    {"early": "early (I/II)", "advanced": "advanced (III/IV)"}.get(x, x)
+    for x in plot_df["tumor_stage"].astype(str).str.replace("None", "unknown")
+]
 plot_df["immune_type"] = plot_df["immune_type"].astype(str)
 remap_tumor_type = {
     "PPC": "NOS",
@@ -330,7 +318,11 @@ plot_df.sort_values(
     key=lambda x: [{"n/a": -2, "desert": -1}.get(_, _) for _ in x],
 )
 del plot_df["patient"]
+plot_df.index.name = "patient"
 plot_df = plot_df.reset_index()
+
+# %%
+plot_df
 
 # %%
 plot_df["immune_infiltration"].value_counts()
@@ -353,7 +345,7 @@ def get_row(col, color_scale=None):
             color=alt.Color(
                 col,
                 scale=sh.colors.altair_scale(color_scale),
-                legend=alt.Legend(columns=4),
+                legend=alt.Legend(columns=3),
             ),
         )
         .properties(width=800)
@@ -365,7 +357,7 @@ p0 = (
         get_row("tumor_type_annotated", "tumor_type")
         & get_row("tumor_type_inferred", "tumor_type"),
         get_row("sex"),
-        get_row("tumor_stage"),
+        get_row("tumor_stage", "tumor_stage_verbose"),
         get_row("study"),
         get_row("platform"),
         # get_row("infiltration_state"),
