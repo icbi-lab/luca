@@ -21,6 +21,7 @@ import pandas as pd
 import scanpy_helpers as sh
 from scanpy_helpers.compare_groups.pl import plot_lm_result_altair
 import scanpy as sc
+import numpy as np
 
 # %%
 tools = ["dorothea", "progeny", "cytosig", "cpdb"]
@@ -173,5 +174,15 @@ for ct in tmp_cytosig["cell_type"].unique():
         pass
 
 # %%
+adata_cytosig_tumor = sc.read_h5ad("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_cytosig/Tumor cells.h5ad")
+
+# %%
+pb_cytosig_tumor = sh.pseudobulk.pseudobulk(adata_cytosig_tumor, groupby=["patient", "immune_infiltration"], aggr_fun=np.mean)
+
+# %%
+sc.pl.matrixplot(adata_cytosig_tumor, groupby="immune_infiltration", var_names=adata_cytosig_tumor.var_names, cmap="bwr")
+
+# %%
+sc.pl.matrixplot(pb_cytosig_tumor, groupby="immune_infiltration", var_names=adata_cytosig_tumor.var_names, cmap="bwr")
 
 # %%

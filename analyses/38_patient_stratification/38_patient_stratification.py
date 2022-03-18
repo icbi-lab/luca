@@ -424,6 +424,13 @@ tmp_df = (
 
 # %%
 alt.Chart(tmp_df).mark_bar().encode(
+    x=alt.X("immune_infiltration", title=None),
+    y="frac_of_total",
+    color=alt.Color("immune_infiltration", scale=sh.colors.altair_scale("immune_infiltration")),
+).facet(column="tumor_type_annotated")
+
+# %%
+alt.Chart(tmp_df).mark_bar().encode(
     x=alt.X("tumor_type_annotated", title=None),
     y="n",
     color=alt.Color("tumor_type_annotated", scale=sh.colors.altair_scale("tumor_type")),

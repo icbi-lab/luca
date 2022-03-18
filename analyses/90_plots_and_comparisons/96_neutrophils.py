@@ -46,8 +46,84 @@ adata_n = sc.read_h5ad(
     "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad"
 )
 
+# %%
+# candidate genes
+tumor_vs_normal = [
+    "PTGS2",
+    "SELL",
+    "CXCR2",
+    "VEGFA",
+    "OLR1",
+    "CXCR4",
+    "CXCR1",
+    "ICAM1",
+    "FCGR3B",
+    "CD83",
+    "ARG1",
+    "CCL2",
+    "JUN",
+]
+autophagy_genes = """ELANE
+CTSG
+ITGB2
+LCN2
+ADAMTS12
+ADAMTS13
+ADAM10
+ADAM11
+ADAM12
+ADAM17
+ADAMTS4
+ADAM28
+LOXL2
+MMP2
+MMP3
+ILF3
+MMP7
+MMP8
+MMP9
+MMP10
+MMP11
+MMP12
+MMP13
+MMP14
+MMP15
+MMP16
+MMP17
+TIMP1
+TIMP2
+TIMP3
+TIMP4
+""".split()
+
 # %% [markdown]
-# ## Neutrophil plots
+# # UMAPs by covariate
+
+# %%
+with plt.rc_context({"figure.dpi": 150}):
+    sc.pl.umap(adata_n, color="cell_type", legend_loc="on data", legend_fontoutline=2, frameon=False, size=20)
+
+# %%
+with plt.rc_context({"figure.dpi": 150}):
+    sc.pl.umap(adata_n, color="condition", legend_fontoutline=2, frameon=False, size=20)
+
+# %%
+with plt.rc_context({"figure.dpi": 150}):
+    sc.pl.umap(adata_n[adata_n.obs["origin"] != "nan", :], color="origin", legend_fontoutline=2, frameon=False, size=20)
+
+# %%
+adata_n.obs["dataset"].astype(str).unique()
+
+# %%
+adata_n.obs["origin_biopsy"] = adata_n.obs["origin"].astype(str)
+adata_n.obs.loc[adata_n.obs["dataset"].isin(["Wu_Zhou_2021", "Kim_Lee_2020"]) & (adata_n.obs["origin"] == "tumor_primary"), "origin_biopsy"] = "biopsy"
+
+# %%
+with plt.rc_context({"figure.dpi": 150}):
+    sc.pl.umap(adata_n, color="origin_biopsy", legend_fontoutline=2, frameon=False, size=20, groups="biopsy")
+
+# %% [markdown]
+# # Clusters by patient and dataset
 
 # %%
 patient_fracs = (
@@ -70,13 +146,75 @@ dataset_fracs = (
 alt.Chart(dataset_fracs).mark_bar().encode(x="fraction", y="cell_type", color="dataset")
 
 # %%
-alt.Chart(patient_fracs).mark_bar().encode(x="fraction", y="cell_type", color="patient")
+alt.Chart(patient_fracs).mark_bar().encode(x=alt.X("fraction", scale=alt.Scale(domain=[0,1])), y="cell_type", color="patient")
 
 # %% [markdown]
-# ## Heatmaps by neutrophil clusters
+# # UMAP by candidate genes
+
+# %%
+sc.pl.umap(
+    adata_n,
+    color=tumor_vs_normal,
+    cmap="inferno",
+    size=20,
+    ncols=5,
+    frameon=False,
+)
+
+# %% [markdown]
+# ### genes of interest (2)
+
+# %%
+sc.pl.umap(
+    adata_n,
+    color=["OLR1", "CD36", "ITGA2B", "ITGB3"],
+    cmap="inferno",
+    size=20,
+    ncols=5,
+    frameon=False,
+)
+
+# %%
+sc.pl.dotplot(
+    adata_n,
+    var_names=["OLR1", "CD36", "ITGA2B", "ITGB3"],
+    groupby=["cell_type"],
+)
+
+# %% [markdown]
+# ### genes of interest (3) -- autophagy
+
+# %%
+sc.pl.dotplot(
+    adata_n,
+    var_names=autophagy_genes,
+    groupby=["cell_type"],
+)
+
+# %% [markdown]
+# ---
+
+# %% [markdown]
+# # Find marker genes for Neutrophil clusters
+
+# %%
+pb_n = sh.pseudobulk.pseudobulk(adata_n, groupby=["cell_type", "patient"])
+
+# %%
+sc.pp.normalize_total(pb_n, target_sum=1e6)
+sc.pp.log1p(pb_n)
+
+# %%
+sc.tl.rank_genes_groups(pb_n, groupby="cell_type", method="t-test", use_raw=False)
 
 # %%
 sc.tl.rank_genes_groups(adata_n, "cell_type")
+
+# %%
+sc.pl.rank_genes_groups_matrixplot(pb_n, dendrogram=False, cmap="bwr")
+
+# %%
+sc.pl.rank_genes_groups_dotplot(adata_n, dendrogram=False)
 
 # %%
 sc.pl.umap(
@@ -96,31 +234,12 @@ sc.pl.dotplot(
 )
 
 # %%
-sc.pl.rank_genes_groups_dotplot(adata_n, dendrogram=False)
-
-# %%
-pb_n = sh.pseudobulk.pseudobulk(adata_n, groupby=["cell_type", "patient"])
-
-# %%
-sc.pp.normalize_total(pb_n, target_sum=1e6)
-sc.pp.log1p(pb_n)
-
-# %%
-pb_n = pb_n[pb_n.obs["cell_type"] != "other", :].copy()
-
-# %%
-sc.tl.rank_genes_groups(pb_n, groupby="cell_type", method="wilcoxon", use_raw=False)
-
-# %%
 sc.pl.matrixplot(
     pb_n,
     var_names=["CXCR2", "S100A12", "CTSC", "CXCL2", "IFIT1", "RPL5"],
     groupby="cell_type",
     cmap="bwr",
 )
-
-# %%
-sc.pl.rank_genes_groups_matrixplot(pb_n, dendrogram=False, cmap="bwr")
 
 # %%
 signature_dict = {}
@@ -171,17 +290,6 @@ ah.reprocess_adata_subset_scvi(adata_n_ukimv, use_rep="X_scANVI")
 adata_n_ukimv.obs
 
 # %%
-with plt.rc_context({"figure.figsize": (4, 4), "figure.dpi": 300}):
-    sc.pl.umap(
-        adata_n,
-        color="origin",
-        frameon=False,
-        size=20,
-        groups=["normal_adjacent", "tumor_metastasis", "tumor_primary"],
-    )
-    sc.pl.umap(adata_n, color="condition", frameon=False, size=20)
-
-# %%
 tmp_df = (
     adata_n.obs.groupby(["cell_type"])
     .apply(lambda x: x["origin"].value_counts(normalize=True))
@@ -209,24 +317,6 @@ alt.Chart(tmp_df).mark_bar().encode(x="fraction", y="cell_type", color="conditio
 
 # %% [markdown]
 # # DE analysis tumor normal
-
-# %%
-# candidate genes
-tumor_vs_normal = [
-    "PTGS2",
-    "SELL",
-    "CXCR2",
-    "VEGFA",
-    "OLR1",
-    "CXCR4",
-    "CXCR1",
-    "ICAM1",
-    "FCGR3B",
-    "CD83",
-    "ARG1",
-    "CCL2",
-    "JUN",
-]
 
 # %%
 tmp_adata = adata_n[
