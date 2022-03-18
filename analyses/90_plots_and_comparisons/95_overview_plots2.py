@@ -28,6 +28,7 @@ import matplotlib
 import scanpy_helpers as sh
 import altair as alt
 import numpy as np
+from nxfvars import nxfvars
 
 # %%
 threadpoolctl.threadpool_limits(20)
@@ -37,9 +38,10 @@ matplotlib.rcParams.update({"font.size": 16})
 matplotlib.rcParams["figure.dpi"] = 300
 
 # %%
-adata = sc.read_h5ad(
-    "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad"
-)
+adata = sc.read_h5ad(nxfvars.get(
+    "main_adata",
+    "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+))
 
 # %% [markdown]
 # ## TCGA

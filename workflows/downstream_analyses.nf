@@ -50,11 +50,11 @@ workflow downstream_analyses {
         final_atlas
     )
 
-    // de_analysis(final_atlas)
+    de_analysis(final_atlas)
     // scissor(atlas_neutro_clusters)
-    // cell2cell(final_atlas)
+    cell2cell(final_atlas)
     // infercnv(final_atlas)
-    // plots_and_comparisons(atlas_neutro_clusters, cell2cell.out.adata_cpdb, STRATIFY_PATIENTS.out.artifacts)
+    plots_and_comparisons(atlas_neutro_clusters, cell2cell.out.adata_cpdb, STRATIFY_PATIENTS.out.artifacts)
 }
 
 

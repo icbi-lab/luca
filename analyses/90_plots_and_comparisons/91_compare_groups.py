@@ -34,7 +34,7 @@ sc.settings.set_figure_params(figsize=(5, 5))
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 adata_in = nxfvars.get(
     "adata_in",
-    "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad",
+    "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 adata_in_cpdb = nxfvars.get(
     "adata_in_cpdb",
@@ -45,7 +45,7 @@ stratification_csv = nxfvars.get(
     "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv",
 )
 # run one of the comparisons defined in the list below
-comparison = nxfvars.get("comparison", "tumor_normal")
+comparison = nxfvars.get("comparison", "patient_immune_infiltration_treatment_coding")
 cpus = nxfvars.get("cpus", 32)
 
 # %%
@@ -93,8 +93,17 @@ adata_primary_tumor = adata[
 adata_primary_tumor.obs = (
     adata_primary_tumor.obs.reset_index()
     .merge(
-        patient_strat,
+        patient_strat.loc[
+            :,
+            [
+                "patient",
+                "immune_infiltration",
+                "tumor_type_annotated",
+                "tumor_type_inferred",
+            ],
+        ],
         how="left",
+        on="patient",
     )
     .set_index("index")
 )
@@ -111,30 +120,6 @@ adata_primary_tumor.obs["infiltration_type"] = [
     np.nan if i == "-" else i for i in adata_primary_tumor.obs["immune_infiltration"]
 ]
 
-# %%
-# LSCCness defined as the fraction of tumor cells of all tumor cells that are assigned to one of the LSCC clusters.
-lsccness = (
-    adata_primary_tumor.obs.groupby("patient")
-    .apply(
-        lambda x: np.sum(x["cell_type_tumor"].str.contains("LSCC"))
-        / np.sum(x["cell_type_major"] == "Tumor cells")
-    )
-    .reset_index(name="lsccness")
-    .merge(adata_primary_tumor.obs.loc[:, "patient"].reset_index())
-    .set_index("index")
-)
-
-# %%
-adata_primary_tumor.obs["lsccness"] = lsccness["lsccness"]
-
-# %%
-adata_cpdb.obs["lsccness"] = (
-    adata_primary_tumor.obs.loc[:, ["sample", "lsccness"]]
-    .drop_duplicates()
-    .assign(idx=lambda x: x["sample"].str.lower())
-    .set_index("idx")["lsccness"]
-)
-
 # %% [markdown]
 # # List of comparisons
 
@@ -142,7 +127,7 @@ adata_cpdb.obs["lsccness"] = (
 comparisons = {
     "tumor_normal": {
         "dataset": adata_tumor_normal,
-        "dataset_cpdb": adata_cpdb,
+        # "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient"],
         "column_to_test": "origin",
@@ -150,90 +135,43 @@ comparisons = {
         "contrasts": "Treatment('normal')",
         "tools": ["dorothea", "progeny", "cytosig"],
     },
-    "infiltration_status": {
-        "dataset": adata_primary_tumor[
-            adata_primary_tumor.obs["infiltration_status"].isin(
-                ["immune_low", "immune_high"]
-            ),
-            :,
-        ],
-        "cell_type_column": "cell_type_major",
-        "pseudobulk_group_by": ["dataset", "patient"],
-        "column_to_test": "infiltration_status",
-        "lm_covariate_str": "+ dataset",
-        "contrasts": "Treatment('immune_low')",
-    },
-    "infiltration_type": {
-        "dataset": adata_primary_tumor[
-            adata_primary_tumor.obs["infiltration_type"].isin(["T", "B", "M"]), :
-        ],
-        "cell_type_column": "cell_type_major",
-        "pseudobulk_group_by": ["dataset", "patient"],
-        "column_to_test": "infiltration_type",
-        "lm_covariate_str": "+ dataset",
-        "contrasts": "Sum",
-    },
     "patient_immune_infiltration": {
         "dataset": adata_primary_tumor,
-        "dataset_cpdb": adata_cpdb,
+        # "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient"],
         "column_to_test": "immune_infiltration",
         "lm_covariate_str": "+ dataset",
-        "contrasts": "Sum",
-        "tools": ["dorothea", "progeny", "cytosig"],
-    },
-    "patient_immune_infiltration_condition": {
-        "dataset": adata_primary_tumor[
-            ~adata_primary_tumor.obs["lsccness"].isnull(), :
-        ],
-        "dataset_cpdb": adata_cpdb[~adata_cpdb.obs["lsccness"].isnull(), :],
-        "cell_type_column": "cell_type_major",
-        "pseudobulk_group_by": ["dataset", "patient", "lsccness"],
-        "column_to_test": "immune_infiltration",
-        "lm_covariate_str": "+ dataset + lsccness",
         "contrasts": "Sum",
         "tools": ["dorothea", "progeny", "cytosig"],
     },
     "patient_immune_infiltration_treatment_coding": {
         "dataset": adata_primary_tumor,
-        "dataset_cpdb": adata_cpdb,
+        # "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient"],
         "column_to_test": "immune_infiltration",
         "lm_covariate_str": "+ dataset",
-        "contrasts": "Treatment('-')",
+        "contrasts": "Treatment('desert')",
         "tools": ["dorothea", "progeny", "cytosig"],
     },
     "patient_immune_infiltration_treatment_coding_condition": {
         "dataset": adata_primary_tumor[
-            ~adata_primary_tumor.obs["lsccness"].isnull(), :
-        ],
-        "dataset_cpdb": adata_cpdb[~adata_cpdb.obs["lsccness"].isnull(), :],
-        "cell_type_column": "cell_type_major",
-        "pseudobulk_group_by": ["dataset", "patient", "lsccness"],
-        "column_to_test": "immune_infiltration",
-        "lm_covariate_str": "+ dataset + lsccness",
-        "contrasts": "Treatment('-')",
-        "tools": ["dorothea", "progeny", "cytosig"],
-    },
-    "patient_immune_infiltration_treatment_coding_condition2": {
-        "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LSCC"]), :
         ],
-        "dataset_cpdb": adata_cpdb,
+        # "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient", "condition"],
         "column_to_test": "immune_infiltration",
         "lm_covariate_str": "+ dataset + condition",
-        "contrasts": "Treatment('-')",
+        "contrasts": "Treatment('desert')",
         "tools": ["dorothea", "progeny", "cytosig"],
     },
     "luad_lscc": {
         "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LSCC"]), :
         ],
-        "dataset_cpdb": adata_cpdb,
+        # "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient", "tumor_stage"],
         "column_to_test": "condition",
@@ -252,12 +190,12 @@ comparisons = {
     },
     "early_advanced_condition": {
         "dataset": adata_primary_tumor[
-            ~adata_primary_tumor.obs["lsccness"].isnull(), :
+            adata_primary_tumor.obs["condition"].isin(["LUAD", "LSCC"]), :
         ],
         "cell_type_column": "cell_type_major",
-        "pseudobulk_group_by": ["dataset", "patient", "lsccness"],
+        "pseudobulk_group_by": ["dataset", "patient", "condition"],
         "column_to_test": "tumor_stage",
-        "lm_covariate_str": "+ dataset + lsccness",
+        "lm_covariate_str": "+ dataset + condition",
         "contrasts": "Treatment('early')",
         "tools": ["dorothea", "progeny", "cytosig"],
     },
@@ -293,3 +231,5 @@ for tool, adatas in datasets.items():
     os.makedirs(outdir, exist_ok=True)
     for ct, ad in adatas.items():
         ad.write_h5ad(f"{outdir}/{ct}.h5ad")
+
+# %%

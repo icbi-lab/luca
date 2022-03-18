@@ -6,7 +6,7 @@ process SQUIDPY {
     publishDir = [ path: { "${params.squidpy_outDir}"}, mode: 'link' ]
 
     input:
-    tuple val(id), val(in_file)
+    tuple val(id), path(in_file)
     val(cell_type_key)
 
     output:

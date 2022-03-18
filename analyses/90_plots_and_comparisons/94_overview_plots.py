@@ -32,6 +32,7 @@ from tqdm.contrib.concurrent import process_map
 import itertools
 import progeny
 import dorothea
+from threadpoolctl import threadpool_limits
 
 # %%
 alt.data_transformers.disable_max_rows()
@@ -51,8 +52,9 @@ artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 # %%
 main_adata = nxfvars.get(
     "main_adata",
-    "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad",
+    "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
+threadpool_limits(nxfvars.get("cpus", 16))
 
 # %%
 adata = sc.read_h5ad(main_adata)
@@ -83,9 +85,41 @@ adata.obs["platform"].nunique()
 adata.obs["cell_type"].nunique()
 
 # %%
+adata.obs["patient"].nunique()
+
+# %%
+adata.obs["study"].nunique()
+
+# %%
+adata.obs.columns
+
+# %%
+## Export patient table
+adata.obs.loc[
+    :,
+    [
+        "study",
+        "dataset",
+        "patient",
+        "uicc_stage",
+        "tumor_stage",
+        "sex",
+        "ever_smoker",
+        "driver_genes",
+        "condition",
+        "age",
+        "platform",
+        "platform_fine",
+    ],
+].drop_duplicates().sort_values(["study", "dataset", "patient"]).reset_index(drop=True).to_csv(f"{artifact_dir}/patient_table.csv")
+
+# %%
+adata.obs.loc[lambda x: x["origin"].str.contains("tumor")]["patient"].nunique()
+
+# %%
 df = (
     adata.obs.loc[lambda x: x["origin"].str.contains("tumor")]
-    .groupby(["dataset"])
+    .groupby(["study"])
     .apply(lambda x: x["patient"].nunique())
     .reset_index(name="# lung cancer patients")
     .loc[lambda x: x["# lung cancer patients"] > 0]
@@ -96,7 +130,7 @@ ch = (
     .mark_bar()
     .encode(
         x="# lung cancer patients",
-        y=alt.Y("dataset", sort="x"),
+        y=alt.Y("study", sort="x"),
         color=alt.Color(
             "# lung cancer patients", scale=alt.Scale(scheme="viridis"), legend=None
         ),
@@ -111,8 +145,8 @@ ch + (ch).mark_text(align="left", dx=3).encode(
 def process_subset(mask):
     print(np.sum(mask))
     adata_sub = adata[mask, :].copy()
-    # sc.pp.neighbors(adata_sub, use_rep="X_scANVI")
-    # sc.tl.umap(adata_sub)
+    sc.pp.neighbors(adata_sub, use_rep="X_scANVI")
+    sc.tl.umap(adata_sub)
     return adata_sub
 
 
@@ -122,7 +156,8 @@ adatas = {
     for label, ct in {
         "epithelial": (adata.obs["cell_type_coarse"] == "Epithelial cell")
         & (adata.obs["cell_type_major"] != "other"),
-        "tumor": (adata.obs["cell_type_major"] == "Tumor cells") & (adata.obs["cell_type_tumor"] != "Club"),
+        "tumor": (adata.obs["cell_type_major"] == "Tumor cells")
+        & (adata.obs["cell_type_tumor"] != "Club"),
         "immune": adata.obs["cell_type_coarse"].isin(
             [
                 "T cell",
@@ -146,7 +181,9 @@ adatas = {
 # ### Tumor stages
 
 # %%
-adata.obs.loc[:, ["dataset", "patient", "tumor_stage"]].drop_duplicates().groupby(["dataset", "tumor_stage"]).size().unstack()
+adata.obs.loc[:, ["dataset", "patient", "tumor_stage"]].drop_duplicates().groupby(
+    ["dataset", "tumor_stage"]
+).size().unstack()
 
 # %% [markdown]
 # ### Progeny and dorothea for tumor cell clusters
@@ -446,262 +483,3 @@ adata.obs.loc[
         ),
     )
 )
-
-# %% [markdown]
-# ---
-
-# %% [markdown]
-# ## Plots by sample
-
-# %%
-sample_df = adata.obs.loc[
-    :, ["sample", "tissue", "origin", "condition", "dataset"]
-].drop_duplicates()
-assert sample_df.shape[0] == adata.obs["sample"].nunique()
-
-# %%
-(
-    sample_df.groupby("dataset")
-    .size()
-    .reset_index(name="n")
-    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="dataset"))
-)
-
-# %%
-(
-    sample_df.groupby("tissue")
-    .size()
-    .reset_index(name="n")
-    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="tissue"))
-)
-
-# %%
-(
-    sample_df.groupby("condition")
-    .size()
-    .reset_index(name="n")
-    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="condition"))
-)
-
-# %%
-origins = {ds: set() for ds in adata.obs["dataset"].unique()}
-
-# %%
-for ds, origin in zip(adata.obs["dataset"], adata.obs["origin"]):
-    origins[ds] |= {origin}
-
-# %%
-for ds, origin in origins.items():
-    if "normal" in origin and any([s.startswith("tumor") for s in origin]):
-        print(ds, origin)
-
-# %%
-(
-    sample_df.groupby("origin")
-    .size()
-    .reset_index(name="n")
-    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="origin"))
-)
-
-
-# %% [markdown]
-# ## Plots by patient
-
-# %%
-def _group_origins(origins):
-    origins = set(origins)
-    if len(origins) == 1:
-        return next(iter(origins))
-    elif "tumor_primary" in origins and "normal_adjacent" in origins:
-        return "matched tumor/normal"
-    else:
-        # print(origins)
-        return "multiple"
-
-
-patient_df = adata.obs.groupby(["patient", "dataset", "condition"], observed=True).agg(
-    {"origin": _group_origins}
-)
-
-assert patient_df.shape[0] == adata.obs["patient"].nunique()
-
-# %%
-patient_df
-
-# %%
-(
-    patient_df.groupby("origin")
-    .size()
-    .reset_index(name="n")
-    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="origin"))
-)
-
-# %%
-(
-    patient_df.groupby("dataset")
-    .size()
-    .reset_index(name="n")
-    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="dataset"))
-)
-
-# %%
-(
-    patient_df.groupby("condition")
-    .size()
-    .reset_index(name="n")
-    .pipe(lambda _: alt.Chart(_).mark_bar().encode(x="n", color="condition"))
-)
-
-# %% [markdown]
-# ---
-
-# %%
-exit
-
-# %%
-adata.obs["cell_type_plot"] = [
-    "tumor cell" if x == "Tumor cells" else "other cell" for x in adata.obs["cell_type"]
-]
-
-# %%
-composition_df = (
-    adata.obs.groupby(["patient", "cell_type"]).size().reset_index(name="n")
-)
-
-# %%
-patient_order = (
-    composition_df
-    >> s.group_by("patient")
-    >> s.mutate(frac=_.n / _.n.sum())
-    >> s.filter(_.cell_type == "Tumor cells")
-    >> s.ungroup()
-    >> s.arrange("frac")
-)["patient"].values.tolist()
-
-# %%
-bar_chart = (
-    alt.Chart(composition_df)
-    .mark_bar()
-    .encode(
-        x=alt.X(
-            "patient", sort=patient_order, axis=alt.Axis(labels=False, ticks=False)
-        ),
-        color=alt.Color("cell_type", legend=alt.Legend(columns=2, symbolLimit=0)),
-        y=alt.Y("sum(n)", stack="normalize"),
-    )
-    .properties(height=400, width=1200)
-)
-
-bar_chart
-
-# %%
-condition_annotation = (
-    alt.Chart(patient_df)
-    .mark_rect()
-    .encode(
-        x=alt.X(
-            "patient:N", sort=patient_order, axis=alt.Axis(labels=False, ticks=False)
-        ),
-        color="condition",
-    )
-    .properties(width=1200)
-)
-dataset_annotation = (
-    alt.Chart(patient_df)
-    .mark_rect()
-    .encode(
-        x=alt.X(
-            "patient:N", sort=patient_order, axis=alt.Axis(labels=False, ticks=False)
-        ),
-        color="dataset",
-    )
-    .properties(width=1200)
-)
-
-origin_annotation = (
-    alt.Chart(patient_df)
-    .mark_rect()
-    .encode(
-        x=alt.X(
-            "patient:N", sort=patient_order, axis=alt.Axis(labels=False, ticks=False)
-        ),
-        color="origin",
-    )
-    .properties(width=1200)
-)
-
-
-(condition_annotation & dataset_annotation & origin_annotation & bar_chart)
-
-# %% [markdown]
-# ## tumor cells only
-
-# %%
-obs_tumor = adata_tumor.obs.loc[
-    adata_tumor.obs.origin.str.startswith("tumor"), :
-].reset_index()
-
-# %%
-obs_tumor.head()
-
-# %%
-tumor_by_cell_type = (
-    obs_tumor.groupby(["patient", "cell_type"], observed=True)
-    .size()
-    .reset_index(name="n")
-)
-
-# %%
-tumor_sort_patients = (
-    tumor_by_cell_type.groupby("patient", observed=True)
-    .apply(
-        lambda x: x.assign(
-            n_luad=x.loc[x["cell_type"].str.contains("LUAD"), "n"].sum(), n=x.n.sum()
-        )
-    )
-    .drop("cell_type", axis=1)
-    .drop_duplicates()
-    .assign(luad_frac=lambda x: x["n_luad"] / x["n"])
-    .sort_values("luad_frac")["patient"]
-    .values.tolist()
-)
-
-# %%
-bar_chart = (
-    alt.Chart(tumor_by_cell_type)
-    .mark_bar()
-    .encode(
-        x=alt.X(
-            "patient",
-            sort=tumor_sort_patients,
-            axis=alt.Axis(labels=False, ticks=False),
-        ),
-        color=alt.Color("cell_type", legend=alt.Legend(columns=2, symbolLimit=0)),
-        y=alt.Y("sum(n)", stack="normalize"),
-    )
-    .properties(height=400, width=1200)
-)
-
-# %%
-condition_annotation = (
-    alt.Chart(
-        obs_tumor.set_index("patient")
-        .loc[tumor_sort_patients, ["condition"]]
-        .reset_index()
-        .drop_duplicates()
-    )
-    .mark_rect()
-    .encode(
-        x=alt.X(
-            "patient:N",
-            sort=tumor_sort_patients,
-            axis=alt.Axis(labels=False, ticks=False),
-        ),
-        color="condition",
-    )
-    .properties(width=1200)
-)
-
-bar_chart & condition_annotation
-
-# %%

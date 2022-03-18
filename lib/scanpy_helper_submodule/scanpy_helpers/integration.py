@@ -63,8 +63,9 @@ def drop_duplicated_genes(adata):
         return adata
 
 
-def validate_adata(adata):
-    _validate_obs(adata)
+def validate_adata(adata, validate_obs=True):
+    if validate_obs:
+        _validate_obs(adata)
 
     assert isinstance(adata.X, scipy.sparse.csr_matrix)
 
@@ -129,9 +130,9 @@ def normalize_by_gene_length(adata) -> sc.AnnData:
 
     Assumes that there is a layer "counts_length_scaled" with lengh-normalized
     gene counts and a that raw counts are in X.
-    
+
     Essentially, this function multiplies length-normalized counts with the median
-    gene length such that they resemble more the count data. 
+    gene length such that they resemble more the count data.
     """
     gene_lengths = adata.layers["counts_length_scaled"].data / adata.X.data
     median_gene_length = np.median(1 / gene_lengths)

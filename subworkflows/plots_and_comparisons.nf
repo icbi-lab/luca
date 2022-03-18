@@ -12,13 +12,9 @@ workflow plots_and_comparisons {
         [[id: 'compare_groups'], file("${baseDir}/analyses/90_plots_and_comparisons/91_compare_groups.py")],
         Channel.from([
             "tumor_normal",
-            "infiltration_status",
-            "infiltration_type",
             "patient_immune_infiltration",
-            "patient_immune_infiltration_condition",
             "patient_immune_infiltration_treatment_coding",
             "patient_immune_infiltration_treatment_coding_condition",
-            "patient_immune_infiltration_treatment_coding_condition2",
             "luad_lscc",
             "early_advanced",
             "early_advanced_condition",
@@ -33,7 +29,7 @@ workflow plots_and_comparisons {
         adata_annotated.mix(adata_cpdb, patient_stratification).collect()
     )
 
-    ch_sccoda_params = adata_annotated.map{ it -> it.name }.combine([500000]).combine(
+    ch_sccoda_params = adata_annotated.map{ it -> it.name }.combine([1000000]).combine(
         ["cell_type_major", "cell_type_neutro"]
     ).combine(["Tumor cells", "Stromal"]).map{
         adata, mcmc, col, ref -> [

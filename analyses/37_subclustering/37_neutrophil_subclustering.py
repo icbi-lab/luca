@@ -43,7 +43,7 @@ signature_file = nxfvars.get(
 )
 adata_file = nxfvars.get(
     "adata_in",
-    "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad",
+    "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
@@ -67,7 +67,7 @@ adata_n = adata[
 
 # %%
 ah.reprocess_adata_subset_scvi(
-    adata_n, use_rep="X_scANVI", leiden_res=0.5, n_neighbors=15
+    adata_n, use_rep="X_scANVI", leiden_res=0.5, n_neighbors=20
 )
 
 # %%
@@ -148,9 +148,6 @@ sc.pp.normalize_total(pb_n, target_sum=1e6)
 sc.pp.log1p(pb_n)
 
 # %%
-pb_n = pb_n[pb_n.obs["leiden"] != "7", :].copy()
-
-# %%
 sc.tl.rank_genes_groups(pb_n, groupby="leiden", method="wilcoxon", use_raw=False)
 
 # %%
@@ -189,12 +186,11 @@ sc.pl.umap(adata_n, color="leiden", legend_loc="on data", legend_fontoutline=2)
 ah.annotate_cell_types(
     adata_n,
     {
-        "TAN-2": [4],  # antigen presentation; also in zillionis/klein
-        "NAN-1": [2],  # also in zillionis/klein
+        "NAN-1": [4],  # also in zillionis/klein, S100A12
         "NAN-2": [1],
-        "TAN-4": [5],  # also in zillionis/klein
-        "TAN-1": [3, 6],
-        "TAN-3": [0],
+        "TAN-1": [3],  # ribosomal proteins
+        "TAN-2": [2],  # antigen presentation; also in zillionis/klein
+        "TAN-3": [0],  # PLPP3
     },
 )
 

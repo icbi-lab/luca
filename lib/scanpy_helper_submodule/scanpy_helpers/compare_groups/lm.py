@@ -3,7 +3,9 @@
 
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 from unittest.util import strclass
+import warnings
 import pandas as pd
+from patsy import PatsyError
 from tqdm.auto import tqdm
 import statsmodels.formula.api as smf
 from tqdm.contrib.concurrent import process_map
@@ -62,15 +64,18 @@ def lm_test_all(
             aggr_fun=np.mean,
         )
         if tmp_bdata.obs[column_to_test].nunique() >= min_categories:
-            tmp_res = test_lm(
-                tmp_bdata,
-                f"~ C({column_to_test}, {contrasts}) {lm_covariate_str}",
-                column_to_test,
-                contrasts=contrasts,
-                progress=False,
-                **kwargs,
-            )
-            res_list.append(tmp_res.assign(cell_type=ct))
+            try:
+                tmp_res = test_lm(
+                    tmp_bdata,
+                    f"~ C({column_to_test}, {contrasts}) {lm_covariate_str}",
+                    column_to_test,
+                    contrasts=contrasts,
+                    progress=False,
+                    **kwargs,
+                )
+                res_list.append(tmp_res.assign(cell_type=ct))
+            except PatsyError as e:
+                warnings.warn(f"Iteration on {ct} failed with {e}. Ignoring error. ")
 
     return pd.concat(res_list).pipe(fdr_correction).sort_values("pvalue")
 

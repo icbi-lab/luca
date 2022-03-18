@@ -55,6 +55,165 @@ adata_n = adata[
     :,
 ].copy()
 
+# %% [markdown]
+# ## Neutrophil plots
+
+# %%
+patient_fracs = (
+    adata_n.obs.groupby(["cell_type"])
+    .apply(lambda x: x["patient"].value_counts(normalize=True))
+    .unstack()
+    .melt(ignore_index=False, var_name="patient", value_name="fraction")
+    .reset_index()
+)
+
+dataset_fracs = (
+    adata_n.obs.groupby(["cell_type"])
+    .apply(lambda x: x["dataset"].value_counts(normalize=True))
+    .unstack()
+    .melt(ignore_index=False, var_name="dataset", value_name="fraction")
+    .reset_index()
+)
+
+# %%
+alt.Chart(dataset_fracs).mark_bar().encode(x="fraction", y="cell_type", color="dataset")
+
+# %%
+alt.Chart(patient_fracs).mark_bar().encode(x="fraction", y="cell_type", color="patient")
+
+# %% [markdown]
+# ## Heatmaps by neutrophil clusters
+
+# %%
+sc.tl.rank_genes_groups(adata_n, "cell_type")
+
+# %%
+sc.pl.umap(
+    adata_n,
+    color=["CXCR2", "S100A12", "CTSC", "CXCL2", "IFIT1", "RPL5"],
+    cmap="inferno",
+    size=20,
+    ncols=3,
+    frameon=False,
+)
+
+# %%
+sc.pl.dotplot(
+    adata_n,
+    var_names=["CXCR2", "S100A12", "CTSC", "CXCL2", "IFIT1", "RPL5"],
+    groupby="cell_type",
+)
+
+# %%
+sc.pl.rank_genes_groups_dotplot(adata_n, dendrogram=False)
+
+# %%
+pb_n = sh.pseudobulk.pseudobulk(adata_n, groupby=["cell_type", "patient"])
+
+# %%
+sc.pp.normalize_total(pb_n, target_sum=1e6)
+sc.pp.log1p(pb_n)
+
+# %%
+pb_n = pb_n[pb_n.obs["cell_type"] != "other", :].copy()
+
+# %%
+sc.tl.rank_genes_groups(pb_n, groupby="cell_type", method="wilcoxon", use_raw=False)
+
+# %%
+sc.pl.matrixplot(
+    pb_n,
+    var_names=["CXCR2", "S100A12", "CTSC", "CXCL2", "IFIT1", "RPL5"],
+    groupby="cell_type",
+    cmap="bwr",
+)
+
+# %%
+sc.pl.rank_genes_groups_matrixplot(pb_n, dendrogram=False, cmap="bwr")
+
+# %%
+signature_dict = {}
+for sig in signatures["signature"].unique():
+    signature_dict[sig] = signatures.loc[
+        lambda x: x["signature"] == sig, "gene_symbol"
+    ].tolist()
+
+# %%
+sc.pl.matrixplot(pb_n, var_names=signature_dict, cmap="bwr", groupby="cell_type")
+
+# %%
+sc.pl.matrixplot(pb_n, var_names=signature_dict["tan_sig"], cmap="bwr", groupby="cell_type")
+
+# %%
+for sig, genes in signature_dict.items():
+    sc.tl.score_genes(pb_n, genes, score_name=sig)
+    sc.tl.score_genes(adata_n, genes, score_name=sig)
+
+# %%
+sc.pl.matrixplot(
+    pb_n, var_names=list(signature_dict.keys()), cmap="bwr", groupby="cell_type"
+)
+
+# %%
+sc.pl.matrixplot(
+    adata_n[adata_n.obs["cell_type"] != "other"],
+    var_names=list(signature_dict.keys()),
+    cmap="bwr",
+    groupby="cell_type",
+)
+
+# %%
+sc.pl.umap(adata_n, color=list(signature_dict.keys()), cmap="inferno", size=20, ncols=3)
+
+# %% [markdown]
+# ## UKIM-V datasets only
+
+# %%
+adata_n_ukimv = adata_n[adata_n.obs["dataset"].str.startswith("UKIM-V"), :].copy()
+
+# %%
+ah.reprocess_adata_subset_scvi(adata_n_ukimv, use_rep="X_scANVI")
+
+# %%
+adata_n_ukimv.obs
+
+# %%
+with plt.rc_context({"figure.figsize": (4, 4), "figure.dpi": 300}):
+    sc.pl.umap(
+        adata_n,
+        color="origin",
+        frameon=False,
+        size=20,
+        groups=["normal_adjacent", "tumor_metastasis", "tumor_primary"],
+    )
+    sc.pl.umap(adata_n, color="condition", frameon=False, size=20)
+
+# %%
+tmp_df = (
+    adata_n.obs.groupby(["cell_type"])
+    .apply(lambda x: x["origin"].value_counts(normalize=True))
+    .unstack()
+    .melt(var_name="origin", value_name="fraction", ignore_index=False)
+    .reset_index()
+    .loc[lambda x: x["cell_type"] != "other"]
+)
+
+# %%
+alt.Chart(tmp_df).mark_bar().encode(x="fraction", y="cell_type", color="origin")
+
+# %%
+tmp_df = (
+    adata_n.obs.groupby(["cell_type"])
+    .apply(lambda x: x["condition"].value_counts(normalize=True))
+    .unstack()
+    .melt(var_name="condition", value_name="fraction", ignore_index=False)
+    .reset_index()
+    .loc[lambda x: x["cell_type"] != "other"]
+)
+
+# %%
+alt.Chart(tmp_df).mark_bar().encode(x="fraction", y="cell_type", color="condition")
+
 # %% [markdown] tags=[] jp-MarkdownHeadingCollapsed=true tags=[]
 # # mRNA content
 #
@@ -714,3 +873,38 @@ for leiden in signature_genes_df["leiden"].unique():
 
 # %%
 signature_genes_df
+
+# %% [markdown]
+# ---
+
+# %% [markdown]
+# ### Neutrophils
+
+# %%
+results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Neutrophils", :].pipe(
+    sh.util.fdr_correction
+).pipe(plot_lm_result_altair, title="Cytosig (Neutrophils cells)")
+
+# %%
+results["luad_lscc"]["dorothea"].loc[lambda x: x["cell_type"] == "Neutrophils", :].pipe(
+    sh.util.fdr_correction
+).pipe(plot_lm_result_altair, title="TFs (tumor cells LUAD/LSCC)")
+
+# %%
+results["early_advanced"]["dorothea"].loc[
+    lambda x: x["cell_type"] == "Neutrophils", :
+].pipe(sh.util.fdr_correction).pipe(
+    plot_lm_result_altair, title="TFs (Neutrophils tumor/normal)"
+)
+
+# %%
+results["tumor_normal"]["dorothea"].loc[
+    lambda x: x["cell_type"] == "Neutrophils", :
+].to_csv("/home/sturm/Downloads/neutrophils_tfs.tsv", sep="\t")
+
+# %%
+results["tumor_normal"]["dorothea"].loc[
+    lambda x: x["cell_type"] == "Neutrophils", :
+].pipe(sh.util.fdr_correction).pipe(
+    plot_lm_result_altair, title="TFs (Neutrophils tumor/normal)"
+)

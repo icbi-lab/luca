@@ -98,12 +98,43 @@ def reindex_adata(adata, new_var_names):
     """
     tmp_ad = AnnData(
         var=adata.var.reindex(new_var_names),
-        X=scipy.sparse.csr_matrix((adata.shape[0], len(new_var_names))),
+        X=np.zeros((adata.shape[0], len(new_var_names))),
         obs=adata.obs,
         obsm=adata.obsm,
         uns=adata.uns,
     )
     old_var_names = [x for x in new_var_names if x in adata.var_names]
     var_name_to_idx = {var: i for i, var in enumerate(tmp_ad.var_names)}
-    tmp_ad.X[:, [var_name_to_idx[v] for v in old_var_names]] = adata[:, old_var_names].X
+    # need to go through dense matrix because there was something wrong
+    # ValueError: could not convert integer scalar
+    tmp_ad.X[:, [var_name_to_idx[v] for v in old_var_names]] = adata[
+        :, old_var_names
+    ].X.toarray()
+    tmp_ad.X = scipy.sparse.csr_matrix(tmp_ad.X)
     return tmp_ad
+
+
+def aggregate_duplicate_obs(adata, aggr_fun=np.mean):
+    """Aggregate duuplicate gene symbols by sum"""
+    retain_obs = ~adata.obs_names.duplicated(keep="first")
+    duplicated_obs = adata.obs_names[adata.obs_names.duplicated()].unique()
+    if len(duplicated_obs):
+        for obs in tqdm(duplicated_obs):
+            mask = adata.obs_names == obs
+            obs_aggr = aggr_fun(adata.X[mask, :], axis=0)[np.newaxis, :]
+            adata.X[mask, :] = np.repeat(obs_aggr, np.sum(mask), axis=0)
+
+        adata_dedup = adata[retain_obs, :].copy()
+        return adata_dedup
+    else:
+        return adata
+
+
+def scale_range(a):
+    """Scale between -1 and 1, centered around the original 0"""
+    return a / max(np.abs(np.max(a)), np.abs(np.min(a)))
+
+
+def scale_01(a):
+    """Scale between 0 and 1"""
+    return (a - np.min(a)) / np.ptp(a)

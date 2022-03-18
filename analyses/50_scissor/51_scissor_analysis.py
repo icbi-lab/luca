@@ -47,6 +47,9 @@ threadpool_limits(32)
 ah = AnnotationHelper()
 
 # %%
+adata.obs["platform_fine"].unique()
+
+# %%
 path_adata = nxfvars.get(
     "adata_in",
     "../../data/30_downstream_analyses/neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
@@ -56,13 +59,13 @@ path_adata = nxfvars.get(
 adata = sc.read_h5ad(path_adata)
 
 # %%
-adata.obs["cell_type_neutro_coarse"] = adata.obs["cell_type_major"].astype(str)
-adata.obs.loc[
-    adata.obs["cell_type_neutro"].str.startswith("NAN"), "cell_type_neutro_coarse"
-] = "NAN"
-adata.obs.loc[
-    adata.obs["cell_type_neutro"].str.startswith("TAN"), "cell_type_neutro_coarse"
-] = "TAN"
+# adata.obs["cell_type_neutro_coarse"] = adata.obs["cell_type_major"].astype(str)
+# adata.obs.loc[
+#     adata.obs["cell_type_neutro"].str.startswith("NAN"), "cell_type_neutro_coarse"
+# ] = "NAN"
+# adata.obs.loc[
+#     adata.obs["cell_type_neutro"].str.startswith("TAN"), "cell_type_neutro_coarse"
+# ] = "TAN"
 
 # %%
 sc.pl.umap(adata, color=["cell_type_coarse", "origin"])
@@ -192,8 +195,8 @@ sc.pl.umap(
 
 # %%
 adata_primary = adata[
-    (adata.obs["origin"] == "tumor_primary")
-    & ~adata.obs["dataset"].str.startswith("UKIM"),
+    (adata.obs["origin"] == "tumor_primary"),
+    # & ~adata.obs["dataset"].str.startswith("UKIM"),
     :,
 ].copy()
 
@@ -239,7 +242,7 @@ def _scissor_test(df):
 
 
 def scissor_by_group(
-    adata, *, groupby=["cell_type_major", "patient"], scissor_col, adatas_for_gini=None
+    adata, *, groupby=["cell_type_major", "patient"], scissor_col, adatas_for_gini=None, cell_cutoff=10
 ):
     """Aggregate scissor scores first by patient, then by a grouping variable
 
@@ -265,7 +268,7 @@ def scissor_by_group(
         aggfunc=np.sum,
     )
     # only consider samples with at least 10 cells of each type
-    df_grouped = df_grouped.loc[lambda x: x.apply(lambda row: np.sum(row), axis=1) > 10]
+    df_grouped = df_grouped.loc[lambda x: x.apply(lambda row: np.sum(row), axis=1) > cell_cutoff]
     df_grouped += 1  # add pseudocount
     df_grouped = df_grouped.apply(lambda row: row / np.sum(row), axis=1)  # normalize
 
@@ -333,7 +336,7 @@ def plot_scissor_df_ratio(df, *, title="scissor", fdr_cutoff=0.01, groupby="cell
 
 
 # %%
-scissor_dfs = {k: scissor_by_group(adata_primary, scissor_col=k) for k in scissor_cols}
+scissor_dfs = {k: scissor_by_group(adata_primary, scissor_col=k, cell_cutoff=1) for k in scissor_cols}
 
 # %%
 for col, df in scissor_dfs.items():
@@ -342,7 +345,7 @@ for col, df in scissor_dfs.items():
 # %%
 scissor_dfs = {
     k: scissor_by_group(
-        adata_primary, scissor_col=k, groupby=["cell_type_neutro_coarse", "patient"]
+        adata_primary, scissor_col=k, groupby=["cell_type_neutro_coarse", "patient"], cell_cutoff=1
     )
     for k in scissor_cols
 }
@@ -354,7 +357,7 @@ for col, df in scissor_dfs.items():
 # %%
 scissor_dfs = {
     k: scissor_by_group(
-        adata_primary, scissor_col=k, groupby=["cell_type_neutro", "patient"]
+        adata_primary, scissor_col=k, groupby=["cell_type_neutro", "patient"], cell_cutoff=1
     )
     for k in scissor_cols
 }

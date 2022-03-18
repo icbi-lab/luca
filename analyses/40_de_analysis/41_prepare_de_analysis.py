@@ -25,7 +25,7 @@ from nxfvars import nxfvars
 adata = sc.read_h5ad(
     nxfvars.get(
         "input_adata",
-        "../../data/20_build_atlas//annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
+        "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
     )
 )
 
@@ -47,6 +47,50 @@ obs
 
 # %%
 pd.set_option("display.max_rows", 1000)
+
+# %% [markdown]
+# ## Ensure patients are only in one dataset
+#
+# For the leader/merad datasets, some patients have beend sequenced across multiple batches. 
+# We exclude all duplicate patients from other batches than the main batch ("10x_3p_v2"). 
+# The same patient across multiple datasets would require more advanced models, which are not worth it for just 4 patients. 
+
+# %%
+patients_in_multiple_datasets = (
+    adata.obs.groupby("patient")
+    .apply(lambda x: x["dataset"].nunique())
+    .sort_values(ascending=False)[lambda x: x > 1]
+)
+
+# %%
+patients_in_multiple_datasets
+
+# %%
+adata.obs.loc[
+    lambda x: x["patient"].isin(patients_in_multiple_datasets.index),
+    ["patient", "sample", "dataset"],
+].drop_duplicates()
+
+# %%
+adata = adata[
+    (adata.obs["dataset"] != "Leader_Merad_2021_10x_3p_v2_digest-deadcell_cite")
+    & ~(
+        (adata.obs["dataset"] == "Leader_Merad_2021_10x_3p_v2_beads_cite")
+        & (adata.obs["patient"] == "Leader_Merad_2021_581")
+    )
+    & ~(
+        (adata.obs["dataset"] == "Leader_Merad_2021_10x_5p_v1_beads")
+        & (adata.obs["patient"] == "Leader_Merad_2021_522")
+    ),
+    :,
+].copy()
+
+# %%
+assert all(
+    adata.obs.groupby("patient")
+    .apply(lambda x: x["dataset"].nunique())
+    == 1
+)
 
 # %% [markdown]
 # # Comparison 1: paired tumor vs normal

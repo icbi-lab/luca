@@ -14,10 +14,24 @@ def set_scale_anndata(adata, column, palette=None):
     ]
 
 
-def altair_scale(variable):
+def altair_scale(variable, **kwargs):
+    """Discrete color scale for altair based on our color definitions"""
     return alt.Scale(
         domain=list(getattr(COLORS, variable).keys()),
         range=list(getattr(COLORS, variable).values()),
+        **kwargs,
+    )
+
+
+def altair_scale_mpl(scheme, **kwargs):
+    """
+    Use a continuous color scheme from mpl with altair
+    """
+    from matplotlib import cm
+    from matplotlib.colors import to_hex
+
+    return alt.Scale(
+        range=[to_hex(x) for x in cm.get_cmap(scheme, 1000)(range(1000))], **kwargs
     )
 
 
@@ -48,12 +62,13 @@ class COLORS:
 
     sex = {
         "male": "#80b1d3",
-        "female": "#fccde5",
+        "female": "#e41a1c",
         "unknown": "#dddddd",
     }
     tumor_stage = {
         "early": "#998ec3",
         "late": "#f1a340",
+        "unknown": "#dddddd",
     }
     TMIG = {  # tumor microenvironment infiltration group
         "-/-": "#CCCCCC",
@@ -66,10 +81,11 @@ class COLORS:
         "B/-": "#fdbf6f",
     }
     immune_infiltration = {
-        "B": "#ff7f00",
+        "mixed": "#ff7f00",
         "T": "#1f78b4",
         "M": "#33a02c",
-        "-": "#999999",
+        "desert": "#999999",
+        # "n/a": "#dddddd",
     }
     infiltration_state = {
         "I/S": "#6a3d9a",
@@ -78,20 +94,17 @@ class COLORS:
         "-/-": "#CCCCCC",
     }
     tumor_type = {
-        "LUAD": "#7fc97f",
-        "NSCLC": "#999999",
-        "LSCC": "#f0027f",
-        "LUAD EMT": "#beaed4",
-        "LUAD NE": "#fdc086",
-        "LUAD dedifferentiated": "#ffff99",
-        # TODO: Just show these as NSCLC NOS
-        "PPC": "#bf5b17",
-        "LCLC": "#bf5b17",
+        "LUSC": "#beaed4",
+        "LUAD": "#ffff99",
+        "NOS": "#999999",
+        "LUAD EMT": "#386cb0",
+        "LUAD NE": "#f0027f",
+        "LUAD dedifferentiated": "#bf5b17",
     }
     condition = {
         "healthy_control": "#7fc97f",
         "non-cancer": "#7fc97f",
-        "LSCC": "#beaed4",
+        "LUSC": "#beaed4",
         "COPD": "#fdc086",
         "LUAD": "#ffff99",
         "NSCLC": "#999999",
@@ -160,7 +173,7 @@ class COLORS:
         "other": "#f6c4e1",
         "pDC": "#f79cd4",
     }
-    dataset = {
+    study = {
         "Adams_Kaminski_2020": "#023fa5",
         "Chen_Zhang_2020": "#7d87b9",
         "Goveia_Carmeliet_2020": "#bec1d4",
@@ -168,12 +181,10 @@ class COLORS:
         "Habermann_Kropski_2020": "#bb7784",
         "He_Fan_2021": "#8e063b",
         "Kim_Lee_2020": "#4a6fe3",
-        "Lambrechts_Thienpont_2018_6149v1": "#8595e1",
-        "Lambrechts_Thienpont_2018_6149v2": "#b5bbe3",
-        "Lambrechts_Thienpont_2018_6653": "#e6afb9",
+        "Lambrechts_Thienpont_2018": "#8595e1",
         "Laughney_Massague_2020": "#e07b91",
         "Madissoon_Meyer_2020": "#d33f6a",
-        "Maier_Merad_2020": "#11c638",
+        "Leader_Merad_2021": "#11c638",
         "Maynard_Bivona_2020": "#8dd593",
         "Mayr_Schiller_2020": "#c6dec7",
         "Reyfman_Misharin_2018": "#ead3c6",
