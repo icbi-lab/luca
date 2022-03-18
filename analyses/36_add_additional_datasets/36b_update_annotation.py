@@ -295,6 +295,11 @@ adata_full.obs["study"] = ["_".join(x.split("_")[:3]).replace("-2", "") for x in
 # %%
 adata_full.obs["study"].unique()
 
+# %%
+adata_full.obs["tumor_stage"] = adata_full.obs["tumor_stage"].str.replace("late", "advanced")
+adata_full.obs["cell_type_tumor"] = adata_full.obs["cell_type_tumor"].str.replace("LSCC", "LUSC")
+adata_full.obs["condition"] = adata_full.obs["condition"].str.replace("LSCC", "LUSC")
+
 # %% [markdown]
 # ## Write output
 #

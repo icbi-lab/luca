@@ -111,7 +111,11 @@ adata.obs.loc[
         "platform",
         "platform_fine",
     ],
-].drop_duplicates().sort_values(["study", "dataset", "patient"]).reset_index(drop=True).to_csv(f"{artifact_dir}/patient_table.csv")
+].drop_duplicates().sort_values(["study", "dataset", "patient"]).reset_index(
+    drop=True
+).to_csv(
+    f"{artifact_dir}/patient_table.csv"
+)
 
 # %%
 adata.obs.loc[lambda x: x["origin"].str.contains("tumor")]["patient"].nunique()
@@ -455,7 +459,7 @@ adata.obs.loc[
     lambda x: (x["origin"] == "tumor_primary")
     & ~x["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"])
 ].groupby(["condition", "cell_type_coarse"]).size().reset_index(name="n_cells").loc[
-    lambda x: x["condition"].isin(["LUAD", "LSCC"]), :
+    lambda x: x["condition"].isin(["LUAD", "LUSC"]), :
 ].pipe(
     lambda x: alt.Chart(x)
     .mark_bar()

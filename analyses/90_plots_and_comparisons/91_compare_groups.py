@@ -157,7 +157,7 @@ comparisons = {
     },
     "patient_immune_infiltration_treatment_coding_condition": {
         "dataset": adata_primary_tumor[
-            adata_primary_tumor.obs["condition"].isin(["LUAD", "LSCC"]), :
+            adata_primary_tumor.obs["condition"].isin(["LUAD", "LUSC"]), :
         ],
         "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
@@ -167,9 +167,9 @@ comparisons = {
         "contrasts": "Treatment('desert')",
         "tools": ["dorothea", "progeny", "cytosig"],
     },
-    "luad_lscc": {
+    "luad_lusc": {
         "dataset": adata_primary_tumor[
-            adata_primary_tumor.obs["condition"].isin(["LUAD", "LSCC"]), :
+            adata_primary_tumor.obs["condition"].isin(["LUAD", "LUSC"]), :
         ],
         "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
@@ -190,7 +190,7 @@ comparisons = {
     },
     "early_advanced_condition": {
         "dataset": adata_primary_tumor[
-            adata_primary_tumor.obs["condition"].isin(["LUAD", "LSCC"]), :
+            adata_primary_tumor.obs["condition"].isin(["LUAD", "LUSC"]), :
         ],
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient", "condition"],

@@ -51,9 +51,9 @@ pd.set_option("display.max_rows", 1000)
 # %% [markdown]
 # ## Ensure patients are only in one dataset
 #
-# For the leader/merad datasets, some patients have beend sequenced across multiple batches. 
-# We exclude all duplicate patients from other batches than the main batch ("10x_3p_v2"). 
-# The same patient across multiple datasets would require more advanced models, which are not worth it for just 4 patients. 
+# For the leader/merad datasets, some patients have beend sequenced across multiple batches.
+# We exclude all duplicate patients from other batches than the main batch ("10x_3p_v2").
+# The same patient across multiple datasets would require more advanced models, which are not worth it for just 4 patients.
 
 # %%
 patients_in_multiple_datasets = (
@@ -86,11 +86,7 @@ adata = adata[
 ].copy()
 
 # %%
-assert all(
-    adata.obs.groupby("patient")
-    .apply(lambda x: x["dataset"].nunique())
-    == 1
-)
+assert all(adata.obs.groupby("patient").apply(lambda x: x["dataset"].nunique()) == 1)
 
 # %% [markdown]
 # # Comparison 1: paired tumor vs normal
@@ -133,18 +129,18 @@ adata_tumor_normal
 sc.pl.umap(adata_tumor_normal, color="cell_type")
 
 # %% [markdown]
-# # Comparison 2: LUAD vs LSCC
+# # Comparison 2: LUAD vs LUSC
 #
-# primary tumor samples from LUAD and LSCC patients
+# primary tumor samples from LUAD and LUSC patients
 
 # %%
-adata_luad_lscc = adata[
-    (adata.obs["origin"] == "tumor_primary"),
+adata_luad_lusc = adata[
+    (adata.obs["origin"] == "tumor_priLUSC"),
     :,
 ].copy()
 
 # %%
-sc.pl.umap(adata_luad_lscc, color="cell_type")
+sc.pl.umap(adata_luad_lusc, color="cell_type")
 
 # %% [markdown]
 # # Write output
@@ -153,4 +149,4 @@ sc.pl.umap(adata_luad_lscc, color="cell_type")
 adata_tumor_normal.write_h5ad(f"{artifact_dir}/adata_tumor_normal.h5ad")
 
 # %%
-adata_luad_lscc.write_h5ad(f"{artifact_dir}/adata_primary_tumor.h5ad")
+adata_luad_lusc.write_h5ad(f"{artifact_dir}/adata_primary_tumor.h5ad")

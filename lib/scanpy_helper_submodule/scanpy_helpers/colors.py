@@ -67,7 +67,12 @@ class COLORS:
     }
     tumor_stage = {
         "early": "#998ec3",
-        "late": "#f1a340",
+        "advanced": "#f1a340",
+        "unknown": "#dddddd",
+    }
+    tumor_stage_verbose = {
+        "early (I/II)": "#998ec3",
+        "advanced (III/IV)": "#f1a340",
         "unknown": "#dddddd",
     }
     TMIG = {  # tumor microenvironment infiltration group

@@ -177,7 +177,7 @@ sc.pl.umap(
 #     for x in adata.obs["scissor_tumor_stage"]
 # ]
 # adata.obs["scissor_tumor_type"] = [
-#     {"scissor+": "LSCC", "scissor-": "LUAD"}.get(x, np.nan)
+#     {"scissor+": "LUSC", "scissor-": "LUAD"}.get(x, np.nan)
 #     for x in adata.obs["scissor_tumor_type"]
 # ]
 # adata.obs["scissor_kras_mutation"] = [
@@ -242,7 +242,12 @@ def _scissor_test(df):
 
 
 def scissor_by_group(
-    adata, *, groupby=["cell_type_major", "patient"], scissor_col, adatas_for_gini=None, cell_cutoff=10
+    adata,
+    *,
+    groupby=["cell_type_major", "patient"],
+    scissor_col,
+    adatas_for_gini=None,
+    cell_cutoff=10,
 ):
     """Aggregate scissor scores first by patient, then by a grouping variable
 
@@ -268,7 +273,9 @@ def scissor_by_group(
         aggfunc=np.sum,
     )
     # only consider samples with at least 10 cells of each type
-    df_grouped = df_grouped.loc[lambda x: x.apply(lambda row: np.sum(row), axis=1) > cell_cutoff]
+    df_grouped = df_grouped.loc[
+        lambda x: x.apply(lambda row: np.sum(row), axis=1) > cell_cutoff
+    ]
     df_grouped += 1  # add pseudocount
     df_grouped = df_grouped.apply(lambda row: row / np.sum(row), axis=1)  # normalize
 
@@ -310,7 +317,9 @@ def plot_scissor_df(df, *, title="scissor"):
 
 
 # %%
-def plot_scissor_df_ratio(df, *, title="scissor", fdr_cutoff=0.01, groupby="cell_type_major"):
+def plot_scissor_df_ratio(
+    df, *, title="scissor", fdr_cutoff=0.01, groupby="cell_type_major"
+):
     """Plot the result of scissor_by_group as a bar chart"""
     df = df.loc[lambda x: x["fdr"] < fdr_cutoff].copy().reset_index(drop=False)
     # print(df)
@@ -336,7 +345,10 @@ def plot_scissor_df_ratio(df, *, title="scissor", fdr_cutoff=0.01, groupby="cell
 
 
 # %%
-scissor_dfs = {k: scissor_by_group(adata_primary, scissor_col=k, cell_cutoff=1) for k in scissor_cols}
+scissor_dfs = {
+    k: scissor_by_group(adata_primary, scissor_col=k, cell_cutoff=1)
+    for k in scissor_cols
+}
 
 # %%
 for col, df in scissor_dfs.items():
@@ -345,7 +357,10 @@ for col, df in scissor_dfs.items():
 # %%
 scissor_dfs = {
     k: scissor_by_group(
-        adata_primary, scissor_col=k, groupby=["cell_type_neutro_coarse", "patient"], cell_cutoff=1
+        adata_primary,
+        scissor_col=k,
+        groupby=["cell_type_neutro_coarse", "patient"],
+        cell_cutoff=1,
     )
     for k in scissor_cols
 }
@@ -357,7 +372,10 @@ for col, df in scissor_dfs.items():
 # %%
 scissor_dfs = {
     k: scissor_by_group(
-        adata_primary, scissor_col=k, groupby=["cell_type_neutro", "patient"], cell_cutoff=1
+        adata_primary,
+        scissor_col=k,
+        groupby=["cell_type_neutro", "patient"],
+        cell_cutoff=1,
     )
     for k in scissor_cols
 }

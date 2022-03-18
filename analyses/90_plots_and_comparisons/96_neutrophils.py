@@ -34,7 +34,9 @@ from tqdm.auto import tqdm
 sc.settings.set_figure_params(figsize=(5, 5))
 
 # %%
-signatures = pd.read_csv("../../tables/gene_annotations/neutro_signatures.csv", comment="#").loc[lambda x: x["signature"] != "sig_pd1"]
+signatures = pd.read_csv(
+    "../../tables/gene_annotations/neutro_signatures.csv", comment="#"
+).loc[lambda x: x["signature"] != "sig_pd1"]
 
 # %%
 ah = AnnotationHelper()
@@ -51,7 +53,7 @@ adata.obs.columns
 adata_t = adata[adata.obs["cell_type"] == "Tumor cells", :].copy()
 adata_n = adata[
     (adata.obs["cell_type_coarse"] == "Neutrophils")
-    & (adata.obs["condition"].isin(["LSCC", "LUAD", "NSCLC"])),
+    & (adata.obs["condition"].isin(["LUSC", "LUAD", "NSCLC"])),
     :,
 ].copy()
 
@@ -142,7 +144,9 @@ for sig in signatures["signature"].unique():
 sc.pl.matrixplot(pb_n, var_names=signature_dict, cmap="bwr", groupby="cell_type")
 
 # %%
-sc.pl.matrixplot(pb_n, var_names=signature_dict["tan_sig"], cmap="bwr", groupby="cell_type")
+sc.pl.matrixplot(
+    pb_n, var_names=signature_dict["tan_sig"], cmap="bwr", groupby="cell_type"
+)
 
 # %%
 for sig, genes in signature_dict.items():
@@ -217,7 +221,7 @@ alt.Chart(tmp_df).mark_bar().encode(x="fraction", y="cell_type", color="conditio
 # %% [markdown] tags=[] jp-MarkdownHeadingCollapsed=true tags=[]
 # # mRNA content
 #
-# Need to compute ratios, because the baseline difference between datasets and platforms is very high. 
+# Need to compute ratios, because the baseline difference between datasets and platforms is very high.
 
 # %%
 rel_counts = (
@@ -370,7 +374,7 @@ sh.pairwise.plot_paired(
 )
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
-# ### Using all samples (no pairing between tumor/normal) 
+# ### Using all samples (no pairing between tumor/normal)
 #
 # This is a use-case of a linear mixed effects model
 
@@ -438,7 +442,7 @@ sc.pl.umap(
 )
 
 # %% [markdown]
-# # LUAD vs. LSCC
+# # LUAD vs. LUSC
 #
 # ## Neutro fractions
 
@@ -474,7 +478,7 @@ datasets_with_neutros = (
 # %%
 neutro_subset = neutro_fractions.loc[
     lambda x: (
-        x["dataset"].isin(datasets_with_neutros) & x["condition"].isin(["LUAD", "LSCC"])
+        x["dataset"].isin(datasets_with_neutros) & x["condition"].isin(["LUAD", "LUSC"])
     ),
     :,
 ].sort_values("fraction", ascending=False)
@@ -498,7 +502,7 @@ sns.boxplot(
     data=neutro_subset, x="condition", y="fraction", ax=ax, width=0.5, fliersize=0
 )
 ax.legend(bbox_to_anchor=(1.1, 1.05))
-ax.set_title("Neutrophil fraction in LSCC vs LUAD")
+ax.set_title("Neutrophil fraction in LUSC vs LUAD")
 
 # %%
 mod = smf.ols("fraction ~ C(condition) + dataset", data=neutro_subset)
@@ -508,7 +512,7 @@ res = mod.fit()
 res.pvalues
 
 # %% [markdown]
-# ## neutro recruitment signature (LSCC vs. LUAD) 
+# ## neutro recruitment signature (LUSC vs. LUAD)
 
 # %%
 recruitment_genes = [
@@ -534,8 +538,8 @@ recruitment_genes = [
 ]
 
 # %%
-deseq2_res_luad_lscc = pd.read_csv(
-    "../../data/30_downstream_analyses/de_analysis/luad_lscc/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
+deseq2_res_luad_lusc = pd.read_csv(
+    "../../data/30_downstream_analyses/de_analysis/luad_lusc/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
     sep="\t",
     index_col=0,
 ).set_index("gene_id.1")
@@ -544,7 +548,7 @@ deseq2_res_luad_lscc = pd.read_csv(
 tumor_cells_by_origin = sh.pseudobulk.pseudobulk(
     adata_t[
         (adata_t.obs["origin"] == "tumor_primary")
-        & adata_t.obs["condition"].isin(["LUAD", "LSCC"]),
+        & adata_t.obs["condition"].isin(["LUAD", "LUSC"]),
         :,
     ].copy(),
     groupby=["patient", "condition", "dataset"],
@@ -569,7 +573,7 @@ sh.pairwise.plot_paired(
     show_legend=False,
     size=5,
     ylabel="log norm counts",
-    pvalues=deseq2_res_luad_lscc.loc[recruitment_genes, "padj"],
+    pvalues=deseq2_res_luad_lusc.loc[recruitment_genes, "padj"],
     pvalue_template="DESeq2 FDR={:.3f}",
     n_cols=5,
 )
@@ -578,7 +582,7 @@ sh.pairwise.plot_paired(
 # ### top genes
 
 # %%
-top_genes = deseq2_res_luad_lscc.index[:30]
+top_genes = deseq2_res_luad_lusc.index[:30]
 sh.pairwise.plot_paired(
     tumor_cells_by_origin,
     groupby="condition",
@@ -587,7 +591,7 @@ sh.pairwise.plot_paired(
     show_legend=False,
     size=5,
     ylabel="log norm counts",
-    pvalues=deseq2_res_luad_lscc.loc[top_genes, "padj"],
+    pvalues=deseq2_res_luad_lusc.loc[top_genes, "padj"],
     pvalue_template="DESeq2 FDR={:.3f}",
     n_cols=10,
 )
@@ -613,7 +617,7 @@ sh.pairwise.plot_paired(
     show_legend=False,
     size=5,
     ylabel="log norm counts",
-    pvalues=deseq2_res_luad_lscc.loc[sox2_genes, "padj"],
+    pvalues=deseq2_res_luad_lusc.loc[sox2_genes, "padj"],
     pvalue_template="DESeq2 FDR={:.3f}",
     n_cols=5,
 )
@@ -629,7 +633,7 @@ interactions_of_interest = pd.read_excel(
 # %%
 dfs = []
 for p in Path(
-    "../../data/30_downstream_analyses/de_analysis/luad_lscc/de_deseq2/"
+    "../../data/30_downstream_analyses/de_analysis/luad_lusc/de_deseq2/"
 ).glob("*.tsv"):
     cell_type = p.stem.replace("adata_primary_tumor_", "").replace("_DESeq2_result", "")
     dfs.append(pd.read_csv(p, sep="\t").assign(cell_type=cell_type))
@@ -724,7 +728,7 @@ sns.boxplot(
     order=order,
     color="white",
     **PROPS,
-    showfliers=False
+    showfliers=False,
 )
 ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
 _ = plt.xticks(rotation=90)
@@ -755,13 +759,13 @@ tumor_normal_cytosig.loc[lambda x: x["cell_type"] == "Neutrophils", :].query(
 )
 
 # %% [markdown]
-# # Differences in TANs between LUAD and LSCC
+# # Differences in TANs between LUAD and LUSC
 
 # %%
 neutrophils_by_origin = sh.pseudobulk.pseudobulk(
     adata_n[
         (adata_n.obs["origin"] == "tumor_primary")
-        & adata_n.obs["condition"].isin(["LUAD", "LSCC"]),
+        & adata_n.obs["condition"].isin(["LUAD", "LUSC"]),
         :,
     ].copy(),
     groupby=["patient", "condition", "dataset"],
@@ -773,17 +777,17 @@ sc.pp.log1p(neutrophils_by_origin)
 neutrophils_by_origin.obs.sort_values(["dataset", "condition"])
 
 # %%
-deseq2_neutro_luad_lscc = pd.read_csv(
-    "../../data/30_downstream_analyses/de_analysis/luad_lscc/de_deseq2/adata_luad_lscc_neutrophils_DESeq2_result.tsv",
+deseq2_neutro_luad_lusc = pd.read_csv(
+    "../../data/30_downstream_analyses/de_analysis/luad_lusc/de_deseq2/adata_luad_lusc_neutrophils_DESeq2_result.tsv",
     sep="\t",
     index_col=0,
 ).sort_values("padj")
 
 # %%
-top_genes = deseq2_neutro_luad_lscc["gene_id.1"][:30].values
+top_genes = deseq2_neutro_luad_lusc["gene_id.1"][:30].values
 
 # %%
-top_genes = deseq2_neutro_luad_lscc["gene_id.1"][:30]
+top_genes = deseq2_neutro_luad_lusc["gene_id.1"][:30]
 sh.pairwise.plot_paired(
     neutrophils_by_origin,
     groupby="condition",
@@ -792,17 +796,17 @@ sh.pairwise.plot_paired(
     show_legend=False,
     size=5,
     ylabel="log norm counts",
-    pvalues=deseq2_neutro_luad_lscc.set_index("gene_id.1").loc[top_genes, "padj"],
+    pvalues=deseq2_neutro_luad_lusc.set_index("gene_id.1").loc[top_genes, "padj"],
     pvalue_template="DESeq2 FDR={:.3f}",
     n_cols=10,
 )
 
 # %%
-deseq2_neutro_luad_lscc.iloc[:30].rename(columns={"gene_id.1": "gene"})
+deseq2_neutro_luad_lusc.iloc[:30].rename(columns={"gene_id.1": "gene"})
 
 # %%
 df = (
-    deseq2_neutro_luad_lscc.loc[lambda x: x["padj"] < 0.1]
+    deseq2_neutro_luad_lusc.loc[lambda x: x["padj"] < 0.1]
     .rename(columns={"gene_id.1": "gene"})
     .assign(
         ymin=lambda x: x["log2FoldChange"] - x["lfcSE"],
@@ -881,14 +885,14 @@ signature_genes_df
 # ### Neutrophils
 
 # %%
-results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Neutrophils", :].pipe(
+results["luad_lusc"]["cytosig"].loc[lambda x: x["cell_type"] == "Neutrophils", :].pipe(
     sh.util.fdr_correction
 ).pipe(plot_lm_result_altair, title="Cytosig (Neutrophils cells)")
 
 # %%
-results["luad_lscc"]["dorothea"].loc[lambda x: x["cell_type"] == "Neutrophils", :].pipe(
+results["luad_lusc"]["dorothea"].loc[lambda x: x["cell_type"] == "Neutrophils", :].pipe(
     sh.util.fdr_correction
-).pipe(plot_lm_result_altair, title="TFs (tumor cells LUAD/LSCC)")
+).pipe(plot_lm_result_altair, title="TFs (tumor cells LUAD/LUSC)")
 
 # %%
 results["early_advanced"]["dorothea"].loc[

@@ -40,8 +40,8 @@ sc.set_figure_params(figsize=(5, 5))
 # %%
 cell_type_column = nxfvars.get("cell_type_column", "cell_type_major")
 reference_cell_type = nxfvars.get("reference_cell_type", "Tumor cells")
-# Using 500k MCMC iterations. With fewer (tested up to 100k) the results differed 
-# due to limited random sampling. 
+# Using 500k MCMC iterations. With fewer (tested up to 100k) the results differed
+# due to limited random sampling.
 mcmc_iterations = nxfvars.get("mcmc_iterations", 500000)
 main_adata_file = nxfvars.get(
     "main_adata",
@@ -57,13 +57,13 @@ adata = sc.read_h5ad(main_adata_file)
 # # Cell-type fractions
 
 # %%
-# only on primary tumor samples; 
+# only on primary tumor samples;
 # exclude datasets with only a single cell-type
 frac_by_condition = (
     adata.obs.loc[
         lambda x: (x["origin"] == "tumor_primary")
-        & ~x["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"])
-        & x["condition"].isin(["LUAD", "LSCC"])
+        & ~x["dataset"].isin(["Guo_Zhang_2018"])
+        & x["condition"].isin(["LUAD", "LUSC"])
     ]
     .groupby(["dataset", "condition", "tumor_stage", "patient"])
     .apply(lambda x: x.value_counts(cell_type_column, normalize=False))
@@ -108,28 +108,40 @@ def run_sccoda(sccoda_data, reference_cell_type, n):
 res_tumor_ref2 = run_sccoda(data_all, reference_cell_type, mcmc_iterations)
 
 # %%
-credible_effects_condition = res_tumor_ref2.credible_effects(est_fdr=0.1)["condition[T.LUAD]"]
-credible_effects_stage = res_tumor_ref2.credible_effects(est_fdr=0.1)["tumor_stage[T.late]"]
+credible_effects_condition = res_tumor_ref2.credible_effects(est_fdr=0.1)[
+    "condition[T.LUAD]"
+]
+credible_effects_stage = res_tumor_ref2.credible_effects(est_fdr=0.1)[
+    "tumor_stage[T.late]"
+]
 
 # %%
-(alt.Chart(
-    res_tumor_ref2.effect_df.loc["condition[T.LUAD]"]
-    .loc[credible_effects_condition].reset_index(),
-    title="condition",
-).mark_bar().encode(
-    x=alt.X("Cell Type", sort="y"),
-    y="log2-fold change",
-    color=alt.Color("Cell Type"),
-) | alt.Chart(
-    res_tumor_ref2.effect_df.loc["tumor_stage[T.late]"]
-    .loc[credible_effects_stage]
-    .reset_index(),
-    title="tumor_stage",
-).mark_bar().encode(
-    x=alt.X("Cell Type", sort="y"),
-    y="log2-fold change",
-    color=alt.Color("Cell Type"),
-)).resolve_scale(y="shared")
+(
+    alt.Chart(
+        res_tumor_ref2.effect_df.loc["condition[T.LUAD]"]
+        .loc[credible_effects_condition]
+        .reset_index(),
+        title="condition",
+    )
+    .mark_bar()
+    .encode(
+        x=alt.X("Cell Type", sort="y"),
+        y="log2-fold change",
+        color=alt.Color("Cell Type"),
+    )
+    | alt.Chart(
+        res_tumor_ref2.effect_df.loc["tumor_stage[T.late]"]
+        .loc[credible_effects_stage]
+        .reset_index(),
+        title="tumor_stage",
+    )
+    .mark_bar()
+    .encode(
+        x=alt.X("Cell Type", sort="y"),
+        y="log2-fold change",
+        color=alt.Color("Cell Type"),
+    )
+).resolve_scale(y="shared")
 
 # %%
 res_tumor_ref2.effect_df.loc["condition[T.LUAD]"]

@@ -32,7 +32,7 @@ comparisons = [
     "patient_immune_infiltration_condition",
     "patient_immune_infiltration_treatment_coding",
     "patient_immune_infiltration_treatment_coding_condition",
-    "luad_lscc",
+    "luad_lusc",
     "early_advanced",
     "early_advanced_condition",
 ]
@@ -58,16 +58,16 @@ for comparison in comparisons:
 # ### Tumor cells
 
 # %%
-results["luad_lscc"]["dorothea"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
+results["luad_lusc"]["dorothea"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
     sh.util.fdr_correction
-).pipe(plot_lm_result_altair, title="TFs (tumor cells LUAD/LSCC)")
+).pipe(plot_lm_result_altair, title="TFs (tumor cells LUAD/LUSC)")
 
 # %% [markdown]
 # ## Progeny
 # ### Tumor cells
 
 # %%
-results["luad_lscc"]["progeny"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
+results["luad_lusc"]["progeny"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
     sh.util.fdr_correction
 ).pipe(plot_lm_result_altair, title="Differential pathways (tumor cells)", p_cutoff=1)
 
@@ -76,7 +76,7 @@ results["luad_lscc"]["progeny"].loc[lambda x: x["cell_type"] == "Tumor cells", :
 # ### Tumor cells
 
 # %%
-results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
+results["luad_lusc"]["cytosig"].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(
     sh.util.fdr_correction
 ).pipe(plot_lm_result_altair, title="Cytosig (tumor cells)")
 
@@ -84,7 +84,7 @@ results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Tumor cells", :
 # ### Stromal cells
 
 # %%
-results["luad_lscc"]["cytosig"].loc[lambda x: x["cell_type"] == "Stromal", :].pipe(
+results["luad_lusc"]["cytosig"].loc[lambda x: x["cell_type"] == "Stromal", :].pipe(
     sh.util.fdr_correction
 ).pipe(plot_lm_result_altair, title="Cytosig (stromal cells)")
 
@@ -158,7 +158,7 @@ results["patient_immune_infiltration_treatment_coding_condition"]["progeny"].loc
 )
 
 # %% [markdown]
-# ## Cytosig 
+# ## Cytosig
 # ### Infiltration subtypes
 
 # %%
@@ -182,9 +182,7 @@ for ct in tmp_cytosig["cell_type"].unique():
 # %%
 tmp_cytosig = (
     results["patient_immune_infiltration_treatment_coding_condition"]["cytosig"]
-    .loc[
-        lambda x: x["cell_type"].isin(["Tumor cells", "Stromal", "Endothelial"]), :
-    ]
+    .loc[lambda x: x["cell_type"].isin(["Tumor cells", "Stromal", "Endothelial"]), :]
     .pipe(sh.util.fdr_correction)
 )
 
@@ -192,7 +190,9 @@ tmp_cytosig = (
 for ct in tmp_cytosig["cell_type"].unique():
     try:
         plot_lm_result_altair(
-            tmp_cytosig.loc[lambda x: x["cell_type"] == ct], title=f"Cytosig for {ct}", p_cutoff=0.1
+            tmp_cytosig.loc[lambda x: x["cell_type"] == ct],
+            title=f"Cytosig for {ct}",
+            p_cutoff=0.1,
         ).display()
     except AttributeError:
         pass

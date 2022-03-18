@@ -38,17 +38,19 @@ matplotlib.rcParams.update({"font.size": 16})
 matplotlib.rcParams["figure.dpi"] = 300
 
 # %%
-adata = sc.read_h5ad(nxfvars.get(
-    "main_adata",
-    "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
-))
+adata = sc.read_h5ad(
+    nxfvars.get(
+        "main_adata",
+        "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+    )
+)
 
 # %% [markdown]
 # ## TCGA
 
 # %%
 tcga_clin = pd.read_csv("../../tables/tcga/clinical_data_for_scissor.tsv", sep="\t")
-tcga_clin["type"] = tcga_clin["type"].str.replace("LUSC", "LSCC")
+tcga_clin["type"] = tcga_clin["type"].str.replace("LUSC", "LUSC")
 
 # %%
 df = tcga_clin.groupby("type").size().reset_index(name="n")
@@ -76,13 +78,20 @@ df["mutation"] = df["mutation"].str.replace("_mutation", "").str.upper()
 df["frac"] = df["frac"] / tcga_clin.shape[0]
 
 # %%
-ch = alt.Chart(df).mark_bar().encode(x=alt.X("frac", axis=alt.Axis(labels=False, ticks=False)), y="mutation")
+ch = (
+    alt.Chart(df)
+    .mark_bar()
+    .encode(x=alt.X("frac", axis=alt.Axis(labels=False, ticks=False)), y="mutation")
+)
 (
     ch
     + (ch)
     .mark_text(align="left", dx=3)
     .encode(
-        text=alt.Text("frac", format=",.2f", ),
+        text=alt.Text(
+            "frac",
+            format=",.2f",
+        ),
         color=alt.value("black"),
     )
 ).configure_view(strokeOpacity=0).configure_axis(grid=False).properties(width=150)
@@ -292,11 +301,15 @@ df = (
     .reset_index(name="n_cells")
     .assign(
         condition=lambda x: [
-            x if x in ["COPD", "LUAD", "LSCC", "NSCLC", "healthy_control"] else "other"
+            x if x in ["COPD", "LUAD", "LUSC", "NSCLC", "healthy_control"] else "other"
             for x in x["condition"]
         ]
-    ).assign(
-        condition = lambda x: [{"NSCLC": "NOS", "healthy_control": "non-cancer"}.get(_, _) for _ in x["condition"]]
+    )
+    .assign(
+        condition=lambda x: [
+            {"NSCLC": "NOS", "healthy_control": "non-cancer"}.get(_, _)
+            for _ in x["condition"]
+        ]
     )
     .groupby("condition")
     .size()

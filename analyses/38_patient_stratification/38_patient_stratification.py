@@ -404,7 +404,7 @@ p2 = (
         ),
         color=alt.Color(
             "value",
-            scale=sh.colors.altair_scale_mpl("bwr", reverse=False, domain=[-0.4, 0.4]),
+            scale=sh.colors.altair_scale_mpl("bwr", reverse=False, domain=[-0.5, 0.5]),
         ),
     )
     .properties(width=800, height=200)

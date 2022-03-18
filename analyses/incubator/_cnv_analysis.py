@@ -145,7 +145,7 @@ alt.Chart(ithgex_df.dropna(how="any")).mark_boxplot().encode(
 
 # %%
 alt.Chart(
-    ithgex_df.dropna(how="any").loc[lambda x: x["condition"].isin(["LUAD", "LSCC"]), :]
+    ithgex_df.dropna(how="any").loc[lambda x: x["condition"].isin(["LUAD", "LUSC"]), :]
 ).mark_boxplot().encode(
     x=alt.X("condition", axis=alt.Axis(title=None, labels=False, ticks=False)),
     y=alt.Y("ITHGEX", axis=alt.Axis(grid=False)),
@@ -294,10 +294,8 @@ for var in ["ITHCNA", "ITHGEX", "cnv_score"]:
     )
     sns.boxplot(x="immune_infiltration", y=var, data=patient_strat2, ax=ax4, width=0.8)
     ax4.get_legend().remove()
-    
-    sns.swarmplot(
-        x="tumor_stage", y=var, data=patient_strat2, ax=ax5, hue="dataset"
-    )
+
+    sns.swarmplot(x="tumor_stage", y=var, data=patient_strat2, ax=ax5, hue="dataset")
     sns.boxplot(x="tumor_stage", y=var, data=patient_strat2, ax=ax5, width=0.8)
     ax5.get_legend().remove()
     plt.show()
@@ -323,7 +321,7 @@ mod.fit().summary()
 # %%
 mod = smf.ols(
     "cnv_score ~ C(tumor_type_annotated) + dataset + n_tumor_cells",
-    data=patient_strat2.loc[lambda x: x["tumor_type_annotated"].isin(["LUAD", "LSCC"])],
+    data=patient_strat2.loc[lambda x: x["tumor_type_annotated"].isin(["LUAD", "LUSC"])],
 )
 mod.fit().summary()
 
@@ -350,8 +348,9 @@ adata_primary_tumor = adata[
 # %%
 ad_cts = sc.AnnData(
     X=(
-        adata_primary_tumor.obs
-        .groupby(["dataset", "patient", "cell_type_major"], observed=True)
+        adata_primary_tumor.obs.groupby(
+            ["dataset", "patient", "cell_type_major"], observed=True
+        )
         .size()
         .reset_index(name="n")
         .pivot_table(
@@ -389,7 +388,9 @@ ad_cts.obs["patient"] = ad_cts.obs.index.values
 ad_cts.obs.index = ad_cts.obs.index.str.lower()
 
 # %%
-ct_df = pd.DataFrame(ad_cts.X, index=ad_cts.obs_names, columns=ad_cts.var_names).join(ad_cts.obs)
+ct_df = pd.DataFrame(ad_cts.X, index=ad_cts.obs_names, columns=ad_cts.var_names).join(
+    ad_cts.obs
+)
 
 # %%
 ith_df_subset = ith_df.loc[lambda x: x["n_tumor_cells"] >= 100, :]
@@ -403,14 +404,11 @@ cna_ct_df
 # %%
 for x in ["ITHCNA", "ITHGEX"]:
     for y in ["T cell CD8", "Neutrophils", "Macrophage"]:
-        fig, ax = plt.subplots(1,1)
+        fig, ax = plt.subplots(1, 1)
         ax = sns.scatterplot(data=cna_ct_df, x=x, y=y, hue="dataset")
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
         plt.show()
-        mod = smf.ols(
-            f"{x} ~ Q('{y}') + dataset",
-            data=cna_ct_df
-        )
+        mod = smf.ols(f"{x} ~ Q('{y}') + dataset", data=cna_ct_df)
         display(mod.fit().summary())
 
 # %%

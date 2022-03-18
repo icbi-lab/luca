@@ -81,16 +81,16 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
   edges = cpdb_res |>
     mutate( from=sprintf("%s_%s_ligand", cluster_1, source), to=sprintf("%s_%s_receptor", cluster_2, target)) |>
     select(from, to, name="variable", coef, pvalue, fdr, group, log2_fc) |>
-    mutate(log2_fc = if_else(is.infinite(log2_fc) & log2_fc < 0, -max(abs(log2_fc[is.finite(log2_fc)])), log2_fc)) |> 
+    mutate(log2_fc = if_else(is.infinite(log2_fc) & log2_fc < 0, -max(abs(log2_fc[is.finite(log2_fc)])), log2_fc)) |>
     mutate(log2_fc = if_else(is.infinite(log2_fc) & log2_fc > 0, max(abs(log2_fc[is.finite(log2_fc)])), log2_fc)) |>
     mutate(fdr = if_else(fdr == 0, 1e-255, fdr))
-  
+
   # make nodes df
-  nodes_source = cpdb_res |> 
+  nodes_source = cpdb_res |>
     select(cell_type=cluster_1, gene=source) |>
     mutate(type="ligand") |>
     mutate(name=sprintf("%s_%s_%s", cell_type, gene, type))
-  nodes_target = cpdb_res |> 
+  nodes_target = cpdb_res |>
     select(cell_type=cluster_2, gene=target) |>
     mutate(type="receptor") |>
     mutate(name=sprintf("%s_%s_%s", cell_type, gene, type))
@@ -101,7 +101,7 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
 
   cell_types = unique(c(cpdb_res$cluster_1, cpdb_res$cluster_2))
   cell_type_lr = unique(paste0(nodes$cell_type, "_", nodes$type))
-  
+
   # construct hierarchy graph for dendrogram
   edges_ct_hierarchy = bind_rows(
     # root
@@ -109,8 +109,8 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
     nodes |> mutate(to=paste0(cell_type, "_", type)) |> select(from=cell_type, to) |> distinct(),
     nodes |> mutate(from=paste0(cell_type, "_", type), to=name) |> select(from, to)
   )
-  nodes_ct_hierarchy = data.frame(name=unique(c(edges_ct_hierarchy$to, edges_ct_hierarchy$from))) |> 
-    left_join(nodes, by="name") |> group_by(cell_type) |>  group_modify(function(x, key) { 
+  nodes_ct_hierarchy = data.frame(name=unique(c(edges_ct_hierarchy$to, edges_ct_hierarchy$from))) |>
+    left_join(nodes, by="name") |> group_by(cell_type) |>  group_modify(function(x, key) {
       n = nrow(x)
       n1 = floor(n/2)
       n2 = n - 1 - n1
@@ -124,22 +124,22 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
   from = match(edges$from, nodes_ct_hierarchy$name)
   to = match(edges$to, nodes_ct_hierarchy$name)
   conn_meta = data.frame(from=nodes_ct_hierarchy[from,]$name, to=nodes_ct_hierarchy[to,]$name) |>
-    left_join(edges, by=c("from", "to")) 
-  
+    left_join(edges, by=c("from", "to"))
+
   # plot using ggraph
-  p = ggraph(G_ct, layout="dendrogram", circular=TRUE) + 
-    geom_node_point(aes(color=cell_type, shape=type), size=8, stroke=2, fill="white") + 
+  p = ggraph(G_ct, layout="dendrogram", circular=TRUE) +
+    geom_node_point(aes(color=cell_type, shape=type), size=8, stroke=2, fill="white") +
     geom_conn_bundle(
       data = get_con(from=from, to=to, coef=conn_meta$coef, log2_fc=conn_meta$log2_fc, pvalue=conn_meta$pvalue, group=conn_meta$group, fdr=conn_meta$fdr),
       # aes_string(color=edge_color, width="abs(log2_fc)"),
       aes_string(color=edge_color, width="abs(log10(fdr))"),
       tension=0.4,
       arrow=arrow()) +
-    edge_color_scale + 
-    scale_edge_width_continuous(range=c(1,5)) + 
-    theme_void() + 
-    geom_text_repel(aes(x=x, y=y, label=gene), size=5 ) + 
-    geom_label_repel(aes(x=x, y=y, nudge_x=1.3*x, nudge_y=1.3*y, label=cell_type_label), xlim=c(-2, 2), size=8, force=3, alpha=.8) + 
+    edge_color_scale +
+    scale_edge_width_continuous(range=c(1,5)) +
+    theme_void() +
+    geom_text_repel(aes(x=x, y=y, label=gene), size=5 ) +
+    geom_label_repel(aes(x=x, y=y, nudge_x=1.3*x, nudge_y=1.3*y, label=cell_type_label), xlim=c(-2, 2), size=8, force=3, alpha=.8) +
     coord_fixed(clip="off") +
     scale_shape_manual(values=c("receptor"=23, "ligand"=19))  +
     scale_color_manual(values=zeileis_28)   +
@@ -151,7 +151,7 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
 ```
 
 ```{r, include=FALSE}
-cpdb_luad_lscc = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/luad_lscc_cpdb.tsv")
+cpdb_luad_lusc = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/luad_lusc_cpdb.tsv")
 
 cpdb_infiltration = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_cpdb.tsv")
 cpdb_infiltration_treatment_condition = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_treatment_coding_condition_cpdb.tsv")
@@ -165,39 +165,39 @@ cytosig = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_c
 
  * Each dot in the circle marks a ligand (filled circle) or a receptor (outline square). The direction of the interaction (ligant -> receptor) is additionally indicated with arrows
  * The ligands and receptors are colored and organized by cell-type
- * Arrows indicate interactions that are differentially regulated between two conditions. Red arrows mean up-regulated, blue down-regulated. 
- * The thickness of the arrows indicates the confidence (=FDR) that the given interaction is differentially regulated. 
- * Usually, the top 100 differentailly regulated interactions are shown. It is, in most cases, not possible to fit all significantly different interactions into the plot. 
+ * Arrows indicate interactions that are differentially regulated between two conditions. Red arrows mean up-regulated, blue down-regulated.
+ * The thickness of the arrows indicates the confidence (=FDR) that the given interaction is differentially regulated.
+ * Usually, the top 100 differentailly regulated interactions are shown. It is, in most cases, not possible to fit all significantly different interactions into the plot.
 
 ### Early advanced
 
-Comparison between early and advanced tumor stages. Red = upregulated in advanced, blue = upregulated in early. 
+Comparison between early and advanced tumor stages. Red = upregulated in advanced, blue = upregulated in early.
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 # cpdb_early_advanced |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
 ```
 
-### LUAD LSCC
+### LUAD LUSC
 
-Comparison of LUAD and LSCC samples. Blue = Upregulated in LUAD, Red = upregulated in LSCC
+Comparison of LUAD and LUSC samples. Blue = Upregulated in LUAD, Red = upregulated in LUSC
 
 ```{r, fig.width=20, fig.height=12, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lscc |> filter(abs(log2_fc) > 1, fdr < 0.1,  cluster_2 == "Neutrophils") |> cpdb_plot(edge_color = "abs(log10(fdr))", edge_color_scale=scale_edge_color_viridis())
+cpdb_luad_lusc |> filter(abs(log2_fc) > 1, fdr < 0.1,  cluster_2 == "Neutrophils") |> cpdb_plot(edge_color = "abs(log10(fdr))", edge_color_scale=scale_edge_color_viridis())
 ```
 
 ```{r, fig.width=14, fig.height=8, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lscc |> filter(abs(log2_fc) > 1, cluster_2 == "B cell") |> filter(fdr < 0.1) |> cpdb_plot()
+cpdb_luad_lusc |> filter(abs(log2_fc) > 1, cluster_2 == "B cell") |> filter(fdr < 0.1) |> cpdb_plot()
 ```
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lscc |> filter(abs(log2_fc) > 1) |> mutate(group2 = if_else(log2_fc < 0, "LSCC", "LUAD")) |> group_by(group2) |> 
+cpdb_luad_lusc |> filter(abs(log2_fc) > 1) |> mutate(group2 = if_else(log2_fc < 0, "LUSC", "LUAD")) |> group_by(group2) |>
   filter(row_number() < 30) |> ungroup() |> cpdb_plot()
 ```
 
 Focus on Neutrophils
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lscc |> filter(abs(log2_fc) > 1, fdr < 0.1,  cluster_1 == "Neutrophils" | cluster_2 == "Neutrophils") |> cpdb_plot(edge_color = "abs(log10(fdr))", edge_color_scale=scale_edge_color_viridis())
+cpdb_luad_lusc |> filter(abs(log2_fc) > 1, fdr < 0.1,  cluster_1 == "Neutrophils" | cluster_2 == "Neutrophils") |> cpdb_plot(edge_color = "abs(log10(fdr))", edge_color_scale=scale_edge_color_viridis())
 ```
 
 
@@ -205,15 +205,15 @@ cpdb_luad_lscc |> filter(abs(log2_fc) > 1, fdr < 0.1,  cluster_1 == "Neutrophils
 
 ### Infiltration status
 
-Comparison of "infiltration status", i.e. immune desert vs. infiltrated (all three groups). 
-Blue = interaction increased in desert, Red = interaction increased in infiltration. 
+Comparison of "infiltration status", i.e. immune desert vs. infiltrated (all three groups).
+Blue = interaction increased in desert, Red = interaction increased in infiltration.
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 # cpdb_infiltration_status |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
 ```
 
 ### Infiltration status (only tumor and structural cells)
 
-Same as above, but only focusing on ligands on Tumor, stromal and endothelial cells. 
+Same as above, but only focusing on ligands on Tumor, stromal and endothelial cells.
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 # cpdb_infiltration_status |> filter(abs(log2_fc) > 1, cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell")) |> head(100) |> cpdb_plot()
@@ -221,18 +221,18 @@ Same as above, but only focusing on ligands on Tumor, stromal and endothelial ce
 
 ### Infiltration type (originating from Tumor, stromal, endothelial cells)
 
-Comparison of the four infiltration types. Interactions are colored according to whether they 
-are uniquely upregulated in either the immune desert group (grey), the B-cell infiltration group (orange), the Macro/Mono infiltration group (green), or the T-cell infiltration group (blue). 
+Comparison of the four infiltration types. Interactions are colored according to whether they
+are uniquely upregulated in either the immune desert group (grey), the B-cell infiltration group (orange), the Macro/Mono infiltration group (green), or the T-cell infiltration group (blue).
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 
 cpdb_infiltration |> rename(variable=`...1`) |>
   filter(log2_fc > 1) |>
-  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |> 
-mutate(fdr=p.adjust(pvalue, method="fdr")) |> 
-  group_by(group) |> 
-  filter(row_number() < 15) |>  
-  ungroup() |> 
+  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |>
+mutate(fdr=p.adjust(pvalue, method="fdr")) |>
+  group_by(group) |>
+  filter(row_number() < 15) |>
+  ungroup() |>
   cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
 ```
 
@@ -240,20 +240,20 @@ mutate(fdr=p.adjust(pvalue, method="fdr")) |>
 
 cpdb_infiltration_treatment_condition |> rename(variable=`...1`) |>
   filter(log2_fc > 1) |>
-  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |> 
-mutate(fdr=p.adjust(pvalue, method="fdr")) |> 
-  group_by(group) |> 
-  filter(row_number() < 20) |>  
-  ungroup() |> 
+  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |>
+mutate(fdr=p.adjust(pvalue, method="fdr")) |>
+  group_by(group) |>
+  filter(row_number() < 20) |>
+  ungroup() |>
   cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
 ```
 
 ### Tumor vs normal
 
-Differential signalling between tumor and normal adjacent tissue. Blue = up-regulated in normal, red= upregulated in tumor. 
+Differential signalling between tumor and normal adjacent tissue. Blue = up-regulated in normal, red= upregulated in tumor.
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_tumor_normal |> filter(abs(log2_fc) > 1) |> 
-  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell")) |> 
+cpdb_tumor_normal |> filter(abs(log2_fc) > 1) |>
+  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell")) |>
   head(75) |>
   # clip log fc for better aesthetics
   mutate(log2_fc = sapply(log2_fc, \(x) if_else(x < 0, max(x, -5), min(x, 5)))) |>
@@ -284,9 +284,9 @@ neutro_genes_of_interest = read_excel("../../tables/gene_annotations/neutro_recr
 <!--   filter(group %in% c("Tumor cells"), cluster_2 %in% c("T cell CD4", "T cell CD8", "T cell regulatory"), target %in% immune_checkpoints$gene_symbol, log2_fc > 2, fdr < 0.1) |> cpdb_plot() -->
 <!-- ``` -->
 
-<!-- ## All checkpoints (LUAD LSCC, tumor immune) -->
+<!-- ## All checkpoints (LUAD LUSC, tumor immune) -->
 <!-- ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE} -->
-<!-- cpdb_luad_lscc |> filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |>  -->
+<!-- cpdb_luad_lusc |> filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |>  -->
 <!-- mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> cpdb_plot() -->
 <!-- ``` -->
 
@@ -294,9 +294,9 @@ neutro_genes_of_interest = read_excel("../../tables/gene_annotations/neutro_recr
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 neutro_goi = c(neutro_genes_of_interest$`TME Ligand`, neutro_genes_of_interest$`(neutrophil) receptor`)
 
-cpdb_luad_lscc |> filter(
+cpdb_luad_lusc |> filter(
   cluster_1 == "Neutrophils" | cluster_2 == "Neutrophils", source %in% neutro_goi | target %in% neutro_goi
-)|> 
+)|>
 mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |>
   cpdb_plot()
 
@@ -311,8 +311,8 @@ selected_cytosig_variables = cytosig |> filter(cell_type %in% c("Tumor cells", "
   mutate(fdr = p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> pull("variable")
 
 cpdb_infiltration |> rename(variable=`...1`) |>
-  # filter(log2_fc > 1) |> 
-  filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), source %in% selected_cytosig_variables, cluster_2 %in% immune_cells ) |> 
+  # filter(log2_fc > 1) |>
+  filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), source %in% selected_cytosig_variables, cluster_2 %in% immune_cells ) |>
 mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |>
   cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
 ```

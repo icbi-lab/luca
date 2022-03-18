@@ -61,7 +61,7 @@ adata = sc.read_h5ad(adata_file)
 # %%
 adata_n = adata[
     (adata.obs["cell_type_coarse"] == "Neutrophils")
-    & (adata.obs["condition"].isin(["LSCC", "LUAD", "NSCLC"])),
+    & (adata.obs["condition"].isin(["LUSC", "LUAD", "NSCLC"])),
     :,
 ].copy()
 

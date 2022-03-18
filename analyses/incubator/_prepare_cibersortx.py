@@ -49,8 +49,8 @@ sc.pl.umap(adata_primary_tumor, color="cell_type_major")
 # %% [markdown]
 # ### Subsample
 #
-# For cibersortx, we subsample the dataset, to balance the effect of platforms, datasets and patients, 
-# and at the same time, reduce the dataset size, s.t. it can be managed by cibersortx. 
+# For cibersortx, we subsample the dataset, to balance the effect of platforms, datasets and patients,
+# and at the same time, reduce the dataset size, s.t. it can be managed by cibersortx.
 
 # %%
 adata_sub = sh.deconvolution.balanced_subsample(
@@ -132,7 +132,7 @@ signature_genes
 
 # %%
 adata_tumor = adata[
-    adata.obs["condition"].isin(["LUAD", "LSCC"])
+    adata.obs["condition"].isin(["LUAD", "LUSC"])
     & adata.obs["origin"].isin(["normal_adjacent", "normal", "tumor_primary"]),
     :,
 ].copy()
@@ -151,7 +151,9 @@ adata_tumor.obs.loc[
 ] = "TAN"
 
 # %%
-pb_adata_tumor = sh.pseudobulk.pseudobulk(adata_tumor, groupby=["patient", "cell_type_tan"])
+pb_adata_tumor = sh.pseudobulk.pseudobulk(
+    adata_tumor, groupby=["patient", "cell_type_tan"]
+)
 
 # %%
 pb_adata_tumor
