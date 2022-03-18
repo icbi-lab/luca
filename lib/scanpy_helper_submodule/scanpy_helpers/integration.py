@@ -37,7 +37,7 @@ VALID_ORIGIN = [
 
 VALID_TISSUE = ["lung", "adrenal", "brain", "liver", "lymph_node", "pleura"]
 
-VALID_CONDITION = ["LUAD", "NSCLC", "LUSC", "COPD", "healthy_control"]
+VALID_CONDITION = ["LUAD", "NSCLC", "LSCC", "COPD", "healthy_control"]
 
 VALID_SEX = ["male", "female", "nan"]
 

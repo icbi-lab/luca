@@ -42,20 +42,9 @@ signatures = pd.read_csv(
 ah = AnnotationHelper()
 
 # %%
-adata = sc.read_h5ad(
-    "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad"
+adata_n = sc.read_h5ad(
+    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad"
 )
-
-# %%
-adata.obs.columns
-
-# %%
-adata_t = adata[adata.obs["cell_type"] == "Tumor cells", :].copy()
-adata_n = adata[
-    (adata.obs["cell_type_coarse"] == "Neutrophils")
-    & (adata.obs["condition"].isin(["LUSC", "LUAD", "NSCLC"])),
-    :,
-].copy()
 
 # %% [markdown]
 # ## Neutrophil plots
@@ -217,92 +206,6 @@ tmp_df = (
 
 # %%
 alt.Chart(tmp_df).mark_bar().encode(x="fraction", y="cell_type", color="condition")
-
-# %% [markdown] tags=[] jp-MarkdownHeadingCollapsed=true tags=[]
-# # mRNA content
-#
-# Need to compute ratios, because the baseline difference between datasets and platforms is very high.
-
-# %%
-rel_counts = (
-    adata.obs.groupby(["dataset", "cell_type_coarse"])
-    .agg(total_counts=("total_counts", "median"))
-    .reset_index()
-    .groupby("dataset")
-    .apply(
-        lambda x: x.assign(
-            rel_counts=np.log2(x["total_counts"])
-            - np.log2(
-                x.loc[x["cell_type_coarse"] == "Epithelial cell", "total_counts"].values
-            )
-        )
-    )
-)
-
-# %%
-rel_counts
-
-# %%
-order = (
-    rel_counts.groupby("cell_type_coarse")
-    .mean()
-    .sort_values("rel_counts")
-    .index.tolist()
-)
-(
-    alt.Chart(
-        rel_counts,
-        title="Mean detected counts per cell-type, relative to Epithelial cells",
-    )
-    .mark_bar()
-    .encode()
-    .encode(
-        x=alt.X("cell_type_coarse", sort=order),
-        y=alt.Y("mean(rel_counts):Q", title="log2(ratio)"),
-        color=alt.Color(
-            "cell_type_coarse",
-            scale=sh.colors.altair_scale("cell_type_coarse"),
-            legend=None,
-        ),
-    )
-    + alt.Chart(rel_counts)
-    .mark_errorbar(extent="ci")
-    .encode(
-        x=alt.X("cell_type_coarse", sort=order),
-        y=alt.Y("rel_counts", title="log2(ratio)"),
-    )
-)
-
-# %%
-adata.obs.columns
-
-# %%
-for title, tmp_adata in {
-    "counts per platform": adata,
-    "counts per platform (Epithelial cells)": adata[
-        adata.obs["cell_type_coarse"] == "Epithelial cell", :
-    ],
-}.items():
-    counts_per_platform = (
-        tmp_adata.obs.groupby(["sample", "platform"], observed=True)
-        .agg(total_counts=("total_counts", "median"))
-        .reset_index()
-    )
-    order = (
-        counts_per_platform.groupby("platform")
-        .median()
-        .sort_values("total_counts")
-        .index.tolist()
-    )
-    alt.Chart(counts_per_platform, title=title).mark_boxplot().encode(
-        x=alt.X("platform", sort=order[::-1]),
-        y=alt.Y("total_counts", scale=alt.Scale(type="log")),
-        color=alt.Color(
-            "platform",
-            scale=sh.colors.altair_scale("platform"),
-            legend=None,
-        ),
-    ).display()
 
 # %% [markdown]
 # # DE analysis tumor normal

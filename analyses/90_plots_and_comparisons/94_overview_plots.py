@@ -60,16 +60,16 @@ threadpool_limits(nxfvars.get("cpus", 16))
 adata = sc.read_h5ad(main_adata)
 
 # %%
-with plt.rc_context({"figure.figsize": (8, 8), "figure.dpi": 300}):
+with plt.rc_context({"figure.figsize": (5,5), "figure.dpi": 300}):
     sc.pl.umap(
         adata,
         color="cell_type_coarse",
         legend_loc="on data",
-        legend_fontsize=12,
+        legend_fontsize=8,
         legend_fontoutline=2,
         frameon=False,
         # add_outline=True,
-        size=3,
+        size=1,
     )
 
 # %%
@@ -258,21 +258,7 @@ sc.pl.matrixplot(
 )
 
 # %% [markdown]
-# ### UMAP plots
-
-# %%
-with plt.rc_context({"figure.figsize": (8, 8), "figure.dpi": 300}):
-    sc.pl.umap(
-        adata,
-        color="cell_type_coarse",
-        legend_loc=None,
-        legend_fontsize=12,
-        legend_fontoutline=2,
-        frameon=False,
-        # add_outline=True,
-        size=3,
-        groups=["Epithelial cell"],
-    )
+# # UMAP plots
 
 # %%
 with plt.rc_context({"figure.figsize": (8, 8), "figure.dpi": 300}):

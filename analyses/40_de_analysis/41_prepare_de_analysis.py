@@ -135,7 +135,7 @@ sc.pl.umap(adata_tumor_normal, color="cell_type")
 
 # %%
 adata_luad_lusc = adata[
-    (adata.obs["origin"] == "tumor_priLUSC"),
+    (adata.obs["origin"] == "tumor_primary"),
     :,
 ].copy()
 
