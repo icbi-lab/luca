@@ -17,21 +17,6 @@ process RUN_SCEVAN {
     """
 }
 
-// process run_copykat {
-//     input:
-//     path input_file
-
-//     output:
-//     path "*", emit: output_file
-
-//     errorStrategy 'ignore'
-
-//     script:
-//     """
-//     copykat_parallel.R ${input_file} ${task.cpus} ${input_file.baseName}
-//     """
-// }
-
 process RUN_INFERCNVPY {
     input:
     tuple val(id), path(input_file)
@@ -59,7 +44,7 @@ workflow infercnv {
     H5AD_TO_SCE(ch_adatas_by_patient)
 
     RUN_INFERCNVPY(ch_adatas_by_patient)
-    // RUN_SCEVAN(H5AD_TO_SCE.out.sce)
+    RUN_SCEVAN(H5AD_TO_SCE.out.sce)
 }
 
 

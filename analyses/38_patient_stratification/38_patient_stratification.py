@@ -87,17 +87,6 @@ adata_primary_tumor = adata[
     # exclude datasets that only contain a single cell-type
     & ~adata.obs["dataset"].isin(["Guo_Zhang_2018"])
 ].copy()
-adata_primary_tumor_min_5_patients = adata_primary_tumor[
-    adata_primary_tumor.obs["dataset"].isin(
-        patients_per_dataset[patients_per_dataset >= 5].index
-    ),
-    :,
-].copy()
-
-# %%
-adata_primary_tumor_min_5_patients.obs.groupby("dataset").apply(
-    lambda x: x["patient"].nunique()
-)
 
 # %% [markdown]
 # # Annotate tumor cells based on gene expression
@@ -153,7 +142,9 @@ ad_tumor_subtypes.obs
 # %%
 ad_immune = sc.AnnData(
     X=(
-        adata_primary_tumor.obs.loc[lambda x: ~x["cell_type_major"].isin(EXCLUDE_CELL_TYPES)]
+        adata_primary_tumor.obs.loc[
+            lambda x: ~x["cell_type_major"].isin(EXCLUDE_CELL_TYPES)
+        ]
         .groupby(["dataset", "patient", "cell_type_major"], observed=True)
         .size()
         .reset_index(name="n")
@@ -240,7 +231,17 @@ sc.tl.rank_genes_groups(ad_immune, groupby="leiden", method="t-test")
 
 # %%
 ad_immune.obs["immune_type"] = [
-    {"0": "desert", "1": "M", "2": "mixed", "3": "T", "4": "T", "5": "mixed", "6": "desert", "7": "desert", "8": "mixed"}[x]
+    {
+        "0": "desert",
+        "1": "M",
+        "2": "mixed",
+        "3": "T",
+        "4": "T",
+        "5": "mixed",
+        "6": "desert",
+        "7": "desert",
+        "8": "mixed",
+    }[x]
     for x in ad_immune.obs["leiden"]
 ]
 
@@ -263,7 +264,7 @@ sc.pl.heatmap(
 
 # %%
 # Patients with "primary tumor" samples
-adata_primary_tumor_min_5_patients.obs["patient"].nunique()
+adata_primary_tumor.obs["patient"].nunique()
 
 # %%
 # Minus 5 patients with no "tumor cells" in primary tumor samplese
@@ -401,7 +402,10 @@ p2 = (
             "cell_type_major",
             axis=alt.Axis(title=None),
         ),
-        color=alt.Color("value", scale=sh.colors.altair_scale_mpl("bwr", reverse=False, domain=[-0.4, 0.4])),
+        color=alt.Color(
+            "value",
+            scale=sh.colors.altair_scale_mpl("bwr", reverse=False, domain=[-0.4, 0.4]),
+        ),
     )
     .properties(width=800, height=200)
 )

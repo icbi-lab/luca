@@ -127,7 +127,7 @@ adata_primary_tumor.obs["infiltration_type"] = [
 comparisons = {
     "tumor_normal": {
         "dataset": adata_tumor_normal,
-        # "dataset_cpdb": adata_cpdb,
+        "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient"],
         "column_to_test": "origin",
@@ -137,7 +137,7 @@ comparisons = {
     },
     "patient_immune_infiltration": {
         "dataset": adata_primary_tumor,
-        # "dataset_cpdb": adata_cpdb,
+        "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient"],
         "column_to_test": "immune_infiltration",
@@ -147,7 +147,7 @@ comparisons = {
     },
     "patient_immune_infiltration_treatment_coding": {
         "dataset": adata_primary_tumor,
-        # "dataset_cpdb": adata_cpdb,
+        "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient"],
         "column_to_test": "immune_infiltration",
@@ -159,7 +159,7 @@ comparisons = {
         "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LSCC"]), :
         ],
-        # "dataset_cpdb": adata_cpdb,
+        "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient", "condition"],
         "column_to_test": "immune_infiltration",
@@ -171,7 +171,7 @@ comparisons = {
         "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LSCC"]), :
         ],
-        # "dataset_cpdb": adata_cpdb,
+        "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient", "tumor_stage"],
         "column_to_test": "condition",
