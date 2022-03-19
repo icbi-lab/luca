@@ -33,6 +33,7 @@ comparisons = [
     "patient_immune_infiltration_condition",
     "patient_immune_infiltration_treatment_coding",
     "patient_immune_infiltration_treatment_coding_condition",
+    "patient_immune_infiltration_treatment_coding_condition_random",
     "luad_lusc",
     "early_advanced",
     "early_advanced_condition",
@@ -138,7 +139,8 @@ results["early_advanced_condition"]["cytosig"].loc[
 results["patient_immune_infiltration_treatment_coding_condition"]["dorothea"].loc[
     lambda x: x["cell_type"] == "Tumor cells", :
 ].pipe(sh.util.fdr_correction).pipe(
-    plot_lm_result_altair, title="Differential TFs (tumor cells)",
+    plot_lm_result_altair,
+    title="Differential TFs (tumor cells)",
 )
 
 # %% [markdown]
@@ -158,7 +160,9 @@ results["patient_immune_infiltration_treatment_coding_condition"]["progeny"].loc
 # %%
 tmp_cytosig = (
     results["patient_immune_infiltration_treatment_coding_condition"]["cytosig"]
-    .loc[lambda x: x["cell_type"].isin(["Tumor cells", "Stromal", "Endothelial cell"]), :]
+    .loc[
+        lambda x: x["cell_type"].isin(["Tumor cells", "Stromal", "Endothelial cell"]), :
+    ]
     .pipe(sh.util.fdr_correction)
 )
 
@@ -174,15 +178,80 @@ for ct in tmp_cytosig["cell_type"].unique():
         pass
 
 # %%
-adata_cytosig_tumor = sc.read_h5ad("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_cytosig/Tumor cells.h5ad")
+adata_cytosig_tumor = sc.read_h5ad(
+    "../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_cytosig/Tumor cells.h5ad"
+)
 
 # %%
-pb_cytosig_tumor = sh.pseudobulk.pseudobulk(adata_cytosig_tumor, groupby=["patient", "immune_infiltration"], aggr_fun=np.mean)
+pb_cytosig_tumor = sh.pseudobulk.pseudobulk(
+    adata_cytosig_tumor, groupby=["patient", "immune_infiltration"], aggr_fun=np.mean
+)
 
 # %%
-sc.pl.matrixplot(adata_cytosig_tumor, groupby="immune_infiltration", var_names=adata_cytosig_tumor.var_names, cmap="bwr")
+sc.pl.matrixplot(
+    adata_cytosig_tumor,
+    groupby="immune_infiltration",
+    var_names=adata_cytosig_tumor.var_names,
+    cmap="bwr",
+)
 
 # %%
-sc.pl.matrixplot(pb_cytosig_tumor, groupby="immune_infiltration", var_names=adata_cytosig_tumor.var_names, cmap="bwr")
+sc.pl.matrixplot(
+    pb_cytosig_tumor,
+    groupby="immune_infiltration",
+    var_names=adata_cytosig_tumor.var_names,
+    cmap="bwr",
+)
+
+# %% [markdown]
+# ---
+
+# %% [markdown]
+# # Infiltration groups (random control)
+
+# %% [markdown]
+# ## Dorothea
+
+# %%
+results["patient_immune_infiltration_treatment_coding_condition_random"]["dorothea"].loc[
+    lambda x: x["cell_type"] == "Tumor cells", :
+].pipe(sh.util.fdr_correction).pipe(
+    plot_lm_result_altair,
+    title="Differential TFs (tumor cells)",
+)
+
+# %% [markdown]
+# ## Progeny
+
+# %%
+results["patient_immune_infiltration_treatment_coding_condition_random"]["progeny"].loc[
+    lambda x: x["cell_type"] == "Tumor cells", :
+].pipe(sh.util.fdr_correction).pipe(
+    plot_lm_result_altair, title="Differential pathways (tumor cells)", p_cutoff=1
+)
+
+# %% [markdown]
+# ## Cytosig
+# ### Infiltration subtypes
+
+# %%
+tmp_cytosig = (
+    results["patient_immune_infiltration_treatment_coding_condition_random"]["cytosig"]
+    .loc[
+        lambda x: x["cell_type"].isin(["Tumor cells", "Stromal", "Endothelial cell"]), :
+    ]
+    .pipe(sh.util.fdr_correction)
+)
+
+# %%
+for ct in tmp_cytosig["cell_type"].unique():
+    try:
+        plot_lm_result_altair(
+            tmp_cytosig.loc[lambda x: x["cell_type"] == ct],
+            title=f"Cytosig for {ct}",
+            p_cutoff=0.1,
+        ).display()
+    except AttributeError:
+        pass
 
 # %%

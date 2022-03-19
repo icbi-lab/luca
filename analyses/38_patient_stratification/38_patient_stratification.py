@@ -70,6 +70,13 @@ adata.obs["cell_type_major"].value_counts().sort_index()
 EXCLUDE_CELL_TYPES = [
     "other",
     "Neutrophils",
+    "Ciliated", 
+    "Club", 
+    "Goblet", 
+    "Alveolar cell type 1", 
+    "Alveolar cell type 2",
+    "Endothelial cell",
+    "Stromal"
 ]  # excluding neutrophils, because essentially not present in 10x datasets
 
 # %%
@@ -210,7 +217,7 @@ sc.pl.matrixplot(
 sc.pp.neighbors(ad_immune, use_rep="X", n_neighbors=15, metric="correlation")
 
 # %%
-sc.tl.leiden(ad_immune, resolution=1)
+sc.tl.leiden(ad_immune, resolution=0.5)
 
 # %%
 sc.pl.heatmap(
@@ -227,20 +234,23 @@ sc.pl.heatmap(
 )
 
 # %%
+alt.Chart(ad_immune.obs.groupby(["leiden", "dataset"]).size().reset_index(name="n")).mark_bar().encode(x="dataset", y="n", color=alt.Color("leiden", scale=sh.colors.altair_scale("leiden")))
+
+# %%
 sc.tl.rank_genes_groups(ad_immune, groupby="leiden", method="t-test")
 
 # %%
 ad_immune.obs["immune_type"] = [
     {
-        "0": "desert",
-        "1": "mixed",
+        "0": "T",
+        "1": "desert",
         "2": "M",
-        "3": "T",
-        "4": "T",
-        "5": "mixed",
-        "6": "desert",
-        "7": "desert",
-        "8": "mixed",
+        "3": "mixed",
+        # "4": "desert",
+        # "5": "T",
+        # "6": "mixed",
+        # "7": "mixed",
+        # "8": "mixed",
     }[x]
     for x in ad_immune.obs["leiden"]
 ]
@@ -404,6 +414,10 @@ p2 = (
 
 # %%
 (p0 & p2).resolve_scale(x="shared")
+
+# %%
+np.random.seed(0)
+plot_df["random_stratum"] = np.array(["desert", "M", "T", "mixed"])[np.random.randint(0, 4, size=plot_df.shape[0])]
 
 # %% [markdown]
 # ## groups by histological subtype

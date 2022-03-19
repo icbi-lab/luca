@@ -15,6 +15,7 @@ workflow plots_and_comparisons {
             "patient_immune_infiltration",
             "patient_immune_infiltration_treatment_coding",
             "patient_immune_infiltration_treatment_coding_condition",
+            "patient_immune_infiltration_treatment_coding_condition_random",
             "luad_lusc",
             "early_advanced",
             "early_advanced_condition",

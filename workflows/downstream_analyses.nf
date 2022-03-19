@@ -20,14 +20,16 @@ workflow downstream_analyses {
     reference_scanvi_h5ad = file(params.reference_scanvi_h5ad, checkIfExists: true)
     reference_scanvi_model = file(params.reference_scanvi_model, checkIfExists: true)
 
-    add_additional_datasets(
-        ch_samples,
-        reference_atlas,
-        reference_scanvi_h5ad,
-        reference_scanvi_model
-    )
+    // add_additional_datasets(
+    //     ch_samples,
+    //     reference_atlas,
+    //     reference_scanvi_h5ad,
+    //     reference_scanvi_model
+    // )
 
-    final_atlas = add_additional_datasets.out.full_atlas_merged
+    // final_atlas = add_additional_datasets.out.full_atlas_merged
+    // Gets recomputed way to often and takes quite long :shrug:
+    final_atlas = Channel.fromPath("${baseDir}/data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad")
 
     NEUTROPHIL_SUBCLUSTERING(
         Channel.value([
@@ -51,9 +53,9 @@ workflow downstream_analyses {
     )
 
     de_analysis(final_atlas)
-    scissor(final_atlas)
+    // scissor(final_atlas)
     cell2cell(final_atlas)
-    infercnv(final_atlas)
+    // infercnv(final_atlas)
     plots_and_comparisons(atlas_neutro_clusters, cell2cell.out.adata_cpdb, STRATIFY_PATIENTS.out.artifacts)
 }
 
