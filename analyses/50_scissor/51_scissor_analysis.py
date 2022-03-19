@@ -47,12 +47,9 @@ threadpool_limits(32)
 ah = AnnotationHelper()
 
 # %%
-adata.obs["platform_fine"].unique()
-
-# %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/30_downstream_analyses/neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
+    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
 )
 
 # %%
@@ -84,7 +81,7 @@ scissor_res_files = {
         # "any_kras_mutation",
         # "any_braf_mutation",
         # "any_egfr_mutation",
-        # "any_tumor_type",
+        "any_tumor_type",
         "any_status_time",
         #
         "LUAD_response_to_chemotherapy",

@@ -59,7 +59,21 @@ def plot_all_palettes():
 
 
 class COLORS:
-
+    leiden = {
+        str(k): v
+        for k, v in enumerate(
+            [
+                "#1f77b4",
+                "#ff7f0e",
+                "#279e68",
+                "#d62728",
+                "#aa40fc",
+                "#8c564b",
+                "#e377c2",
+                "#b5bd61",
+            ]
+        )
+    }
     sex = {
         "male": "#80b1d3",
         "female": "#e41a1c",
