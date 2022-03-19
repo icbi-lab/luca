@@ -47,6 +47,9 @@ adata_n = sc.read_h5ad(
 )
 
 # %%
+immunomodulatory_genes = pd.read_excel("../../tables/gene_annotations/immunomodulatory_genes.xlsx")
+
+# %%
 # candidate genes
 tumor_vs_normal = [
     "PTGS2",
@@ -152,6 +155,13 @@ alt.Chart(patient_fracs).mark_bar().encode(x=alt.X("fraction", scale=alt.Scale(d
 # # UMAP by candidate genes
 
 # %%
+pb_n = sh.pseudobulk.pseudobulk(adata_n, groupby=["cell_type", "patient"])
+
+# %%
+sc.pp.normalize_total(pb_n, target_sum=1e6)
+sc.pp.log1p(pb_n)
+
+# %%
 sc.pl.umap(
     adata_n,
     color=tumor_vs_normal,
@@ -181,6 +191,14 @@ sc.pl.dotplot(
     groupby=["cell_type"],
 )
 
+# %%
+sc.pl.matrixplot(
+    pb_n,
+    var_names=["OLR1", "CD36", "ITGA2B", "ITGB3"],
+    groupby=["cell_type"],
+    cmap="bwr"
+)
+
 # %% [markdown]
 # ### genes of interest (3) -- autophagy
 
@@ -191,18 +209,55 @@ sc.pl.dotplot(
     groupby=["cell_type"],
 )
 
+# %%
+sc.pl.matrixplot(
+    pb_n,
+    var_names=autophagy_genes,
+    groupby=["cell_type"],
+    cmap="bwr"
+)
+
+# %% [markdown]
+# ## Genes of interest (4) - Immunomodulatory
+
+# %%
+sc.pl.dotplot(
+    adata_n,
+    var_names=immunomodulatory_genes.loc[lambda x: x["type"] == "immunomodulatory", "gene_symbol"],
+    groupby=["cell_type"]
+)
+
+# %%
+sc.pl.matrixplot(
+    pb_n,
+    var_names=immunomodulatory_genes.loc[lambda x: x["type"] == "immunomodulatory", "gene_symbol"],
+    groupby=["cell_type"], 
+    cmap="bwr"
+)
+
+# %% [markdown]
+# ## Genes of interest (5) - Immune response
+
+# %%
+sc.pl.dotplot(
+    adata_n,
+    var_names=immunomodulatory_genes.loc[lambda x: x["type"] == "immune_response", "gene_symbol"],
+    groupby=["cell_type"]
+)
+
+# %%
+sc.pl.matrixplot(
+    pb_n,
+    var_names=immunomodulatory_genes.loc[lambda x: x["type"] == "immune_response", "gene_symbol"],
+    groupby=["cell_type"],
+    cmap="bwr"
+)
+
 # %% [markdown]
 # ---
 
 # %% [markdown]
 # # Find marker genes for Neutrophil clusters
-
-# %%
-pb_n = sh.pseudobulk.pseudobulk(adata_n, groupby=["cell_type", "patient"])
-
-# %%
-sc.pp.normalize_total(pb_n, target_sum=1e6)
-sc.pp.log1p(pb_n)
 
 # %%
 sc.tl.rank_genes_groups(pb_n, groupby="cell_type", method="t-test", use_raw=False)
