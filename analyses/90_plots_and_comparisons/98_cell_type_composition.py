@@ -42,10 +42,10 @@ cell_type_column = nxfvars.get("cell_type_column", "cell_type_major")
 reference_cell_type = nxfvars.get("reference_cell_type", "Tumor cells")
 # Using 500k MCMC iterations. With fewer (tested up to 100k) the results differed
 # due to limited random sampling.
-mcmc_iterations = nxfvars.get("mcmc_iterations", 500000)
+mcmc_iterations = nxfvars.get("mcmc_iterations", 10000)
 main_adata_file = nxfvars.get(
     "main_adata",
-    "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad",
+    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 
@@ -82,6 +82,9 @@ frac_pivot = frac_by_condition.pivot(
 data_all = scc_dat.from_pandas(
     frac_pivot, covariate_columns=["patient", "dataset", "condition", "tumor_stage"]
 )
+
+# %%
+data_all._sanitize()
 
 # %%
 scc_viz.boxplots(data_all, feature_name="condition", figsize=(12, 5))
