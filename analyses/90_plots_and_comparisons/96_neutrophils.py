@@ -68,8 +68,6 @@ neutro_recruitment_genes = pd.read_excel(
 )
 
 # %%
-
-# %%
 # candidate genes
 tumor_vs_normal = [
     "PTGS2",
@@ -215,14 +213,19 @@ alt.Chart(patient_fracs).mark_bar().encode(
 # # Find marker genes for Neutrophil clusters
 
 # %%
-pb_n = sh.pseudobulk.pseudobulk(adata_n, groupby=["cell_type", "patient"])
+pb_n = sh.pseudobulk.pseudobulk(
+    adata_n, groupby=["cell_type", "patient", "condition", "dataset", "tumor_stage"]
+)
 
 # %%
 sc.pp.normalize_total(pb_n, target_sum=1e6)
 sc.pp.log1p(pb_n, base=2)
 
 # %%
-pb_tan_nan = sh.pseudobulk.pseudobulk(adata_n, groupby=["cell_type_tan_nan", "patient"])
+pb_tan_nan = sh.pseudobulk.pseudobulk(
+    adata_n,
+    groupby=["cell_type_tan_nan", "patient", "condition", "dataset", "tumor_stage"],
+)
 
 # %%
 sc.pp.normalize_total(pb_tan_nan, target_sum=1e6)
@@ -241,7 +244,7 @@ with warnings.catch_warnings():
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     marker_res_tan_nan = sh.compare_groups.lm.test_lm(
-        pb_tan_nan[pb_tan_nan.obs["patient"].duplicated(keep=False), :].copy(),
+        pb_tan_nan,
         "~ C(cell_type_tan_nan, Treatment('NAN-')) + patient",
         "cell_type_tan_nan",
         contrasts="Treatment('NAN-')",
@@ -254,7 +257,7 @@ marker_res_tan_nan = (
     .loc[lambda x: ~pd.isnull(x["pvalue"])]
     .pipe(sh.util.fdr_correction)
     .sort_values("pvalue")
-    .assign(group=lambda x: ["NAN" if _ > 0 else "TAN" for _ in x["log2_fc"]])
+    .assign(group=lambda x: ["TAN" if _ > 0 else "NAN" for _ in x["log2_fc"]])
 )
 
 # %%
@@ -287,7 +290,7 @@ top_markers_tan_nan = (
 sc.pl.matrixplot(
     pb_n,
     groupby="cell_type",
-    var_names=top_markers_tan_nan["variable"][::-1],
+    var_names=top_markers_tan_nan["variable"],
     cmap="bwr",
 )
 
@@ -373,13 +376,19 @@ results = sh.compare_groups.compare_signatures(
 )
 
 # %%
-sh.compare_groups.pl.plot_lm_result_altair(results["progeny"], p_cutoff=1, title="Progeny Neutrophils")
+sh.compare_groups.pl.plot_lm_result_altair(
+    results["progeny"], p_cutoff=1, title="Progeny Neutrophils"
+)
 
 # %%
-sh.compare_groups.pl.plot_lm_result_altair(results["dorothea"], title="Dorothea Neutrophils", p_cutoff=0.01)
+sh.compare_groups.pl.plot_lm_result_altair(
+    results["dorothea"], title="Dorothea Neutrophils", p_cutoff=0.01
+)
 
 # %%
-sh.compare_groups.pl.plot_lm_result_altair(results["cytosig"], title="Cytosig Neutrophils", p_cutoff=0.01)
+sh.compare_groups.pl.plot_lm_result_altair(
+    results["cytosig"], title="Cytosig Neutrophils", p_cutoff=0.01
+)
 
 # %% [markdown] tags=[]
 # # UMAP and Heatmaps of selected gene sets
@@ -551,127 +560,12 @@ sns.boxplot(
     data=neutro_subset, x="condition", y="fraction", ax=ax, width=0.5, fliersize=0
 )
 ax.legend(bbox_to_anchor=(1.1, 1.05))
-ax.set_title("Neutrophil fraction in LUSC vs LUAD\np={:.4f}, linear model".format(res.pvalues["C(condition)[T.LUSC]"]))
+ax.set_title(
+    "Neutrophil fraction in LUSC vs LUAD\np={:.4f}, linear model".format(
+        res.pvalues["C(condition)[T.LUSC]"]
+    )
+)
 plt.show()
-
-# %% [markdown]
-# ## neutro recruitment signature (LUSC vs. LUAD)
-
-# %%
-deseq2_res_luad_lusc = pd.read_csv(
-    "../../data/30_downstream_analyses/de_analysis/luad_lusc/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
-    sep="\t",
-    index_col=0,
-).set_index("gene_id.1")
-
-# %%
-tumor_cells_by_origin = sh.pseudobulk.pseudobulk(
-    adata_t[
-        (adata_t.obs["origin"] == "tumor_primary")
-        & adata_t.obs["condition"].isin(["LUAD", "LUSC"]),
-        :,
-    ].copy(),
-    groupby=["patient", "condition", "dataset"],
-)
-sc.pp.normalize_total(tumor_cells_by_origin, target_sum=1000)
-sc.pp.log1p(tumor_cells_by_origin)
-
-# %%
-sc.pl.matrixplot(
-    tumor_cells_by_origin, var_names=recruitment_genes, groupby="condition"
-)
-
-# %% [markdown]
-# ### genes of interest
-
-# %%
-sh.pairwise.plot_paired(
-    tumor_cells_by_origin,
-    groupby="condition",
-    var_names=recruitment_genes,
-    hue="dataset",
-    show_legend=False,
-    size=5,
-    ylabel="log norm counts",
-    pvalues=deseq2_res_luad_lusc.loc[recruitment_genes, "padj"],
-    pvalue_template="DESeq2 FDR={:.3f}",
-    n_cols=5,
-)
-
-# %% [markdown]
-# ### top genes
-
-# %%
-top_genes = deseq2_res_luad_lusc.index[:30]
-sh.pairwise.plot_paired(
-    tumor_cells_by_origin,
-    groupby="condition",
-    var_names=top_genes,
-    hue="dataset",
-    show_legend=False,
-    size=5,
-    ylabel="log norm counts",
-    pvalues=deseq2_res_luad_lusc.loc[top_genes, "padj"],
-    pvalue_template="DESeq2 FDR={:.3f}",
-    n_cols=10,
-)
-
-# %%
-sox2_genes = [
-    "ABCC6",
-    "CCND1",
-    "DLGAP1",
-    "GLI2",
-    "GLI3",
-    "HHAT",
-    # 'ISL1',
-    "NANOG",
-    "NTRK3",
-    # "RHO",
-]
-sh.pairwise.plot_paired(
-    tumor_cells_by_origin,
-    groupby="condition",
-    var_names=sox2_genes,
-    hue="dataset",
-    show_legend=False,
-    size=5,
-    ylabel="log norm counts",
-    pvalues=deseq2_res_luad_lusc.loc[sox2_genes, "padj"],
-    pvalue_template="DESeq2 FDR={:.3f}",
-    n_cols=5,
-)
-
-# %% [markdown]
-# ### Signalling
-
-# %%
-dfs = []
-for p in Path(
-    "../../data/30_downstream_analyses/de_analysis/luad_lusc/de_deseq2/"
-).glob("*.tsv"):
-    cell_type = p.stem.replace("adata_primary_tumor_", "").replace("_DESeq2_result", "")
-    dfs.append(pd.read_csv(p, sep="\t").assign(cell_type=cell_type))
-
-# %%
-selected_de_res = (
-    pd.concat(dfs)
-    .drop("gene_id", axis="columns")
-    .rename(columns={"gene_id.1": "gene"})
-    .loc[lambda x: x["gene"].isin(interactions_of_interest["tme_ligand"])]
-    .loc[lambda x: ~pd.isnull(x["pvalue"])]
-    .pipe(sh.util.fdr_correction)
-    .sort_values("fdr")
-    .copy()
-)
-
-# %%
-selected_de_res.pipe(
-    sh.compare_groups.pl.plot_lm_result_altair,
-    x="gene",
-    y="cell_type",
-    color="log2FoldChange",
-)
 
 # %% [markdown]
 # # VEGFA sources in NSCLC
@@ -730,25 +624,138 @@ ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
 _ = plt.xticks(rotation=90)
 
 # %% [markdown]
-# # Signature scores
+# # Neutrophil signatures
+#
+# Find marker genes that are specific for Neutrophils and specific for Neutrophil subclusters. 
+# The purpose of the signatures is to use them for scoring bulk RNA-seq samples. 
 
 # %%
-for sig, genes in signature_dict.items():
+neutro_sigs = {}
+
+# %% [markdown]
+# ### Compute metrics
+#
+# fold change, specific fold change and AUROC for each gene. This approach is defined in the MCP counter paper. 
+
+# %%
+sh.signatures.fold_change(
+    pb_primary, obs_col="cell_type_major", positive_class="Neutrophils"
+)
+
+# %%
+sh.signatures.specific_fold_change(
+    pb_primary, obs_col="cell_type_major", positive_class="Neutrophils"
+)
+
+# %%
+sh.signatures.roc_auc(
+    pb_primary, obs_col="cell_type_major", positive_class="Neutrophils"
+)
+
+# %% [markdown]
+# ## Neutrophil signatures
+# Genes that are specific for the Neutrophil cluster as a whole
+
+# %%
+# Same principle as MCP counter, but even more specific!
+# This is a subset of neutro_sig
+tmp_df = (
+    pb_primary.var.query("roc_auc >=0.97")
+    .query("fold_change > 3")
+    .query("specific_fold_change > 2")
+)
+neutro_sigs["neutro_sig"] = tmp_df.index.tolist()
+tmp_df
+
+# %%
+# These are the original filtering criteria used by MCP counter
+tmp_df = (
+    pb_primary.var.query("roc_auc >=0.97")
+    .query("fold_change >=2")
+    .query("specific_fold_change >= 1.5")
+)
+neutro_sigs["neutro_sig2"] = tmp_df.index.tolist()
+tmp_df
+
+# %%
+# Relaxed criteria to increase the number of genes, such that we can build TAN/NAN signatures. 
+tmp_df = (
+    pb_primary.var.query("roc_auc >=0.90")
+    .query("fold_change >=2")
+    .query("specific_fold_change >= 1")
+)
+neutro_sigs["neutro_sig3"] = tmp_df.index.tolist()
+tmp_df
+
+# %% [markdown]
+# ## TAN/NAN signatures
+# Signature genes that are specific to Neutrophils *and* TANs or NANs. 
+# We don't find genes that are specific enough to detect the TAN/NAN subclusters from bulk RNA-seq data. 
+
+# %%
+signature_genes_tan_nan = marker_res_tan_nan.loc[lambda x: (x["fdr"] < 0.01) & (abs(x["log2_fc"]) > 1)]
+
+# %% [markdown]
+# ### Only nan genes in specificity-level 1 and 2
+
+# %%
+tmp_df = signature_genes_tan_nan.loc[
+    lambda x: x["variable"].isin(neutro_sigs["neutro_sig"])
+]
+neutro_sigs["nan_sig"] = tmp_df["variable"].tolist()
+tmp_df
+
+# %%
+tmp_df = signature_genes_tan_nan.loc[
+    lambda x: x["variable"].isin(neutro_sigs["neutro_sig3"]) & (x["group"] == "TAN")
+]
+neutro_sigs["tan_sig"] = tmp_df["variable"].tolist()
+tmp_df
+
+# %% [markdown]
+# ## Evaluate signatures
+
+# %%
+{sig: len(genes) for sig, genes in neutro_sigs.items()}
+
+# %% [markdown]
+# ### Within Neutrophil cluster
+
+# %%
+for sig, genes in neutro_sigs.items():
     sc.tl.score_genes(pb_n, genes, score_name=sig)
     sc.tl.score_genes(adata_n, genes, score_name=sig)
 
 # %%
-sc.pl.matrixplot(
-    pb_n, var_names=list(signature_dict.keys()), cmap="bwr", groupby="cell_type"
-)
+sc.pl.matrixplot(pb_n, var_names=list(neutro_sigs.keys()), cmap="bwr", groupby="cell_type")
+
+# %%
+sc.pl.umap(adata_n, color=list(neutro_sigs.keys()), cmap="inferno", size=20, ncols=3, frameon=False)
+
+# %% [markdown]
+# ## Within all cell-types
+
+# %%
+for sig, genes in tqdm(neutro_sigs.items()):
+    sc.tl.score_genes(pb_primary, genes, score_name=sig)
+    sc.tl.score_genes(adata, genes, score_name=sig)
 
 # %%
 sc.pl.matrixplot(
-    adata_n[adata_n.obs["cell_type"] != "other"],
-    var_names=list(signature_dict.keys()),
+    pb_primary,
+    var_names=list(neutro_sigs.keys()),
     cmap="bwr",
-    groupby="cell_type",
+    groupby="cell_type_major",
 )
 
 # %%
-sc.pl.umap(adata_n, color=list(signature_dict.keys()), cmap="inferno", size=20, ncols=3)
+sc.pl.umap(adata, color=list(neutro_sigs.keys()), cmap="inferno", size=1, ncols=3, frameon=False)
+
+# %% [markdown]
+# ## Export signatures
+
+# %%
+with open(f"{artifact_dir}/neutro_sigs.csv", 'w') as f:
+    for sig, genes in neutro_sigs.items():
+        for gene in genes:
+            f.write(sig + "," + gene + "\n")
