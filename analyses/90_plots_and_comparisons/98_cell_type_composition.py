@@ -112,16 +112,16 @@ res_tumor_ref2 = run_sccoda(data_all, reference_cell_type, mcmc_iterations)
 
 # %%
 credible_effects_condition = res_tumor_ref2.credible_effects(est_fdr=0.1)[
-    "condition[T.LUAD]"
+    "condition[T.LUSC]"
 ]
 credible_effects_stage = res_tumor_ref2.credible_effects(est_fdr=0.1)[
-    "tumor_stage[T.late]"
+    "tumor_stage[T.advanced]"
 ]
 
 # %%
 (
     alt.Chart(
-        res_tumor_ref2.effect_df.loc["condition[T.LUAD]"]
+        res_tumor_ref2.effect_df.loc["condition[T.LUSC]"]
         .loc[credible_effects_condition]
         .reset_index(),
         title="condition",
@@ -133,7 +133,7 @@ credible_effects_stage = res_tumor_ref2.credible_effects(est_fdr=0.1)[
         color=alt.Color("Cell Type"),
     )
     | alt.Chart(
-        res_tumor_ref2.effect_df.loc["tumor_stage[T.late]"]
+        res_tumor_ref2.effect_df.loc["tumor_stage[T.advanced]"]
         .loc[credible_effects_stage]
         .reset_index(),
         title="tumor_stage",
@@ -147,4 +147,6 @@ credible_effects_stage = res_tumor_ref2.credible_effects(est_fdr=0.1)[
 ).resolve_scale(y="shared")
 
 # %%
-res_tumor_ref2.effect_df.loc["condition[T.LUAD]"]
+res_tumor_ref2.effect_df.loc["condition[T.LUSC]"]
+
+# %%

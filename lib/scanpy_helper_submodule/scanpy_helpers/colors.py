@@ -14,11 +14,31 @@ def set_scale_anndata(adata, column, palette=None):
     ]
 
 
-def altair_scale(variable, **kwargs):
-    """Discrete color scale for altair based on our color definitions"""
+def altair_scale(variable, *, data=None, data_col=None, **kwargs):
+    """
+    Discrete color scale for altair based on our color definitions.
+
+    Parameters:
+    -----------
+    variable
+        name of the color scale
+    data
+        Data frame used for the chart. If specified, will only show values that actually occur in the data.
+    data_col
+        If specified, check this column in `data` instead of `variable`
+
+    Returns
+    -------
+    Altair color scale
+    """
+    tmp_colors = getattr(COLORS, variable)
+    if data is not None:
+        data_col = variable if data_col is None else data_col
+        tmp_colors = {k: tmp_colors[k] for k in data[data_col].unique()}
+
     return alt.Scale(
-        domain=list(getattr(COLORS, variable).keys()),
-        range=list(getattr(COLORS, variable).values()),
+        domain=list(tmp_colors.keys()),
+        range=list(tmp_colors.values()),
         **kwargs,
     )
 
@@ -89,28 +109,12 @@ class COLORS:
         "advanced (III/IV)": "#f1a340",
         "unknown": "#dddddd",
     }
-    TMIG = {  # tumor microenvironment infiltration group
-        "-/-": "#CCCCCC",
-        "-/S": "#999999",
-        "T/S": "#1f78b4",
-        "T/-": "#a6cee3",
-        "M/S": "#33a02c",
-        "M/-": "#b2df8a",
-        "B/S": "#ff7f00",
-        "B/-": "#fdbf6f",
-    }
     immune_infiltration = {
-        "mixed": "#ff7f00",
+        "B": "#ff7f00",
         "T": "#1f78b4",
         "M": "#33a02c",
         "desert": "#999999",
         # "n/a": "#dddddd",
-    }
-    infiltration_state = {
-        "I/S": "#6a3d9a",
-        "I/-": "#cab2d6",
-        "-/S": "#999999",
-        "-/-": "#CCCCCC",
     }
     tumor_type = {
         "LUSC": "#beaed4",

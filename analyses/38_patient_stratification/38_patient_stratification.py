@@ -67,17 +67,19 @@ sc.pl.umap(adata, color=["cell_type_major", "origin"], ncols=1)
 adata.obs["cell_type_major"].value_counts().sort_index()
 
 # %%
+# exclude all non tumor/immune cell-types
+# exclude neutrophils, because essentially not present in 10x datasets
 EXCLUDE_CELL_TYPES = [
     "other",
     "Neutrophils",
-    "Ciliated", 
-    "Club", 
-    "Goblet", 
-    "Alveolar cell type 1", 
+    "Ciliated",
+    "Club",
+    "Goblet",
+    "Alveolar cell type 1",
     "Alveolar cell type 2",
     "Endothelial cell",
-    "Stromal"
-]  # excluding neutrophils, because essentially not present in 10x datasets
+    "Stromal",
+]  
 
 # %%
 # For the patient stratification, treat the two batches of the UKIM-V dataset as one
@@ -150,7 +152,8 @@ ad_tumor_subtypes.obs
 ad_immune = sc.AnnData(
     X=(
         adata_primary_tumor.obs.loc[
-            lambda x: ~x["cell_type_major"].isin(EXCLUDE_CELL_TYPES) & x["patient"].isin(ad_tumor_subtypes.obs.index) 
+            lambda x: ~x["cell_type_major"].isin(EXCLUDE_CELL_TYPES)
+            & x["patient"].isin(ad_tumor_subtypes.obs.index)
         ]
         .groupby(["dataset", "patient", "cell_type_major"], observed=True)
         .size()
@@ -234,7 +237,13 @@ sc.pl.heatmap(
 )
 
 # %%
-alt.Chart(ad_immune.obs.groupby(["leiden", "dataset"]).size().reset_index(name="n")).mark_bar().encode(x="dataset", y="n", color=alt.Color("leiden", scale=sh.colors.altair_scale("leiden")))
+alt.Chart(
+    ad_immune.obs.groupby(["leiden", "dataset"]).size().reset_index(name="n")
+).mark_bar().encode(
+    x="dataset",
+    y="n",
+    color=alt.Color("leiden", scale=sh.colors.altair_scale("leiden")),
+)
 
 # %%
 sc.tl.rank_genes_groups(ad_immune, groupby="leiden", method="t-test")
@@ -245,12 +254,7 @@ ad_immune.obs["immune_type"] = [
         "0": "T",
         "1": "desert",
         "2": "M",
-        "3": "mixed",
-        # "4": "desert",
-        # "5": "T",
-        # "6": "mixed",
-        # "7": "mixed",
-        # "8": "mixed",
+        "3": "B",
     }[x]
     for x in ad_immune.obs["leiden"]
 ]
@@ -354,7 +358,9 @@ def get_row(col, color_scale=None):
             y=alt.Y("ylab", axis=alt.Axis(title=None)),
             color=alt.Color(
                 col,
-                scale=sh.colors.altair_scale(color_scale),
+                scale=sh.colors.altair_scale(color_scale, data=plot_df, data_col=col)
+                if color_scale != "tumor_type"
+                else sh.colors.altair_scale(color_scale),
                 legend=alt.Legend(columns=3),
             ),
         )
@@ -402,6 +408,23 @@ p2 = (
         ),
         y=alt.Y(
             "cell_type_major",
+            sort=[
+                "Tumor cells",
+                "B cell",
+                "Plasma cell",
+                "Mast cell",
+                "Macrophage",
+                "Macrophage FABP4+",
+                "Monocyte",
+                "DC mature",
+                "cDC1",
+                "cDC2",
+                "pDC",
+                "T cell CD4",
+                "T cell CD8",
+                "T cell regulatory",
+                "NK cell",
+            ],
             axis=alt.Axis(title=None),
         ),
         color=alt.Color(
@@ -417,7 +440,9 @@ p2 = (
 
 # %%
 np.random.seed(0)
-plot_df["random_stratum"] = np.array(["desert", "M", "T", "mixed"])[np.random.randint(0, 4, size=plot_df.shape[0])]
+plot_df["random_stratum"] = np.array(["desert", "M", "T", "mixed"])[
+    np.random.randint(0, 4, size=plot_df.shape[0])
+]
 
 # %% [markdown]
 # ## groups by histological subtype
@@ -440,7 +465,9 @@ tmp_df = (
 alt.Chart(tmp_df).mark_bar().encode(
     x=alt.X("immune_infiltration", title=None),
     y="frac_of_total",
-    color=alt.Color("immune_infiltration", scale=sh.colors.altair_scale("immune_infiltration")),
+    color=alt.Color(
+        "immune_infiltration", scale=sh.colors.altair_scale("immune_infiltration")
+    ),
 ).facet(column="tumor_type_annotated")
 
 # %%
@@ -459,5 +486,3 @@ plot_df.to_csv(
         nxfvars.get("artifact_dir", "/home/sturm/Downloads")
     )
 )
-
-# %%
