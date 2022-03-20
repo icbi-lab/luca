@@ -756,6 +756,9 @@ sc.pl.umap(adata, color=list(neutro_sigs.keys()), cmap="inferno", size=1, ncols=
 
 # %%
 with open(f"{artifact_dir}/neutro_sigs.csv", 'w') as f:
+    f.write("signature,gene_symbol\n")
     for sig, genes in neutro_sigs.items():
         for gene in genes:
             f.write(sig + "," + gene + "\n")
+
+# %%
