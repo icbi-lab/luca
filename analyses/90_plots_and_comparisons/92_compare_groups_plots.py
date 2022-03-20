@@ -161,7 +161,7 @@ results["patient_immune_infiltration_treatment_coding_condition"]["progeny"].loc
 tmp_cytosig = (
     results["patient_immune_infiltration_treatment_coding_condition"]["cytosig"]
     .loc[
-        lambda x: x["cell_type"].isin(["Tumor cells", "Stromal", "Endothelial cell"]), :
+        lambda x: x["cell_type"].isin(["Tumor cells"]), :
     ]
     .pipe(sh.util.fdr_correction)
 )
@@ -176,32 +176,6 @@ for ct in tmp_cytosig["cell_type"].unique():
         ).display()
     except AttributeError:
         pass
-
-# %%
-adata_cytosig_tumor = sc.read_h5ad(
-    "../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_cytosig/Tumor cells.h5ad"
-)
-
-# %%
-pb_cytosig_tumor = sh.pseudobulk.pseudobulk(
-    adata_cytosig_tumor, groupby=["patient", "immune_infiltration"], aggr_fun=np.mean
-)
-
-# %%
-sc.pl.matrixplot(
-    adata_cytosig_tumor,
-    groupby="immune_infiltration",
-    var_names=adata_cytosig_tumor.var_names,
-    cmap="bwr",
-)
-
-# %%
-sc.pl.matrixplot(
-    pb_cytosig_tumor,
-    groupby="immune_infiltration",
-    var_names=adata_cytosig_tumor.var_names,
-    cmap="bwr",
-)
 
 # %% [markdown]
 # ---
@@ -238,7 +212,7 @@ results["patient_immune_infiltration_treatment_coding_condition_random"]["progen
 tmp_cytosig = (
     results["patient_immune_infiltration_treatment_coding_condition_random"]["cytosig"]
     .loc[
-        lambda x: x["cell_type"].isin(["Tumor cells", "Stromal", "Endothelial cell"]), :
+        lambda x: x["cell_type"].isin(["Tumor cells"]), :
     ]
     .pipe(sh.util.fdr_correction)
 )

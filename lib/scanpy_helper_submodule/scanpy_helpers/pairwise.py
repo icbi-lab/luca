@@ -21,6 +21,7 @@ def plot_paired_fc(
     layer=None,
     n_top_vars=30,
     fold_changes=None,
+    metric_name=None,
     pvalues=None,
 ):
     """Plot fold changes as a bar chart with overlayed scatterplot to represent the variability between samples.
@@ -71,19 +72,18 @@ def plot_paired_fc(
     df.reset_index(drop=False, inplace=True)
 
     if metric == "diff":
-        metric_name = "mean score difference"
+        if metric_name is None:
+            metric_name = "mean score difference"
 
         def metric(a, b):
             return b - a
 
     elif metric == "log2_fc":
-        metric_name = "log2(FC)"
+        if metric_name is None:
+            metric_name = "log2(FC)"
 
         def metric(a, b):
             return np.log2(b + 1) - np.log2(a + 1)
-
-    else:
-        metric_name = "custom"
 
     df_fc = (
         df.sort_values([groupby, paired_by])

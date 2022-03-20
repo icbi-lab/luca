@@ -8,7 +8,7 @@ import scipy.sparse
 
 
 def log2_fc(
-    df, mean_col="intercept", diff_col="coef", key_added="log2_fc", inplace=False
+    df, mean_col="intercept", diff_col="coef", key_added="log2_fc", inplace=False, logfun=np.log2
 ):
     """Add a fold change based on the base-mean and the change in means.
     In a linear model with intercept, the intercept represents the base mean and
@@ -27,7 +27,7 @@ def log2_fc(
             # a decrease to 0 -> -infinite fold change
             return -np.inf
         else:
-            return np.log2(diff + mean) - np.log2(mean)
+            return logfun(diff + mean) - logfun(mean)
 
     # The intercept is the mean, the coef the deviation from the mean.
     # Thereby, fold-change = (intercept + coef) / intercept
