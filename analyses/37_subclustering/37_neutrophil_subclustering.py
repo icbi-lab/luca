@@ -38,19 +38,11 @@ ah = AnnotationHelper()
 sc.settings.set_figure_params(figsize=(5, 5))
 
 # %%
-signature_file = nxfvars.get(
-    "neutro_signatures", "../../tables/gene_annotations/neutro_signatures.csv"
-)
 adata_file = nxfvars.get(
     "adata_in",
     "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
-
-# %%
-signatures = pd.read_csv(signature_file, comment="#").loc[
-    lambda x: x["signature"] != "sig_pd1"
-]
 
 # %%
 adata = sc.read_h5ad(adata_file)
