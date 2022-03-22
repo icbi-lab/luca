@@ -11,5 +11,5 @@ data_mat <- assay(data_mat, "X")
 data_mat <- as.matrix(data_mat)
 
 
-res <- SCEVAN::pipelineCNA(count_mtx=data_mat, sample = name, par_cores = cores, SUBCLONES = TRUE)
-write.csv(res, file="scevan_result.csv")
+res <- SCEVAN::pipelineCNA(count_mtx = data_mat, sample = name, par_cores = cores, SUBCLONES = FALSE)
+write.csv(res, file = "scevan_result.csv")
