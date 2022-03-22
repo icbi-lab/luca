@@ -30,6 +30,7 @@ import altair as alt
 from pathlib import Path
 import warnings
 from tqdm.auto import tqdm
+from IPython.display import display_html
 import itertools
 
 # %%
@@ -58,64 +59,21 @@ adata_cpdb = sc.read_h5ad(
 )
 
 # %%
-immunomodulatory_genes = pd.read_excel(
-    "../../tables/gene_annotations/immunomodulatory_genes.xlsx"
+neutro_genesets = pd.read_excel(
+    "../../tables/gene_annotations/neutro_phenotype_genesets.xlsx"
 )
+mask_valid_genes = neutro_genesets["gene_symbol"].isin(adata_n.var_names)
+print(f"filtered out {np.sum(~mask_valid_genes)} genes because they are not in adata.var_names")
+neutro_genesets = neutro_genesets.loc[mask_valid_genes]
+neutro_genesets = {
+    name: neutro_genesets.loc[lambda x: x["type"] == name, "gene_symbol"].tolist()
+    for name in neutro_genesets["type"].unique()
+}
 
 # %%
 neutro_recruitment_genes = pd.read_excel(
     "../../tables/gene_annotations/neutro_recruitment_chemokines.xlsx"
 )
-
-# %%
-# candidate genes
-tumor_vs_normal = [
-    "PTGS2",
-    "SELL",
-    "CXCR2",
-    "VEGFA",
-    "OLR1",
-    "CXCR4",
-    "CXCR1",
-    "ICAM1",
-    "FCGR3B",
-    "CD83",
-    "ARG1",
-    "CCL2",
-    "JUN",
-]
-autophagy_genes = """ELANE
-CTSG
-ITGB2
-LCN2
-ADAMTS12
-ADAMTS13
-ADAM10
-ADAM11
-ADAM12
-ADAM17
-ADAMTS4
-ADAM28
-LOXL2
-MMP2
-MMP3
-ILF3
-MMP7
-MMP8
-MMP9
-MMP10
-MMP11
-MMP12
-MMP13
-MMP14
-MMP15
-MMP16
-MMP17
-TIMP1
-TIMP2
-TIMP3
-TIMP4
-""".split()
 
 # %%
 adata_n.obs["cell_type_tan_nan"] = [x[:4] for x in adata_n.obs["cell_type"]]
@@ -393,21 +351,30 @@ sh.compare_groups.pl.plot_lm_result_altair(
 # %% [markdown] tags=[]
 # # UMAP and Heatmaps of selected gene sets
 
+# %%
+for gene_set, genes in neutro_genesets.items():
+    display_html(f"<h2>Gene set of interest: {gene_set}</h2>", raw=True)
+    sc.pl.umap(
+        adata_n,
+        color=genes,
+        cmap="inferno",
+        size=20,
+        ncols=5,
+        frameon=False,
+    )
+    sc.pl.matrixplot(pb_n, var_names=gene_set, groupby=["cell_type"], cmap="bwr")
+    sc.pl.dotplot(
+        adata_n,
+        var_names=gene_set,
+        groupby=["cell_type"],
+    )
+
 # %% [markdown]
 # ## TAN vs NAN selected genes
 
 # %%
-sc.pl.umap(
-    adata_n,
-    color=tumor_vs_normal,
-    cmap="inferno",
-    size=20,
-    ncols=5,
-    frameon=False,
-)
 
 # %%
-sc.pl.matrixplot(pb_n, var_names=tumor_vs_normal, groupby=["cell_type"], cmap="bwr")
 
 # %% [markdown]
 # ## genes of interest (2)
