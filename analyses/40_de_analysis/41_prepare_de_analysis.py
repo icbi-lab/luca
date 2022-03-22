@@ -28,6 +28,12 @@ adata = sc.read_h5ad(
         "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
     )
 )
+patient_stratification = pd.read_csv(
+    nxfvars.get(
+        "patient_stratification",
+        "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv",
+    )
+)
 
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
@@ -38,12 +44,20 @@ sc.set_figure_params(figsize=(9, 9))
 sc.pl.umap(adata, color=["cell_type"], size=1)
 
 # %%
-obs = adata.obs.loc[
-    :, ["sample", "patient", "tissue", "origin", "condition", "dataset", "cell_type"]
-]
+adata.obs.reset_index()
 
 # %%
-obs
+adata.obs["immune_infiltration"] = (
+    patient_stratification.loc[:, ["patient", "immune_infiltration"]]
+    .merge(adata.obs.reset_index(drop=False), on="patient")
+    .loc[:, ["index", "immune_infiltration"]]
+    .set_index("index")["immune_infiltration"]
+)
+
+# %%
+obs = adata.obs.loc[
+    :, ["sample", "patient", "tissue", "origin", "condition", "dataset", "cell_type", "immune_infiltration"]
+]
 
 # %%
 pd.set_option("display.max_rows", 1000)

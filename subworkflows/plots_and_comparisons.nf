@@ -30,7 +30,7 @@ workflow plots_and_comparisons {
         adata_annotated.mix(adata_cpdb, patient_stratification).collect()
     )
 
-    ch_sccoda_params = adata_annotated.map{ it -> it.name }.combine([1000000]).combine(
+    ch_sccoda_params = adata_annotated.map{ it -> it.name }.combine([500000]).combine(
         ["cell_type_major", "cell_type_neutro"]
     ).combine(["Tumor cells", "Stromal"]).map{
         adata, mcmc, col, ref -> [
