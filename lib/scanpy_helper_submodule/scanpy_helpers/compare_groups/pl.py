@@ -13,6 +13,7 @@ def plot_lm_result_altair(
     y="group",
     color="coef",
     title="heatmap",
+    value_max=None,
 ):
     """
     Plot a results data frame of a comparison as a heatmap
@@ -37,7 +38,10 @@ def plot_lm_result_altair(
 
     df_subset["FDR"] = pd.Categorical([_get_significance(x) for x in df_subset["fdr"]])
 
-    value_max = max(abs(np.nanmin(df_subset[color])), abs(np.nanmax(df_subset[color])))
+    if value_max is None:
+        value_max = max(
+            abs(np.nanmin(df_subset[color])), abs(np.nanmax(df_subset[color]))
+        )
     return (
         alt.Chart(df_subset, title=title)
         .mark_rect()

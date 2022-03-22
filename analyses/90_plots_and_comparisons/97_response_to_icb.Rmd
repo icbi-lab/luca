@@ -355,7 +355,7 @@ plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75)) {
 }
 
 lapply(c("LUAD", "LUSC"), function(type) {
-  lapply(c("sig_neutro", "sig_nan", "sig_tan", "sig_b_cell_follicular"), function(sig) {
+  lapply(c("sig_neutro", "sig_nan", "sig_tan", "sig_b_cell_follicular", "sig_neutro2", "sig_neutro3"), function(sig) {
     plot_kaplan_meyer(tcga_clin_and_scores |> filter(type == !!type), sig) + ggtitle(sprintf("%s (%s)", sig, type))
   })
 })
@@ -418,29 +418,11 @@ ici_clin_and_scores |>
 ici_clin_and_scores |> 
   ggplot(aes(y=sig_lcam_hi, x=sig_tan)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
 
-# ici_clin_and_scores |> 
-#   ggplot(aes(y=sig_lcam_hi, x=sig_pd1)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
-# 
-# ici_clin_and_scores |> 
-#   ggplot(aes(y=sig_neutro3, x=sig_pd1)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
-# 
-# ici_clin_and_scores |> 
-#   ggplot(aes(y=sig_tan, x=sig_neutro)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid()+ scale_color_brewer(palette="Dark2")
-# 
-# ici_clin_and_scores |> 
-#   ggplot(aes(y=sig_lcam_hi, x=sig_tan)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid()+ scale_color_brewer(palette="Dark2")
-# 
-# ici_clin_and_scores |> 
-#   ggplot(aes(y=sig_neutro, x=`ct_T cell CD8+`)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
-# 
-# ici_clin_and_scores |> 
-#   ggplot(aes(y=sig_neutro, x=sig_pmn_mdsc)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
-# 
-# ici_clin_and_scores |> 
-#   ggplot(aes(y=sig_neutro, x=sig_plasma)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
-# 
-# ici_clin_and_scores |> 
-#   ggplot(aes(y=sig_lcam_hi, x=sig_plasma)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
+ici_clin_and_scores |> 
+  ggplot(aes(y=sig_lcam_hi, x=sig_neutro2)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
+
+ici_clin_and_scores |> 
+  ggplot(aes(y=sig_lcam_hi, x=sig_neutro3)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
 
 ```
 

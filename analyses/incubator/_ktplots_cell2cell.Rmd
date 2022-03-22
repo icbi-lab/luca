@@ -169,37 +169,19 @@ cytosig = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_c
  * The thickness of the arrows indicates the confidence (=FDR) that the given interaction is differentially regulated.
  * Usually, the top 100 differentailly regulated interactions are shown. It is, in most cases, not possible to fit all significantly different interactions into the plot.
 
-### Early advanced
-
-Comparison between early and advanced tumor stages. Red = upregulated in advanced, blue = upregulated in early.
-
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-# cpdb_early_advanced |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
-```
-
 ### LUAD LUSC
 
 Comparison of LUAD and LUSC samples. Blue = Upregulated in LUAD, Red = upregulated in LUSC
 
 ```{r, fig.width=20, fig.height=12, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lusc |> filter(abs(log2_fc) > 1, fdr < 0.1,  cluster_2 == "Neutrophils") |> cpdb_plot(edge_color = "abs(log10(fdr))", edge_color_scale=scale_edge_color_viridis())
+# cpdb_luad_lusc |> filter(abs(log2_fc) > 1, fdr < 0.1,  cluster_2 == "Neutrophils") |> cpdb_plot(edge_color = "abs(log10(fdr))", edge_color_scale=scale_edge_color_viridis())
 ```
 
-```{r, fig.width=14, fig.height=8, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lusc |> filter(abs(log2_fc) > 1, cluster_2 == "B cell") |> filter(fdr < 0.1) |> cpdb_plot()
-```
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 cpdb_luad_lusc |> filter(abs(log2_fc) > 1) |> mutate(group2 = if_else(log2_fc < 0, "LUSC", "LUAD")) |> group_by(group2) |>
   filter(row_number() < 30) |> ungroup() |> cpdb_plot()
 ```
-
-Focus on Neutrophils
-
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lusc |> filter(abs(log2_fc) > 1, fdr < 0.1,  cluster_1 == "Neutrophils" | cluster_2 == "Neutrophils") |> cpdb_plot(edge_color = "abs(log10(fdr))", edge_color_scale=scale_edge_color_viridis())
-```
-
 
 
 
@@ -229,21 +211,25 @@ are uniquely upregulated in either the immune desert group (grey), the B-cell in
 cpdb_infiltration |> rename(variable=`...1`) |>
   filter(log2_fc > 1) |>
   # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |>
-mutate(fdr=p.adjust(pvalue, method="fdr")) |>
+  mutate(fdr=p.adjust(pvalue, method="fdr")) |>
   group_by(group) |>
-  filter(row_number() < 15) |>
+  filter(row_number() <= 15) |>
   ungroup() |>
   cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
 ```
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 
-cpdb_infiltration_treatment_condition |> rename(variable=`...1`) |>
+variables = cpdb_infiltration_treatment_condition |> rename(variable=`...1`) |>
   filter(log2_fc > 1) |>
   # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |>
-mutate(fdr=p.adjust(pvalue, method="fdr")) |>
   group_by(group) |>
-  filter(row_number() < 20) |>
+  filter(row_number() < 20) |> pull(variable)
+
+cpdb_infiltration_treatment_condition |> rename(variable=`...1`) |>
+  mutate(fdr=p.adjust(pvalue, method="fdr")) |>
+  filter(log2_fc > 1, fdr < 0.01) |>
+  filter(variable %in% variables) |> 
   ungroup() |>
   cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
 ```

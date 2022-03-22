@@ -40,11 +40,6 @@ artifact_dir = "../../data/30_downstream_analyses/neutrophils"
 cpus = 16
 
 # %%
-signatures = pd.read_csv(
-    "../../tables/gene_annotations/neutro_signatures.csv", comment="#"
-).loc[lambda x: x["signature"] != "sig_pd1"]
-
-# %%
 ah = AnnotationHelper()
 
 # %%
@@ -55,6 +50,11 @@ adata_n = sc.read_h5ad(
 # %%
 adata = sc.read_h5ad(
     "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad"
+)
+
+# %%
+adata_cpdb = sc.read_h5ad(
+    "../../data/30_downstream_analyses/cell2cell_neutro/cpdb_h5ad/artifacts/adata_cpdb.h5ad"
 )
 
 # %%
@@ -568,6 +568,137 @@ ax.set_title(
 plt.show()
 
 # %% [markdown]
+# # Cell2Cell communication
+
+# %%
+neutro_clusters = adata_n.obs["cell_type"].unique()
+
+# %%
+ad_cpdb_primary = adata_cpdb[
+    (adata_cpdb.obs["origin"] == "tumor_primary"),
+    (
+        adata_cpdb.var["cluster_2"].isin(neutro_clusters)
+        | adata_cpdb.var["cluster_1"].isin(neutro_clusters)
+    ),
+]
+# keep only interactions that are >0 in at least 5 samples
+ad_cpdb_primary = ad_cpdb_primary[:, np.sum(ad_cpdb_primary.X != 0, axis=0) > 5].copy()
+
+
+# %%
+def cpdb_for_cell_types(adata_cpdb, cell_types, direction="incoming"):
+    """
+    Regroup the CPDB anndata object to consider cell-types as samples (which allows
+    comparisons between cell-types, rather than only patients.
+
+    direction can be `incoming` for signalling towards the selected cell-types, or
+    `outgoing` for signalling originating from the selected cell-types.
+    """
+    cpdb_molten = pd.DataFrame(
+        adata_cpdb.X,
+        index=adata_cpdb.obs_names,
+        columns=adata_cpdb.var_names,
+    ).melt(ignore_index=False)
+
+    tmp_var = (
+        adata_cpdb.var.loc[
+            lambda x: x["cluster_1"].isin(cell_types)
+            != x["cluster_2"].isin(cell_types)  # != is xor
+        ]
+        .assign(
+            ligrec=lambda _: [
+                ("incoming" if x["cluster_2"] in cell_types else "outgoing")
+                for idx, x in _.iterrows()
+            ]
+        )
+        .reset_index()
+        .assign(
+            idx_new=lambda x: [
+                idx.replace("_" + (clus1 if ligrec == "outgoing" else clus2), "")
+                for idx, ligrec, clus1, clus2 in zip(
+                    x["idx"], x["ligrec"], x["cluster_1"], x["cluster_2"]
+                )
+            ]
+        )
+    )
+
+    cpdb_molten2 = (
+        cpdb_molten.reset_index()
+        .set_index("idx")
+        .rename(columns={"index": "patient"})
+        .join(tmp_var.set_index("idx"), how="inner")
+    )
+
+    cpdb_molten_directed = cpdb_molten2.loc[lambda x: x["ligrec"] == direction]
+
+    cluster_to_drop = "cluster_2" if direction == "incoming" else "cluster_1"
+    cluster_to_keep = "cluster_1" if direction == "incoming" else "cluster_2"
+    adata_directed = sc.AnnData(
+        cpdb_molten_directed.reset_index()
+        .assign(
+            sample=lambda x: x["patient"].astype(str)
+            + "_"
+            + x[cluster_to_drop].astype(str),
+        )
+        .pivot(
+            index=["patient", "sample", cluster_to_drop],
+            columns="idx_new",
+            values="value",
+        )
+        .fillna(0)
+    )
+
+    adata_directed.var = adata_directed.var.join(
+        tmp_var.loc[
+            lambda x: x["ligrec"] == direction,
+            ["idx_new", "source", "target", cluster_to_keep],
+        ]
+        .set_index("idx_new")
+        .drop_duplicates(),
+        how="left",
+    )
+    adata_directed.obs = adata_directed.obs.reset_index().rename(
+        columns={cluster_to_drop: "group"}
+    )
+    return adata_directed
+
+
+# %%
+adata_cpdb_neutro_incoming = cpdb_for_cell_types(
+    ad_cpdb_primary, neutro_clusters, "incoming"
+)
+
+# %%
+adata_cpdb_neutro_outgoing = cpdb_for_cell_types(
+    ad_cpdb_primary, neutro_clusters, "outgoing"
+)
+
+# %%
+res_incoming = sh.compare_groups.lm.test_lm(
+    adata_cpdb_neutro_incoming, "~ C(group, Sum) + patient", "group"
+)
+
+# %%
+res_outgoing = sh.compare_groups.lm.test_lm(
+    adata_cpdb_neutro_outgoing, "~ C(group, Sum) + patient", "group"
+)
+
+# %%
+res_incoming.loc[lambda x: x["variable"].str.contains("Tumor cells")].pipe(
+    sh.util.fdr_correction
+).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.01)
+
+# %%
+res_outgoing.loc[lambda x: x["variable"].str.contains("Tumor cells")].pipe(
+    sh.util.fdr_correction
+).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.01)
+
+# %%
+res_outgoing.loc[lambda x: x["variable"].str.contains("T cell CD8+")].pipe(
+    sh.util.fdr_correction
+).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.01)
+
+# %% [markdown]
 # # VEGFA sources in NSCLC
 
 # %%
@@ -678,7 +809,7 @@ neutro_sigs["neutro_sig2"] = tmp_df.index.tolist()
 tmp_df
 
 # %%
-# Relaxed criteria to increase the number of genes, such that we can build TAN/NAN signatures. 
+# Relaxed criteria to increase the number of genes, such that we can build TAN/NAN signatures.
 tmp_df = (
     pb_primary.var.query("roc_auc >=0.90")
     .query("fold_change >=2")
@@ -693,7 +824,9 @@ tmp_df
 # We don't find genes that are specific enough to detect the TAN/NAN subclusters from bulk RNA-seq data. 
 
 # %%
-signature_genes_tan_nan = marker_res_tan_nan.loc[lambda x: (x["fdr"] < 0.01) & (abs(x["log2_fc"]) > 1)]
+signature_genes_tan_nan = marker_res_tan_nan.loc[
+    lambda x: (x["fdr"] < 0.01) & (abs(x["log2_fc"]) > 1)
+]
 
 # %% [markdown]
 # ### Only nan genes in specificity-level 1 and 2
@@ -727,10 +860,19 @@ for sig, genes in neutro_sigs.items():
     sc.tl.score_genes(adata_n, genes, score_name=sig)
 
 # %%
-sc.pl.matrixplot(pb_n, var_names=list(neutro_sigs.keys()), cmap="bwr", groupby="cell_type")
+sc.pl.matrixplot(
+    pb_n, var_names=list(neutro_sigs.keys()), cmap="bwr", groupby="cell_type"
+)
 
 # %%
-sc.pl.umap(adata_n, color=list(neutro_sigs.keys()), cmap="inferno", size=20, ncols=3, frameon=False)
+sc.pl.umap(
+    adata_n,
+    color=list(neutro_sigs.keys()),
+    cmap="inferno",
+    size=20,
+    ncols=3,
+    frameon=False,
+)
 
 # %% [markdown]
 # ## Within all cell-types
@@ -749,13 +891,20 @@ sc.pl.matrixplot(
 )
 
 # %%
-sc.pl.umap(adata, color=list(neutro_sigs.keys()), cmap="inferno", size=1, ncols=3, frameon=False)
+sc.pl.umap(
+    adata,
+    color=list(neutro_sigs.keys()),
+    cmap="inferno",
+    size=1,
+    ncols=3,
+    frameon=False,
+)
 
 # %% [markdown]
 # ## Export signatures
 
 # %%
-with open(f"{artifact_dir}/neutro_sigs.csv", 'w') as f:
+with open(f"{artifact_dir}/neutro_sigs.csv", "w") as f:
     f.write("signature,gene_symbol\n")
     for sig, genes in neutro_sigs.items():
         for gene in genes:

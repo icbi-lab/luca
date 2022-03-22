@@ -62,7 +62,7 @@ artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 # %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/30_downstream_analyses/02_integrate_into_atlas/artifacts/full_atlas_merged.h5ad",
+    "../../data/30_downstream_analyses/04_neutrophil_subclustering//artifacts/full_atlas_neutrophil_clusters.h5ad",
 )
 
 # %%
@@ -89,91 +89,6 @@ patient_strat["dataset"] = (
     .set_index("patient")["dataset"]
 )
 patient_strat.reset_index(inplace=True)
-
-# %% [markdown]
-# ## GEX Heterogeneity by cell-type
-
-# %%
-adatas_by_sample = sh.util.split_anndata(adata, "sample")
-
-# %%
-ithgex_by_sample = {}
-for sample, ad in tqdm(adatas_by_sample.items()):
-    ad = ad[ad.obs["cell_type_major"] != "other", :]
-    ithgex_by_sample[sample] = sh.diversity.ithgex(ad, "cell_type_major", inplace=False)
-
-# %%
-ithgex_df = pd.DataFrame.from_dict(ithgex_by_sample).T.melt(
-    ignore_index=False, var_name="cell_type", value_name="ITHGEX"
-)
-
-# %%
-patient_strat.set_index("patient")
-
-# %%
-sample_info = (
-    adata.obs.loc[
-        :, ["sample", "patient", "origin", "condition", "tumor_stage", "ever_smoker"]
-    ]
-    .drop_duplicates()
-    .set_index("sample")
-)
-
-# %%
-ithgex_df = (
-    ithgex_df.join(sample_info)
-    .reset_index(drop=False)
-    .merge(patient_strat, on=["patient"], how="left")
-    .set_index("index")
-)
-
-# %%
-ithgex_df
-
-# %%
-alt.Chart(ithgex_df.dropna(how="any")).mark_boxplot().encode(
-    x=alt.X(
-        "cell_type",
-        sort=ithgex_df.dropna(how="any")
-        .groupby("cell_type")
-        .agg({"ITHGEX": "median"})
-        .sort_values("ITHGEX")
-        .index.tolist(),
-    ),
-    y="ITHGEX",
-)
-
-# %%
-alt.Chart(
-    ithgex_df.dropna(how="any").loc[lambda x: x["condition"].isin(["LUAD", "LUSC"]), :]
-).mark_boxplot().encode(
-    x=alt.X("condition", axis=alt.Axis(title=None, labels=False, ticks=False)),
-    y=alt.Y("ITHGEX", axis=alt.Axis(grid=False)),
-    column=alt.Column("cell_type", header=alt.Header(title=None, labelOrient="bottom")),
-    color="condition",
-)
-
-# %%
-alt.Chart(ithgex_df.dropna(how="any")).mark_boxplot().encode(
-    x=alt.X(
-        "immune_infiltration", axis=alt.Axis(title=None, labels=False, ticks=False)
-    ),
-    y=alt.Y("ITHGEX", axis=alt.Axis(grid=False)),
-    column=alt.Column("cell_type", header=alt.Header(title=None, labelOrient="bottom")),
-    color="immune_infiltration",
-)
-
-# %%
-alt.Chart(
-    ithgex_df.loc[
-        lambda x: x["origin"].isin(["tumor_primary", "normal", "normal_adjacent"]),
-    ]
-).mark_boxplot().encode(
-    x=alt.X("origin", axis=alt.Axis(title=None, labels=False, ticks=False)),
-    y=alt.Y("ITHGEX", axis=alt.Axis(grid=False)),
-    column=alt.Column("cell_type", header=alt.Header(title=None, labelOrient="bottom")),
-    color="origin",
-)
 
 # %% [markdown]
 # # CNV

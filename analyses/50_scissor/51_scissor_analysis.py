@@ -53,6 +53,12 @@ path_adata = nxfvars.get(
 )
 
 # %%
+scissor_clinical_data = pd.read_csv(
+    nxfvars.get("scissor_clinical", "../../tables/tcga/clinical_data_for_scissor.tsv"),
+    sep="\t",
+)
+
+# %%
 adata = sc.read_h5ad(path_adata)
 
 # %%
@@ -69,6 +75,28 @@ sc.pl.umap(adata, color=["cell_type_coarse", "origin"])
 
 # %%
 sc.pl.umap(adata, color=["cell_type_neutro", "cell_type_neutro_coarse"])
+
+# %% [markdown]
+# # Overview clinical data
+
+# %%
+scissor_clinical_data.loc[
+    :,
+    [
+        "type",
+        "response_to_chemotherapy",
+        "tumor_stage",
+        "kras_mutation",
+        "braf_mutation",
+        "egfr_mutation",
+        "tp53_mutation",
+        "stk11_mutation",
+        "stk11_kras_mutation",
+    ],
+].assign(total=1).groupby("type").agg(sum).astype(int)
+
+# %% [markdown]
+# # Load Scissor results
 
 # %%
 scissor_res_files = {
@@ -380,122 +408,3 @@ scissor_dfs = {
 # %%
 for col, df in scissor_dfs.items():
     plot_scissor_df_ratio(df, title=col, groupby="cell_type_neutro").display()
-
-
-# %% [markdown]
-# ---
-# ### gini per group
-
-# %%
-def subcluster_adata(tmp_adata):
-    sc.pp.neighbors(tmp_adata, use_rep="X_scANVI")
-    sc.tl.leiden(tmp_adata, resolution=0.5)
-    return adata
-
-
-# %%
-adatas = []
-cell_types = adata_primary.obs["cell_type"].unique()
-for cell_type in cell_types:
-    adatas.append(adata_primary[adata_primary.obs["cell_type"] == cell_type, :].copy())
-
-# %%
-adatas = process_map(subcluster_adata, adatas)
-
-
-# %%
-def scissor_gini(tmp_adata):
-    # tmp_adata = adata[adata.obs["cell_type"] == cell_type, :].copy()
-    sc.pp.neighbors(tmp_adata, use_rep="X_scANVI")
-    sc.tl.leiden(tmp_adata, resolution=0.5)
-    fractions = (
-        tmp_adata.obs.groupby("leiden")["scissor"]
-        .value_counts(normalize=True)
-        .reset_index(name="frac")
-        .pivot_table(values="frac", columns="scissor", index="leiden", fill_value=0)
-        .reset_index()
-    )
-    try:
-        gini_better = gini_index(fractions["better survival"].values)
-    except KeyError:
-        gini_better = 0
-    try:
-        gini_worse = gini_index(fractions["worse survival"].values)
-    except KeyError:
-        gini_worse = 0
-    return gini_better, gini_worse
-
-
-# %%
-
-# %%
-gini_better, gini_worse = zip(*gini_res)
-
-# %%
-gini_better = pd.Series(gini_better, index=cell_types)
-gini_worse = pd.Series(gini_worse, index=cell_types)
-
-# %%
-scissor_per_cell_type.set_index("cell_type", inplace=True)
-
-# %%
-scissor_per_cell_type["gini_better"] = gini_better
-scissor_per_cell_type["gini_worse"] = gini_worse
-scissor_per_cell_type = scissor_per_cell_type.reset_index()
-
-# %% [markdown]
-# ---
-
-# %% [markdown]
-# # Variability within cell-types
-
-# %%
-# %%time
-hb.tl.pseudobulk(progeny_epi, groupby=["leiden", "patient"], aggr_fun=np.mean)
-
-# %%
-progeny_epi_pb_leiden = hb.tl.pseudobulk(
-    progeny_epi, groupby=["patient", "leiden"], aggr_fun=np.mean
-)
-
-# %%
-progeny_epi_pb = hb.tl.pseudobulk(progeny_epi, groupby=["patient"], aggr_fun=np.mean)
-
-# %%
-progeny_epi_pb.X -= np.min(progeny_epi_pb.X)
-progeny_epi_pb_leiden.X -= np.min(progeny_epi_pb_leiden.X)
-
-# %%
-res = []
-patients = progeny_epi_pb_leiden.obs["patient"].unique()
-for patient in tqdm(patients):
-    tmp_x = progeny_epi_pb_leiden.X[progeny_epi_pb_leiden.obs["patient"] == patient, :]
-    res.append(np.apply_along_axis(gini_index, 0, tmp_x))
-
-# %%
-gini_within = np.mean(np.vstack(res), axis=0)
-
-# %%
-gini_between = np.apply_along_axis(gini_index, 0, progeny_epi_pb.X)
-
-# %%
-df_to_plot = (
-    pd.DataFrame(gini_within.T, index=progeny_epi.var_names, columns=["gini_within"])
-    .join(
-        pd.DataFrame(
-            gini_between, index=progeny_epi.var_names, columns=["gini_between"]
-        )
-    )
-    .reset_index()
-)
-
-# %%
-df_to_plot
-
-# %%
-import altair as alt
-
-# %%
-alt.Chart(df_to_plot).mark_point().encode(
-    y="gini_within", x="gini_between", color=df_to_plot.columns[0], tooltip="index"
-)

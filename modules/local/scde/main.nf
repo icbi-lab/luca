@@ -1,6 +1,9 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl = 2
 
+include { SPLIT_ANNDATA } from "../scconversion/main.nf"
+
+
 
 process PREPARE_ANNDATA {
     cpus 1
@@ -191,4 +194,46 @@ process DE_DESEQ2 {
     """
 }
 
+
+workflow deseq2_analysis {
+    take:
+        adata
+        column_to_test      // column to test, e.g. "tumor_stage"
+        comparison          // Tuple [["treatment"], ["reference"]] or [["treatment"], "rest"]
+        cell_type_column    // column in adata containing cell-type information
+        pseudobulk_group_by // column to generate pseudobulkk by
+        pseudobulk_settings // Tuple [min_cells, keep_unpaired samples]
+        min_samples         // only consider cell-types with this minimum number of samples
+        covariate_formula   // covariate formula (e.g. " + patient + sex")
+
+    main:
+    PREPARE_ANNDATA(
+        adata,
+        "X",
+        column_to_test,
+        comparison
+    )
+    SPLIT_ANNDATA(
+        PREPARE_ANNDATA.out.adata,
+        cell_type_column
+    )
+    MAKE_PSEUDOBULK(
+        SPLIT_ANNDATA.out.adata.flatten().map{it -> [it.baseName, it]},
+        pseudobulk_group_by,
+        column_to_test,
+        pseudobulk_settings
+    )
+    DE_DESEQ2(
+        // only consider cell-types with at least three case/control samples
+        MAKE_PSEUDOBULK.out.pseudobulk.filter{
+            id, counts, samplesheet -> samplesheet.text.count("\n") >= min_samples
+        },
+        column_to_test,
+        covariate_formula
+    )
+
+    emit:
+    deseq2_result = DE_DESEQ2.out
+
+  }
 

@@ -7,9 +7,9 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.13.1
 #   kernelspec:
-#     display_name: Python [conda env:conda-2020-pircher-sccoda]
+#     display_name: Python [conda env:.conda-pircher-sc-integrate2]
 #     language: python
-#     name: conda-env-conda-2020-pircher-sccoda-py
+#     name: conda-env-.conda-pircher-sc-integrate2-py
 # ---
 
 # %%
@@ -27,6 +27,7 @@ import itertools
 import sccoda.util.cell_composition_data as scc_dat
 import sccoda.util.comp_ana as scc_ana
 import sccoda.util.data_visualization as scc_viz
+import scanpy_helpers as sh
 
 # %%
 alt.data_transformers.disable_max_rows()
@@ -84,6 +85,9 @@ data_all = scc_dat.from_pandas(
 )
 
 # %%
+data_all.obs["condition"] = pd.Categorical(data_all.obs["condition"], categories=["LUSC", "LUAD"])
+
+# %%
 data_all._sanitize()
 
 # %%
@@ -112,7 +116,7 @@ res_tumor_ref2 = run_sccoda(data_all, reference_cell_type, mcmc_iterations)
 
 # %%
 credible_effects_condition = res_tumor_ref2.credible_effects(est_fdr=0.1)[
-    "condition[T.LUSC]"
+    "condition[T.LUAD]"
 ]
 credible_effects_stage = res_tumor_ref2.credible_effects(est_fdr=0.1)[
     "tumor_stage[T.advanced]"
@@ -121,7 +125,7 @@ credible_effects_stage = res_tumor_ref2.credible_effects(est_fdr=0.1)[
 # %%
 (
     alt.Chart(
-        res_tumor_ref2.effect_df.loc["condition[T.LUSC]"]
+        res_tumor_ref2.effect_df.loc["condition[T.LUAD]"]
         .loc[credible_effects_condition]
         .reset_index(),
         title="condition",
@@ -142,11 +146,14 @@ credible_effects_stage = res_tumor_ref2.credible_effects(est_fdr=0.1)[
     .encode(
         x=alt.X("Cell Type", sort="y"),
         y="log2-fold change",
-        color=alt.Color("Cell Type"),
+        color=alt.Color("Cell Type", scale=sh.colors.altair_scale("cell_type_major")),
     )
-).resolve_scale(y="shared")
+).resolve_scale(y="shared", color="shared")
 
 # %%
-res_tumor_ref2.effect_df.loc["condition[T.LUSC]"]
+res_tumor_ref2.effect_df.loc["condition[T.LUAD]"]
+
+# %%
+res_tumor_ref2.effect_df.loc["tumor_stage[T.advanced]"]
 
 # %%
