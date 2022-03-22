@@ -59,12 +59,17 @@ adata_cpdb = sc.read_h5ad(
 )
 
 # %%
+patient_stratification = pd.read_csv(
+    "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv"
+)
+
+# %%
 neutro_genesets = pd.read_excel(
     "../../tables/gene_annotations/neutro_phenotype_genesets.xlsx"
 )
 mask_valid_genes = neutro_genesets["gene_symbol"].isin(adata_n.var_names)
 print(f"filtered out {np.sum(~mask_valid_genes)} genes because they are not in adata.var_names")
-neutro_genesets = neutro_genesets.loc[mask_valid_genes]
+neutro_genesets = neutro_genesets.loc[mask_valid_genes].drop_duplicates()
 neutro_genesets = {
     name: neutro_genesets.loc[lambda x: x["type"] == name, "gene_symbol"].tolist()
     for name in neutro_genesets["type"].unique()
@@ -351,115 +356,26 @@ sh.compare_groups.pl.plot_lm_result_altair(
 # %% [markdown] tags=[]
 # # UMAP and Heatmaps of selected gene sets
 
-# %%
+# %% tags=[]
 for gene_set, genes in neutro_genesets.items():
     display_html(f"<h2>Gene set of interest: {gene_set}</h2>", raw=True)
+    sc.settings.set_figure_params(figsize=(2, 2))
     sc.pl.umap(
         adata_n,
         color=genes,
         cmap="inferno",
-        size=20,
-        ncols=5,
+        size=10,
+        ncols=10,
         frameon=False,
     )
-    sc.pl.matrixplot(pb_n, var_names=gene_set, groupby=["cell_type"], cmap="bwr")
+    sc.pl.matrixplot(pb_n, var_names=genes, groupby=["cell_type"], cmap="bwr", title=gene_set)
     sc.pl.dotplot(
         adata_n,
-        var_names=gene_set,
+        var_names=genes,
         groupby=["cell_type"],
+        title=gene_set
     )
-
-# %% [markdown]
-# ## TAN vs NAN selected genes
-
-# %%
-
-# %%
-
-# %% [markdown]
-# ## genes of interest (2)
-
-# %%
-sc.pl.umap(
-    adata_n,
-    color=["OLR1", "CD36", "ITGA2B", "ITGB3"],
-    cmap="inferno",
-    size=20,
-    ncols=5,
-    frameon=False,
-)
-
-# %%
-sc.pl.dotplot(
-    adata_n,
-    var_names=["OLR1", "CD36", "ITGA2B", "ITGB3"],
-    groupby=["cell_type"],
-)
-
-# %%
-sc.pl.matrixplot(
-    pb_n,
-    var_names=["OLR1", "CD36", "ITGA2B", "ITGB3"],
-    groupby=["cell_type"],
-    cmap="bwr",
-)
-
-# %% [markdown]
-# ## genes of interest (3) -- autophagy
-
-# %%
-sc.pl.dotplot(
-    adata_n,
-    var_names=autophagy_genes,
-    groupby=["cell_type"],
-)
-
-# %%
-sc.pl.matrixplot(pb_n, var_names=autophagy_genes, groupby=["cell_type"], cmap="bwr")
-
-# %% [markdown]
-# ## Genes of interest (4) - Immunomodulatory
-
-# %%
-sc.pl.dotplot(
-    adata_n,
-    var_names=immunomodulatory_genes.loc[
-        lambda x: x["type"] == "immunomodulatory", "gene_symbol"
-    ],
-    groupby=["cell_type"],
-)
-
-# %%
-sc.pl.matrixplot(
-    pb_n,
-    var_names=immunomodulatory_genes.loc[
-        lambda x: x["type"] == "immunomodulatory", "gene_symbol"
-    ],
-    groupby=["cell_type"],
-    cmap="bwr",
-)
-
-# %% [markdown]
-# ## Genes of interest (5) - Immune response
-
-# %%
-sc.pl.dotplot(
-    adata_n,
-    var_names=immunomodulatory_genes.loc[
-        lambda x: x["type"] == "immune_response", "gene_symbol"
-    ],
-    groupby=["cell_type"],
-)
-
-# %%
-sc.pl.matrixplot(
-    pb_n,
-    var_names=immunomodulatory_genes.loc[
-        lambda x: x["type"] == "immune_response", "gene_symbol"
-    ],
-    groupby=["cell_type"],
-    cmap="bwr",
-)
+sc.settings.set_figure_params(figsize=(5, 5))
 
 # %% [markdown]
 # # LUAD vs. LUSC
@@ -484,6 +400,9 @@ ct_fractions = ct_fractions.rename(
 )
 
 # %%
+ct_fractions = ct_fractions.merge(patient_stratification, on=["patient", "study", "dataset"], how="left")
+
+# %%
 neutro_fractions = ct_fractions.loc[lambda x: x["cell_type_major"] == "Neutrophils", :]
 
 # %%
@@ -495,7 +414,7 @@ datasets_with_neutros = (
     .index.tolist()
 )
 
-# %%
+# %% tags=[]
 neutro_subset = neutro_fractions.loc[
     lambda x: (
         x["dataset"].isin(datasets_with_neutros) & x["condition"].isin(["LUAD", "LUSC"])
@@ -526,11 +445,51 @@ sns.stripplot(
 sns.boxplot(
     data=neutro_subset, x="condition", y="fraction", ax=ax, width=0.5, fliersize=0
 )
-ax.legend(bbox_to_anchor=(1.1, 1.05))
+ax.legend(bbox_to_anchor=(1.9, 1.05))
 ax.set_title(
     "Neutrophil fraction in LUSC vs LUAD\np={:.4f}, linear model".format(
         res.pvalues["C(condition)[T.LUSC]"]
     )
+)
+plt.show()
+
+# %% [markdown]
+# ### Any differences between patient strata? 
+
+# %%
+neutro_subset2 = neutro_fractions.loc[
+    lambda x: (
+        x["dataset"].isin(datasets_with_neutros) & ~x["immune_infiltration"].isnull()
+    ),
+    :,
+].sort_values("fraction", ascending=False)
+
+# %%
+mod = smf.ols("fraction ~ C(immune_infiltration, Treatment('desert')) + dataset", data=neutro_subset2)
+res = mod.fit()
+
+# %%
+res.summary()
+
+# %%
+fig, ax = plt.subplots()
+
+neutro_subset2["immune_infiltration"] = neutro_subset2["immune_infiltration"].astype(str)
+neutro_subset2["dataset"] = neutro_subset2["dataset"].astype(str)
+
+sns.stripplot(
+    data=neutro_subset2,
+    x="immune_infiltration",
+    y="fraction",
+    hue="study",
+    palette=sh.colors.COLORS.study,
+    ax=ax,
+    size=7,
+    linewidth=2,
+)
+ax.legend(bbox_to_anchor=(1.9, 1.05))
+sns.boxplot(
+    data=neutro_subset2, x="immune_infiltration", y="fraction", ax=ax, width=0.5, fliersize=0
 )
 plt.show()
 
