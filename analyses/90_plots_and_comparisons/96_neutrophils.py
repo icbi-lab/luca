@@ -465,7 +465,10 @@ neutro_subset2 = neutro_fractions.loc[
 ].sort_values("fraction", ascending=False)
 
 # %%
-mod = smf.ols("fraction ~ C(immune_infiltration, Treatment('desert')) + dataset", data=neutro_subset2)
+neutro_subset2
+
+# %%
+mod = smf.ols("fraction ~ C(immune_infiltration, Treatment('desert')) + dataset + tumor_type_annotated", data=neutro_subset2)
 res = mod.fit()
 
 # %%
