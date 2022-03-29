@@ -225,6 +225,7 @@ def compare_cpdb(
             contrasts=contrasts,
             n_jobs=n_jobs,
             chunksize=1200,
+            robust=True,
         )
         .set_index("variable")
         .join(dataset_cpdb.var, how="left")

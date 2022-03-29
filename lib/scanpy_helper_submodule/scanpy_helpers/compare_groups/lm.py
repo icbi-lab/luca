@@ -18,6 +18,7 @@ from ..util import chunk_adatas, fdr_correction
 import itertools
 from multiprocessing import cpu_count
 from threadpoolctl import threadpool_limits
+from statsmodels.regression.linear_model import RegressionResultsWrapper
 
 
 def lm_test_all(
@@ -86,6 +87,7 @@ def test_lm(
     groupby: str,
     *,
     contrasts: str = "Sum",
+    robust: bool = False,
     progress: bool = True,
     n_jobs: int = None,
     chunksize=200,
@@ -105,6 +107,10 @@ def test_lm(
     contrasts
         a patsy contrast included in to linear model formula. May be `Sum`, `Treatment`, or `Treatment('<base level>')`.
         See https://www.statsmodels.org/devel/contrasts.html for more details.
+    robust
+        If true, use heteroskedasticity adjustment with HC3.
+        HC3 has been shown to be superior over the default HC1 in http://datacolada.org/99.
+        See also: https://www.statsmodels.org/devel/generated/statsmodels.regression.linear_model.OLSResults.get_robustcov_results.html
     progress
         Show the tqdm progress bar
     n_jobs
@@ -123,7 +129,12 @@ def test_lm(
     # likely overhead is larger until several times chunksize. Exact optimum not tested.
     if pseudobulk.shape[1] < chunksize * 2 or n_jobs == 1:
         return _test_lm(
-            pseudobulk, formula, groupby, contrasts=contrasts, progress=progress
+            pseudobulk,
+            formula,
+            groupby,
+            contrasts=contrasts,
+            robust=robust,
+            progress=progress,
         )
     else:
         return pd.concat(
@@ -134,6 +145,7 @@ def test_lm(
                 itertools.repeat(groupby),
                 itertools.repeat(contrasts),
                 itertools.repeat(False),
+                itertools.repeat(robust),
                 max_workers=n_jobs,
             )
         )
@@ -213,6 +225,7 @@ def _test_lm(
     groupby: str,
     contrasts: str,
     progress: bool = False,
+    robust: bool = False,
 ) -> pd.DataFrame:
     """Internal helper function for :func:`test_lm` that gets called in parallel."""
     var_names = pseudobulk.var_names
@@ -237,6 +250,10 @@ def _test_lm(
             with threadpool_limits(1):
                 mod = smf.ols(formula=formula.format(col=col), data=df)
                 res = mod.fit()
+                if robust:
+                    res = RegressionResultsWrapper(
+                        res.get_robustcov_results(cov_type="HC3")
+                    )
                 coefs, pvals, intercept = _test_all_params(
                     res, groupby=groupby, all_groups=all_groups, contrasts=contrasts
                 )
@@ -261,4 +278,7 @@ def _test_lm(
         except ValueError:
             pass
 
-    return pd.concat(results)
+    try:
+        return pd.concat(results)
+    except ValueError:
+        return pd.DataFrame()

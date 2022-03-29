@@ -38,7 +38,7 @@ adata_in = nxfvars.get(
 )
 adata_in_cpdb = nxfvars.get(
     "adata_in_cpdb",
-    "../../data/30_downstream_analyses/cell2cell/cpdb_h5ad/artifacts/adata_cpdb.h5ad",
+    "../../data/30_downstream_analyses/cell2cell_major/cpdb_h5ad/artifacts/adata_cpdb.h5ad",
 )
 stratification_csv = nxfvars.get(
     "stratification_csv",
@@ -232,5 +232,3 @@ for tool, adatas in datasets.items():
     os.makedirs(outdir, exist_ok=True)
     for ct, ad in adatas.items():
         ad.write_h5ad(f"{outdir}/{ct}.h5ad")
-
-# %%

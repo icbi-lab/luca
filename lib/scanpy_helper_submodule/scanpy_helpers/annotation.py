@@ -1,8 +1,11 @@
+from typing import List, Optional
 import pandas as pd
 import numpy as np
 import scanpy as sc
 import importlib.resources as pkg_resources
 from . import assets
+from tqdm import tqdm
+from scanpy import logging
 
 
 class AnnotationHelper:
@@ -18,7 +21,7 @@ class AnnotationHelper:
             #     f"https://docs.google.com/spreadsheets/d/1beW-9oeM31P50NFvNLVvsdXlfh_tOjsmIrnwV2ZlxDU/gviz/tq?tqx=out:csv&sheet={sheet}"
             # )
 
-    def get_markers(self, filter_cell_type: list = None):
+    def get_markers(self, filter_cell_type: Optional[List] = None):
         if filter_cell_type is None:
             return self.markers.copy()
         else:
@@ -43,7 +46,12 @@ class AnnotationHelper:
         return marker_dict
 
     def plot_dotplot(
-        self, adata, *, markers=None, filter_cell_type: list = None, groupby="leiden"
+        self,
+        adata,
+        *,
+        markers=None,
+        filter_cell_type: Optional[List] = None,
+        groupby="leiden",
     ):
         if markers is not None:
             tmp_markers = markers
@@ -54,7 +62,7 @@ class AnnotationHelper:
         sc.pl.dotplot(adata, var_names=marker_dict, groupby=groupby)
 
     def plot_umap(
-        self, adata, *, markers=None, filter_cell_type: list = None, **kwargs
+        self, adata, *, markers=None, filter_cell_type: Optional[List] = None, **kwargs
     ):
         """Make a UMAP plot for each marker. Filter markers by explicitly
         specifying them or providing a filter keyword for the marker table.
@@ -69,6 +77,87 @@ class AnnotationHelper:
             var_names = adata.var_names if adata.raw is None else adata.raw.var_names
             genes = set(var_names) & set(group["gene_identifier"].values)
             sc.pl.umap(adata, color=genes, **kwargs)
+
+    def score_cell_types(
+        self,
+        adata,
+        *,
+        markers=None,
+        filter_cell_type: Optional[List] = None,
+        prefix="ct_",
+        **kwargs,
+    ):
+        tmp_markers = self.get_markers(filter_cell_type)
+        for ct, group in tqdm(tmp_markers.groupby("cell_type")):
+            var_names = adata.var_names if adata.raw is None else adata.raw.var_names
+            genes = list(set(var_names) & set(group["gene_identifier"].values))
+            sc.tl.score_genes(adata, genes, score_name=prefix + ct, **kwargs)
+
+    def plot_dotplot_scores(
+        self,
+        adata,
+        *,
+        markers=None,
+        filter_cell_type: Optional[List] = None,
+        prefix="ct_",
+        groupby="leiden",
+        **kwargs,
+    ):
+        if markers is not None:
+            tmp_markers = markers
+        else:
+            tmp_markers = self.get_markers(filter_cell_type)
+
+        var_names = [prefix + x for x in tmp_markers["cell_type"].unique()]
+        if set(var_names) - set(adata.obs.columns) != set():
+            logging.info(
+                "Scores not found in adata.obs. Computing scores with default parameters. "
+            )
+            self.score_cell_types(
+                adata,
+                markers=tmp_markers,
+                filter_cell_type=filter_cell_type,
+                prefix=prefix,
+            )
+
+        sc.pl.dotplot(
+            adata,
+            groupby=groupby,
+            var_names=var_names,
+            **kwargs,
+        )
+
+    def plot_umap_scores(
+        self,
+        adata,
+        *,
+        markers=None,
+        filter_cell_type: Optional[List] = None,
+        prefix="ct_",
+        **kwargs,
+    ):
+        if markers is not None:
+            tmp_markers = markers
+        else:
+            tmp_markers = self.get_markers(filter_cell_type)
+
+        var_names = [prefix + x for x in tmp_markers["cell_type"].unique()]
+        if set(var_names) - set(adata.obs.columns) != set():
+            logging.info(
+                "Scores not found in adata.obs. Computing scores with default parameters. "
+            )
+            self.score_cell_types(
+                adata,
+                markers=tmp_markers,
+                filter_cell_type=filter_cell_type,
+                prefix=prefix,
+            )
+
+        sc.pl.umap(
+            adata,
+            color=var_names,
+            **kwargs,
+        )
 
     @staticmethod
     def reprocess_adata_subset(
