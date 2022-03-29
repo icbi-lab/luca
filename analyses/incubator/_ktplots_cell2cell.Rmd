@@ -76,7 +76,7 @@ immune_cells = c(
 
 
 ```{r, include=FALSE}
-cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge_color_distiller(palette="RdBu", limits=c(-1,1) * max(abs(conn_meta$log2_fc)))) {
+cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge_color_gradientn(colors=pals::coolwarm(100), limits=c(-1,1) * max(abs(conn_meta[[edge_color]])))) {
   # make edges df
   edges = cpdb_res |>
     mutate( from=sprintf("%s_%s_ligand", cluster_1, source), to=sprintf("%s_%s_receptor", cluster_2, target)) |>
@@ -131,8 +131,8 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
     geom_node_point(aes(color=cell_type, shape=type), size=8, stroke=2, fill="white") +
     geom_conn_bundle(
       data = get_con(from=from, to=to, coef=conn_meta$coef, log2_fc=conn_meta$log2_fc, pvalue=conn_meta$pvalue, group=conn_meta$group, fdr=conn_meta$fdr),
-      # aes_string(color=edge_color, width="abs(log2_fc)"),
-      aes_string(color=edge_color, width="abs(log10(fdr))"),
+      aes_string(color=edge_color, width="abs(coef)"),
+      # aes_string(color=edge_color, width="abs(log10(fdr))"),
       tension=0.4,
       arrow=arrow()) +
     edge_color_scale +
@@ -180,7 +180,7 @@ Comparison of LUAD and LUSC samples. Blue = Upregulated in LUAD, Red = upregulat
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 cpdb_luad_lusc |> filter(abs(log2_fc) > 1) |> mutate(group2 = if_else(log2_fc < 0, "LUSC", "LUAD")) |> group_by(group2) |>
-  filter(row_number() < 30) |> ungroup() |> cpdb_plot()
+  filter(row_number() < 30) |> ungroup() |> cpdb_plot(edge_color="coef")
 ```
 
 
@@ -206,17 +206,34 @@ Same as above, but only focusing on ligands on Tumor, stromal and endothelial ce
 Comparison of the four infiltration types. Interactions are colored according to whether they
 are uniquely upregulated in either the immune desert group (grey), the B-cell infiltration group (orange), the Macro/Mono infiltration group (green), or the T-cell infiltration group (blue).
 
+```{r, fig.width=14, fig.height=8, message=FALSE, warning=FALSE, results=FALSE}
+
+cpdb_infiltration |> rename(variable=`...1`) |>
+  filter(coef > 0, fdr < 0.1, group != "desert") |> 
+  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |>
+  # mutate(fdr=p.adjust(pvalue, method="fdr")) |>
+  # group_by(group) |>
+  # filter(row_number() <= 15) |>
+  # ungroup() |>
+  cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
+```
+
+
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 
 cpdb_infiltration |> rename(variable=`...1`) |>
-  filter(log2_fc > 1) |>
+  mutate(coef = if_else(group == "desert", -coef, coef)) |> 
+  filter(coef > 0) |> 
+  head(50) |> 
   # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |>
-  mutate(fdr=p.adjust(pvalue, method="fdr")) |>
-  group_by(group) |>
-  filter(row_number() <= 15) |>
-  ungroup() |>
-  cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
+  # mutate(fdr=p.adjust(pvalue, method="fdr")) |>
+  # group_by(group) |>
+  # filter(row_number() <= 15) |>
+  # ungroup() |>
+  cpdb_plot(edge_color="coef", edge_color_scale=scale_edge_color_viridis(direction=1, option="inferno"))
 ```
+
+
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 
