@@ -6,6 +6,7 @@ import importlib.resources as pkg_resources
 from . import assets
 from tqdm import tqdm
 from scanpy import logging
+import matplotlib.pyplot as plt
 
 
 class AnnotationHelper:
@@ -27,7 +28,9 @@ class AnnotationHelper:
         else:
             mask = np.zeros(self.markers.shape[0])
             for filter in filter_cell_type:
-                mask = mask | self.markers["cell_type"].str.contains(filter)
+                mask = mask | self.markers["cell_type"].str.lower().str.contains(
+                    filter.lower()
+                )
             return self.markers.loc[mask, :]
 
     @staticmethod
@@ -221,14 +224,20 @@ class AnnotationHelper:
         sc.pl.umap(adata, color=key_added)
 
     @staticmethod
-    def integrate_back(adata, adata_subset, variable="cell_type"):
+    def integrate_back(
+        adata,
+        adata_subset,
+        variable="cell_type",
+        plt_context={"figure.figsize": (5, 5)},
+    ):
         """Merge cell type annotations performed on a subset back into the main
         AnnData object"""
         adata.obs[variable] = adata.obs[variable].astype("str")
         adata.obs.loc[adata_subset.obs.index, variable] = adata_subset.obs[
             variable
         ].astype("str")
-        sc.pl.umap(adata, color=variable)
+        with plt.rc_context(plt_context):
+            sc.pl.umap(adata, color=variable)
 
 
 def classify_cell_types_nearest_neighbors(
