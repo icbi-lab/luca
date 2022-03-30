@@ -38,9 +38,20 @@ ah = AnnotationHelper()
 sc.set_figure_params(figsize=(4, 4))
 
 # %%
+# based on Human Lung Cell Atlas
+ah2 = AnnotationHelper(
+    markers=pd.read_csv(
+        nxfvars.get(
+            "hlca_markers",
+            "../../tables/gene_annotations/hlca_cell_type_signatures.csv",
+        )
+    )
+)
+
+# %%
 input_adata = nxfvars.get(
     "input_adata",
-    "../../data/20_integrate_scrnaseq_data/annotate_datasets/31_cell_types_coarse/by_cell_type/adata_cell_type_coarse_epithelial_cell.umap_leiden.h5ad",
+    "../../data/20_build_atlas/annotate_datasets/31_cell_types_coarse/by_cell_type/adata_cell_type_coarse_epithelial_cell.umap_leiden.h5ad",
 )
 threadpool_limits(nxfvars.get("cpus", 1))
 numba.set_num_threads(nxfvars.get("cpus", 1))
@@ -54,18 +65,6 @@ adata.obs["leiden"] = adata.obs["leiden_0.50"]
 
 # %%
 sc.pl.umap(adata, color="leiden")
-
-# %% [markdown]
-# ### Redo UMAP with PAGA
-
-# %%
-sc.tl.paga(adata, groups="leiden")
-
-# %%
-sc.pl.paga(adata, color="leiden", threshold=0.2)
-
-# %%
-sc.tl.umap(adata, init_pos="paga")
 
 # %%
 sc.pl.umap(adata, color="dataset")
@@ -82,11 +81,11 @@ with plt.rc_context({"figure.figsize": (6, 6)}):
     )
     fig.savefig(f"{artifact_dir}/overview_epithelial_cluster.pdf", bbox_inches="tight")
 
+# %%
+ah2.score_cell_types(adata)
+
 # %% [markdown]
 # ## Annotation
-
-# %%
-sc.pl.umap(adata, color=["GMNC", "FOXJ1", "FOXA3"], cmap="inferno")
 
 # %%
 with plt.rc_context({"figure.figsize": (4, 4)}):
@@ -107,6 +106,24 @@ with plt.rc_context({"figure.figsize": (4, 4)}):
     )
 
 # %%
+ah2.plot_umap_scores(
+    adata,
+    filter_cell_type=[
+        "basal",
+        "deutero",
+        "ciliated",
+        "club",
+        "goblet",
+        "iono",
+        "tuft",
+        "Neuroend",
+        "SMG",
+        "AT1",
+        "AT2",
+    ],
+)
+
+# %%
 ah.plot_dotplot(adata)
 
 # %%
@@ -118,7 +135,7 @@ cell_type_map = {
     "Alveolar cell type 1": [10],
     "Alveolar cell type 2": [1, 14, 8, 12],
     "Ciliated": [6, 15],
-    "Club": [3],
+    "transitional club/AT2": [3],
     "tumor cells": [2, 9, 13, 17, 11, 4, 0, 16],
 }
 cell_type_map.update(
@@ -154,16 +171,20 @@ ah.plot_umap(adata_5, filter_cell_type=["Alev", "Goblet", "Club"], cmap="inferno
 ah.plot_dotplot(adata_5)
 
 # %%
-sc.pl.umap(adata_5, color="leiden", legend_loc="on data", legend_fontoutline=2)
+ah2.plot_umap_scores(adata_5, filter_cell_type=["Club", "Goblet", "AT2", "Cilated"])
 
 # %%
+sc.pl.umap(adata_5, color=["n_genes_by_counts", "total_counts"], vmax=[2000, 10000])
+
+# %%
+sc.pl.umap(adata_5, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
 ah.annotate_cell_types(
     adata_5,
     {
         "Alveolar cell type 2": [9],
-        "Club": [0, 5, 6],
+        "transitional club/AT2": [0, 5, 6],
         "ROS1+ healthy epithelial": [2],
         "tumor cells": [8, 4, 3, 1, 7],
     },
@@ -191,12 +212,19 @@ ah.plot_umap(adata_7, filter_cell_type=["Alev", "Goblet", "Club", "Epi"])
 ah.plot_dotplot(adata_7)
 
 # %%
+ah2.plot_umap_scores(adata_7, filter_cell_type=["Club", "Goblet", "AT2", "Cilated"])
+
+# %%
 sc.pl.umap(adata_7, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
 ah.annotate_cell_types(
     adata_7,
-    {"Goblet": [6, 1, 0, 9, 10], "tumor cells": [7, 8, 2, 5, 3, 4]},
+    {
+        "transitional club/AT2": [6,1],
+        "Club": [0, 9, 10],
+        "tumor cells": [7, 8, 2, 5, 3, 4],
+    },
 )
 
 # %%
@@ -212,24 +240,13 @@ adata_tumor = adata[adata.obs["cell_type"] == "tumor cells", :].copy()
 ah.reprocess_adata_subset_scvi(adata_tumor, leiden_res=0.5)
 
 # %%
-# if not removed, paga plotting fails
-del adata_tumor.uns["leiden_colors"]
-
-# %%
-sc.tl.paga(adata_tumor, "leiden")
-
-# %%
-sc.pl.paga(adata_tumor, color="leiden", threshold=0.25)
-
-# %%
 sc.pl.umap(adata_tumor, color="leiden_1.00")
 
 # %%
-sc.tl.umap(adata_tumor, init_pos="paga")
-
-# %%
 ah.plot_umap(
-    adata_tumor, filter_cell_type=["Epi", "Alev", "Goblet", "Club"], cmap="inferno"
+    adata_tumor,
+    filter_cell_type=["Epi", "Alev", "Goblet", "Club", "basal", "tuft", "iono", "Div"],
+    cmap="inferno",
 )
 
 # %%
@@ -292,7 +309,7 @@ adata_tumor_copy = adata_tumor.copy()
 ah.annotate_cell_types(
     adata_tumor,
     cell_type_map={
-        "Club": [12],
+        "transitional club/AT2": [12],
         "Tumor cells LUAD": [5, 25, 9, 7, 4, 1, 26, 15, 20, 27, 24, 22, 29, 2, 30, 13],
         "Tumor cells LUAD EMT": [6, 18, 23],
         "Tumor cells LUAD MSLN": [21],
@@ -316,3 +333,13 @@ ah.integrate_back(adata, adata_tumor)
 # %%
 adata.write_h5ad(f"{artifact_dir}/adata_epithelial.h5ad")
 adata_tumor.write_h5ad(f"{artifact_dir}/adata_tumor.h5ad")
+
+# %%
+adata_cxg = sc.AnnData(var=adata.raw.var, obs=adata.obs, X=adata.raw.X, obsm=adata.obsm)
+adata_tumor_cxg = sc.AnnData(var=adata_tumor.raw.var, obs=adata_tumor.obs, X=adata_tumor.raw.X, obsm=adata_tumor.obsm)
+
+# %%
+adata_cxg.write_h5ad("/home/sturm/Downloads/2022-03-30_refined_endothelial.h5ad")
+adata_tumor_cxg.write_h5ad("/home/sturm/Downloads/2022-03-30_refined_tumor.h5ad")
+
+# %%

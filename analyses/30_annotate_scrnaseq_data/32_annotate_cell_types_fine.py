@@ -38,7 +38,10 @@ ah = AnnotationHelper()
 # based on Human Lung Cell Atlas
 ah2 = AnnotationHelper(
     markers=pd.read_csv(
-        nxfvars.get("hlca_markers", "../../tables/gene_annotations/hlca_cell_type_signatures.csv")
+        nxfvars.get(
+            "hlca_markers",
+            "../../tables/gene_annotations/hlca_cell_type_signatures.csv",
+        )
     )
 )
 
@@ -92,7 +95,13 @@ ah2.plot_dotplot_scores(adata_b)
 sc.pl.umap(adata_b, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
-ah.annotate_cell_types(adata_b, cell_type_map={"B cell": [0, 1, 2, 3, 4, 5, 6], "potential B/epithelial doublets": [7]})
+ah.annotate_cell_types(
+    adata_b,
+    cell_type_map={
+        "B cell": [0, 1, 2, 3, 4, 5, 6],
+        "potential B/epithelial doublets": [7],
+    },
+)
 
 # %%
 ah.integrate_back(adata, adata_b)
@@ -119,7 +128,7 @@ sc.pl.umap(adata_endo, color=["origin", "condition", "dataset"], wspace=0.8)
 sc.pl.umap(adata_endo, color=["CDH5", "VWF"], vmax=3, cmap="inferno", size=6)
 
 # %%
-ah.plot_umap(adata_endo, filter_cell_type=["Endo", "Div"], cmap="inferno", size=2)
+ah.plot_umap(adata_endo, filter_cell_type=["Endo", "Div"], cmap="inferno", size=4)
 
 # %%
 ah.plot_dotplot(adata_endo)
@@ -145,10 +154,13 @@ ah.annotate_cell_types(
         "Endothelial cell venous": [0, 3, 4, 10],
         "Endothelial cell arterial": [7],
         "Endothelial cell capillary": [9, 8, 6, 1],
-        "Endothelial cell NOS": [5],
+        "potentially empty droplets (Endo)": [5],
         "potential B/endothelial doublets": [11],
     },
 )
+
+# %%
+sc.pl.umap(adata_endo, color=["CXCR4", "PGF", "LXN"], cmap="inferno")
 
 # %%
 ah2.plot_dotplot_scores(
@@ -166,14 +178,18 @@ ah.integrate_back(adata, adata_endo)
 # ## Granulocytes
 
 # %%
-adata_g = sc.read_h5ad(f"{input_dir}/adata_cell_type_coarse_granulocytes.umap_leiden.h5ad")
+adata_g = sc.read_h5ad(
+    f"{input_dir}/adata_cell_type_coarse_granulocytes.umap_leiden.h5ad"
+)
 adata_g.obs["leiden"] = adata_g.obs["leiden_1.00"]
 
 # %%
 ah2.score_cell_types(adata_g)
 
 # %%
-ah.plot_umap(adata_g, cmap="inferno", filter_cell_type=["Neutro", "MDSC", "Granul", "div"])
+ah.plot_umap(
+    adata_g, cmap="inferno", filter_cell_type=["Neutro", "MDSC", "Granul", "div"]
+)
 
 # %%
 ah.plot_dotplot(adata_g)
@@ -185,10 +201,13 @@ ah2.plot_dotplot_scores(adata_g)
 sc.pl.umap(adata_g, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
-ah.annotate_cell_types(adata_g, cell_type_map={
-    "Neutrophils": [2, 0, 10, 8, 4, 12, 9, 3, 1, 7, 6, 5, 11],
-    "potential epithelial/Neutrophil doublets": [13]
-})
+ah.annotate_cell_types(
+    adata_g,
+    cell_type_map={
+        "Neutrophils": [2, 0, 10, 8, 4, 12, 9, 3, 1, 7, 6, 5, 11],
+        "potential epithelial/Neutrophil doublets": [13],
+    },
+)
 
 # %%
 ah.integrate_back(adata, adata_g)
@@ -232,7 +251,7 @@ ah.annotate_cell_types(
     adata_mast,
     cell_type_map={
         "Mast cell": [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 16],
-        "potential mast/other doublets": [9, 17, 15]
+        "potential mast/other doublets": [9, 17, 15],
     },
 )
 
@@ -386,9 +405,7 @@ ah2.plot_umap_scores(
 )
 
 # %%
-ah2.plot_dotplot_scores(
-    adata_stromal
-)
+ah2.plot_dotplot_scores(adata_stromal)
 
 # %%
 sc.pl.umap(adata_stromal, color="leiden", legend_loc="on data", legend_fontoutline=2)
@@ -452,7 +469,7 @@ sc.pl.umap(adata_t, color="dataset")
 # Cluster 11 comes from a single dataset, has very few genes and few counts. It does not express any markers known to us. I suspect these are empty droplets that passed through QC. 
 
 # %%
-with plt.rc_context({"figure.figsize": (5,5)}):
+with plt.rc_context({"figure.figsize": (5, 5)}):
     sc.pl.umap(adata_t, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
@@ -463,7 +480,7 @@ cell_type_map = {
     "T cell CD8": [13, 10, 8, 6, 12, 14, 9],
     "T cell regulatory": [2],
     "B cell dividing": [18],
-    "potentially empty droplets": [11],
+    "potentially empty droplets (T)": [11],
 }
 
 # %%
@@ -477,7 +494,7 @@ ah.integrate_back(adata, adata_t)
 
 # %%
 adata_pdc = sc.read_h5ad(f"{input_dir}/adata_cell_type_coarse_pdc.umap_leiden.h5ad")
-adata_pdc.obs["leiden"] = adata_pdc.obs["leiden_1.00"] 
+adata_pdc.obs["leiden"] = adata_pdc.obs["leiden_1.00"]
 
 # %%
 ah.plot_umap(adata_pdc, filter_cell_type=["div", "pdc"], cmap="inferno")
@@ -495,7 +512,9 @@ ah2.plot_dotplot_scores(adata_pdc)
 sc.pl.umap(adata_pdc, color="leiden", legend_loc="on data", legend_fontoutline=2)
 
 # %%
-ah.annotate_cell_types(adata_pdc, cell_type_map={"pDC": range(11), "potential pDC/other doublets": [11]})
+ah.annotate_cell_types(
+    adata_pdc, cell_type_map={"pDC": range(11), "potential pDC/other doublets": [11]}
+)
 
 # %%
 ah.integrate_back(adata, adata_pdc)
