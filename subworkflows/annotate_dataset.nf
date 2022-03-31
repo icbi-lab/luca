@@ -44,10 +44,12 @@ workflow annotate_dataset {
         ]),
         [
             "input_dir": '.',
-            "main_adata": 'adata_cell_type_coarse.h5ad'
+            "main_adata": 'adata_cell_type_coarse.h5ad',
+            "hlca_markers": 'hlca_cell_type_signatures.csv'
         ],
         NEIGHBORS_LEIDEN_UMAP_CELL_TYPES.out.adata.map{ id, adata -> adata }.mix(
-            ch_adata_annotated
+            ch_adata_annotated,
+            Channel.fromPath("${baseDir}/tables/gene_annotations/hlca_cell_type_signatures.csv")
         ).collect()
     )
     ANNOTATE_CELL_TYPES_EPI(
@@ -57,10 +59,11 @@ workflow annotate_dataset {
         ]),
         [
             "input_adata": 'adata_cell_type_coarse_epithelial_cell.umap_leiden.h5ad',
+            "hlca_markers": 'hlca_cell_type_signatures.csv'
         ],
         NEIGHBORS_LEIDEN_UMAP_CELL_TYPES.out.adata.map{ id, adata -> adata }.filter(
             it -> it.name.equals("adata_cell_type_coarse_epithelial_cell.umap_leiden.h5ad")
-        )
+        ).mix(Channel.fromPath("${baseDir}/tables/gene_annotations/hlca_cell_type_signatures.csv")).collect()
     )
 
     EXPORT_ATLAS(
@@ -98,4 +101,6 @@ workflow annotate_dataset {
 
     emit:
         final_atlas = ch_atlas
+        scanvi_model = SCANVI.out.scvi_model.map{ id, model -> model }
+        scanvi_h5ad = SCANVI.out.adata.map{ id, model -> modle }
 }

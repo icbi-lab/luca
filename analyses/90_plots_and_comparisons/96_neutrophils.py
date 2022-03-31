@@ -68,7 +68,9 @@ neutro_genesets = pd.read_excel(
     "../../tables/gene_annotations/neutro_phenotype_genesets.xlsx"
 )
 mask_valid_genes = neutro_genesets["gene_symbol"].isin(adata_n.var_names)
-print(f"filtered out {np.sum(~mask_valid_genes)} genes because they are not in adata.var_names")
+print(
+    f"filtered out {np.sum(~mask_valid_genes)} genes because they are not in adata.var_names"
+)
 neutro_genesets = neutro_genesets.loc[mask_valid_genes].drop_duplicates()
 neutro_genesets = {
     name: neutro_genesets.loc[lambda x: x["type"] == name, "gene_symbol"].tolist()
@@ -111,6 +113,17 @@ with plt.rc_context({"figure.dpi": 150}):
 # %%
 with plt.rc_context({"figure.dpi": 150}):
     sc.pl.umap(adata_n, color="condition", legend_fontoutline=2, frameon=False, size=20)
+
+# %%
+with plt.rc_context({"figure.dpi": 150}):
+    sc.pl.umap(
+        adata_n[adata_n.obs["origin"] == "tumor_primary", :],
+        color="condition",
+        legend_fontoutline=2,
+        frameon=False,
+        size=20,
+        title="condition: only cells from primary tumor samples",
+    )
 
 # %%
 with plt.rc_context({"figure.dpi": 150}):
@@ -368,13 +381,10 @@ for gene_set, genes in neutro_genesets.items():
         ncols=10,
         frameon=False,
     )
-    sc.pl.matrixplot(pb_n, var_names=genes, groupby=["cell_type"], cmap="bwr", title=gene_set)
-    sc.pl.dotplot(
-        adata_n,
-        var_names=genes,
-        groupby=["cell_type"],
-        title=gene_set
+    sc.pl.matrixplot(
+        pb_n, var_names=genes, groupby=["cell_type"], cmap="bwr", title=gene_set
     )
+    sc.pl.dotplot(adata_n, var_names=genes, groupby=["cell_type"], title=gene_set)
 sc.settings.set_figure_params(figsize=(5, 5))
 
 # %% [markdown]
@@ -400,7 +410,9 @@ ct_fractions = ct_fractions.rename(
 )
 
 # %%
-ct_fractions = ct_fractions.merge(patient_stratification, on=["patient", "study", "dataset"], how="left")
+ct_fractions = ct_fractions.merge(
+    patient_stratification, on=["patient", "study", "dataset"], how="left"
+)
 
 # %%
 neutro_fractions = ct_fractions.loc[lambda x: x["cell_type_major"] == "Neutrophils", :]
@@ -468,7 +480,10 @@ neutro_subset2 = neutro_fractions.loc[
 neutro_subset2
 
 # %%
-mod = smf.ols("fraction ~ C(immune_infiltration, Treatment('desert')) + dataset + tumor_type_annotated", data=neutro_subset2)
+mod = smf.ols(
+    "fraction ~ C(immune_infiltration, Treatment('desert')) + dataset + tumor_type_annotated",
+    data=neutro_subset2,
+)
 res = mod.fit()
 
 # %%
@@ -477,7 +492,9 @@ res.summary()
 # %%
 fig, ax = plt.subplots()
 
-neutro_subset2["immune_infiltration"] = neutro_subset2["immune_infiltration"].astype(str)
+neutro_subset2["immune_infiltration"] = neutro_subset2["immune_infiltration"].astype(
+    str
+)
 neutro_subset2["dataset"] = neutro_subset2["dataset"].astype(str)
 
 sns.stripplot(
@@ -492,7 +509,12 @@ sns.stripplot(
 )
 ax.legend(bbox_to_anchor=(1.9, 1.05))
 sns.boxplot(
-    data=neutro_subset2, x="immune_infiltration", y="fraction", ax=ax, width=0.5, fliersize=0
+    data=neutro_subset2,
+    x="immune_infiltration",
+    y="fraction",
+    ax=ax,
+    width=0.5,
+    fliersize=0,
 )
 plt.show()
 
@@ -604,28 +626,28 @@ adata_cpdb_neutro_outgoing = cpdb_for_cell_types(
 
 # %%
 res_incoming = sh.compare_groups.lm.test_lm(
-    adata_cpdb_neutro_incoming, "~ C(group, Sum) + patient", "group"
+    adata_cpdb_neutro_incoming, "~ C(group, Sum) + patient", "group", robust=True
 )
 
 # %%
 res_outgoing = sh.compare_groups.lm.test_lm(
-    adata_cpdb_neutro_outgoing, "~ C(group, Sum) + patient", "group"
+    adata_cpdb_neutro_outgoing, "~ C(group, Sum) + patient", "group", robust=True
 )
 
 # %%
 res_incoming.loc[lambda x: x["variable"].str.contains("Tumor cells")].pipe(
     sh.util.fdr_correction
-).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.01)
+).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1)
 
 # %%
 res_outgoing.loc[lambda x: x["variable"].str.contains("Tumor cells")].pipe(
     sh.util.fdr_correction
-).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.01)
+).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1)
 
 # %%
 res_outgoing.loc[lambda x: x["variable"].str.contains("T cell CD8+")].pipe(
     sh.util.fdr_correction
-).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.01)
+).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1)
 
 # %% [markdown]
 # # VEGFA sources in NSCLC

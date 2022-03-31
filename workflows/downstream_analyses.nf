@@ -2,8 +2,6 @@
 
 nextflow.enable.dsl = 2
 
-include { check_samplesheet } from '../modules/local/check_samplesheet'
-include { add_additional_datasets } from "../subworkflows/add_additional_datasets.nf"
 include { de_analysis } from "../subworkflows/de_analysis.nf"
 include { scissor } from "../subworkflows/scissor.nf"
 include { cell2cell as cell2cell_major; cell2cell as cell2cell_neutro } from "../subworkflows/cell2cell.nf"
@@ -15,21 +13,7 @@ include { JUPYTERNOTEBOOK as NEUTROPHIL_SUBCLUSTERING } from "../modules/local/j
 workflow downstream_analyses {
     assert params.atlas: "Atlas h5ad file not specified!"
 
-    ch_samples = Channel.from(check_samplesheet(params.additional_input, baseDir))
-    reference_atlas = file(params.atlas, checkIfExists: true)
-    reference_scanvi_h5ad = file(params.reference_scanvi_h5ad, checkIfExists: true)
-    reference_scanvi_model = file(params.reference_scanvi_model, checkIfExists: true)
-
-    // add_additional_datasets(
-    //     ch_samples,
-    //     reference_atlas,
-    //     reference_scanvi_h5ad,
-    //     reference_scanvi_model
-    // )
-
-    // final_atlas = add_additional_datasets.out.full_atlas_merged
-    // Gets recomputed way to often and takes quite long :shrug:
-    final_atlas = Channel.fromPath("${baseDir}/data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad")
+    final_atlas = Channel.fromPath(params.atlas)
 
     NEUTROPHIL_SUBCLUSTERING(
         Channel.value([

@@ -25,9 +25,10 @@ include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_NODOUBLET } from "./nei
  */
 workflow integrate_datasets {
 
-    main:
-    ch_samples = Channel.from(check_samplesheet(params.input, baseDir))
 
+    main:
+
+    ch_samples = Channel.from(check_samplesheet("${baseDir}/tables/samplesheet_scrnaseq_preprocessing.csv", baseDir))
     SCQC(
         [
             file("${baseDir}/modules/local/scqc/scqc-notebook.py", checkIfExists: true),
