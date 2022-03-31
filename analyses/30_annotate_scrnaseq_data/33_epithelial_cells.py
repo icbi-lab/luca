@@ -159,16 +159,19 @@ adata_5 = adata[adata.obs["cell_type"] == "5", :]
 ah.reprocess_adata_subset_scvi(adata_5, leiden_res=0.5)
 
 # %%
-sc.pl.umap(adata_5, color=["origin", "dataset"])
+sc.pl.umap(adata_5, color=["origin", "condition", "dataset"], wspace=0.8)
 
 # %%
-sc.pl.umap(adata_5, color="ROS1")
+sc.pl.umap(adata_5, color=["ROS1"])
 
 # %%
 ah.plot_umap(adata_5, filter_cell_type=["Alev", "Goblet", "Club"], cmap="inferno")
 
 # %%
 ah.plot_dotplot(adata_5)
+
+# %%
+ah2.plot_dotplot_scores(adata_5)
 
 # %%
 ah2.plot_umap_scores(adata_5, filter_cell_type=["Club", "Goblet", "AT2", "Cilated"])
@@ -192,6 +195,12 @@ ah.annotate_cell_types(
 
 # %%
 ah.integrate_back(adata, adata_5)
+
+# %%
+sc.tl.rank_genes_groups(adata, groupby="cell_type", groups=["ROS1+ healthy epithelial"], reference="rest")
+
+# %%
+sc.pl.rank_genes_groups_dotplot(adata, dendrogram=False, n_genes=50)
 
 # %% [markdown]
 # ### Subcluster 7, contains goblet
@@ -335,11 +344,11 @@ adata.write_h5ad(f"{artifact_dir}/adata_epithelial.h5ad")
 adata_tumor.write_h5ad(f"{artifact_dir}/adata_tumor.h5ad")
 
 # %%
-adata_cxg = sc.AnnData(var=adata.raw.var, obs=adata.obs, X=adata.raw.X, obsm=adata.obsm)
-adata_tumor_cxg = sc.AnnData(var=adata_tumor.raw.var, obs=adata_tumor.obs, X=adata_tumor.raw.X, obsm=adata_tumor.obsm)
+# adata_cxg = sc.AnnData(var=adata.raw.var, obs=adata.obs, X=adata.raw.X, obsm=adata.obsm)
+# adata_tumor_cxg = sc.AnnData(var=adata_tumor.raw.var, obs=adata_tumor.obs, X=adata_tumor.raw.X, obsm=adata_tumor.obsm)
 
 # %%
-adata_cxg.write_h5ad("/home/sturm/Downloads/2022-03-30_refined_endothelial.h5ad")
-adata_tumor_cxg.write_h5ad("/home/sturm/Downloads/2022-03-30_refined_tumor.h5ad")
+# adata_cxg.write_h5ad("/home/sturm/Downloads/2022-03-30_refined_endothelial.h5ad")
+# adata_tumor_cxg.write_h5ad("/home/sturm/Downloads/2022-03-30_refined_tumor.h5ad")
 
 # %%

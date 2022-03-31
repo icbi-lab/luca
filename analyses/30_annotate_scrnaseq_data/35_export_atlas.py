@@ -19,6 +19,7 @@ from nxfvars import nxfvars
 from scanpy_helpers.annotation import AnnotationHelper
 from datetime import datetime
 import pandas as pd
+import warnings
 import numpy as np
 
 # %%
@@ -41,7 +42,10 @@ path_platform_metadata = nxfvars.get(
     "platform_metadata",
     "../../tables/additional_patient_metadata/sequencing_platforms.csv",
 )
-artifact_dir = nxfvars.get("artifact_dir", "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/")
+artifact_dir = nxfvars.get(
+    "artifact_dir",
+    "/home/sturm/Downloads",
+)
 
 # %%
 ah = AnnotationHelper()
@@ -73,9 +77,20 @@ adata_epi.obs["cell_type_tumor"] = adata.obs["cell_type_tumor"]
 adata_epi.obs["cell_type"] = adata.obs["cell_type"]
 
 # %%
+# exclude doublets and cell-type from distant metastases
 adata = adata[
-    ~adata.obs["cell_type"].isin(["Neuronal cells", "Hepatocytes", "Hemoglobin+"]), :
+    ~(
+        adata.obs["cell_type"].isin(
+            ["Neuronal cells", "Hepatocytes", "Hemoglobin+", "unknown (plasma assoc.)"]
+        )
+        | adata.obs["cell_type"].str.contains("empty droplet")
+        | adata.obs["cell_type"].str.contains("doublet")
+    ),
+    :,
 ].copy()
+
+# %%
+adata.obs["cell_type"].unique().tolist()
 
 # %%
 adata.obs.columns
@@ -119,12 +134,73 @@ for col in additional_patient_metadata.columns:
 
 # %%
 adata.obs["tumor_stage"] = np.nan
-adata.obs.loc[adata.obs["uicc_stage"].isin(["I", "II", "IA"]), "tumor_stage"] = "early"
+adata.obs.loc[adata.obs["uicc_stage"].isin(["I", "II"]), "tumor_stage"] = "early"
 adata.obs.loc[
-    adata.obs["uicc_stage"].isin(["III", "IV", "IIIA", "IIIB", "III or IV"]),
+    adata.obs["uicc_stage"].isin(["III", "IV", "III or IV"]),
     "tumor_stage",
-] = "late"
+] = "advanced"
 assert np.all(pd.isnull(adata.obs["uicc_stage"]) == pd.isnull(adata.obs["tumor_stage"]))
+
+# %% [markdown]
+# ## Correct metadata
+#
+#  * fix metadata that is incorrectly assigned in the original datasets or
+#  * make metadata more accessible
+
+# %%
+# rename "healthy_control" to "non-cancer"
+adata.obs.loc[lambda x: x["condition"] == "healthy_control", "condition"] = "non-cancer"
+# rename LSCC -> LUSC
+adata.obs.loc[lambda x: x["condition"] == "LSCC", "condition"] = "LUSC"
+# rename LCLC, PPC -> NOS
+adata.obs.loc[
+    lambda x: x["condition"].isin(["LCLC", "PPC", "NSCLC"]), "condition"
+] = "NSCLC NOS"
+adata.obs["condition"].value_counts()
+
+# %%
+# make dedicated column for each relevant driver mutations.
+# ignoring driver mutations that are only specified in few patients
+for gene in ["EGFR", "TP53", "ALK", "BRAF", "ERBB2", "KRAS", "ROS"]:
+    adata.obs[f"{gene}_mutation"] = [
+        (("mutated" if gene in x else "not mutated") if not pd.isnull(x) else np.nan)
+        for x in adata.obs["driver_genes"]
+    ]
+
+# %%
+# aggregate additonal tumor origins from Lambrechts under "tumor_primary". Keep original annotation in separate column
+adata.obs["origin_fine"] = adata.obs["origin"].copy()
+adata.obs.loc[lambda x: x["origin"] == "tumor_middle", "origin"] = "tumor_primary"
+adata.obs.loc[lambda x: x["origin"] == "tumor_edge", "origin"] = "tumor_primary"
+
+# aggregate pleura tissue and effusion origin into pleura/effusion tissue
+adata.obs["tissue"] = adata.obs["tissue"].astype(str)
+adata.obs.loc[
+    lambda x: (x["origin"] == "effusion") | (x["tissue"] == "pleura"), "tissue"
+] = "pleura/effusion"
+
+# categorize effusion samples as tumor metastases as it all comes from pleura metastases
+adata.obs.loc[lambda x: x["origin"] == "effusion", "origin"] = "tumor_metastasis"
+
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    adata.obs["origin"].cat.remove_unused_categories(inplace=True)
+    adata._sanitize()
+
+# %%
+print(adata.obs["origin"].value_counts())
+print()
+print(adata.obs["tissue"].value_counts())
+
+# %%
+# Normal samples from Maier_Merad should be normal_adjacent
+adata.obs.loc[
+    lambda x: x["dataset"].str.contains("Maier_Merad") & (x["origin"] == "normal"),
+    "origin",
+] = "normal_adjacent"
+
+# %%
+adata.obs.loc[lambda x: x["dataset"].str.contains("Laughney"), "origin"].value_counts()
 
 # %% [markdown]
 # ### Simplify dataset names
@@ -161,9 +237,12 @@ adata.obs
 platform_metadata = pd.read_csv(path_platform_metadata)
 
 # %%
-platform_metadata_by_cell = adata.obs.loc[:, ["dataset"]].reset_index(drop=False).merge(
-    platform_metadata, on="dataset", how="left"
-).set_index("index")
+platform_metadata_by_cell = (
+    adata.obs.loc[:, ["dataset"]]
+    .reset_index(drop=False)
+    .merge(platform_metadata, on="dataset", how="left")
+    .set_index("index")
+)
 
 # %%
 adata.obs["platform"] = platform_metadata_by_cell["platform"]
@@ -184,9 +263,17 @@ adata.obs["cell_type"] = adata.obs["cell_type"].str.replace(
 adata.obs.loc[adata.obs["cell_type"] == "NK cell", "cell_type_coarse"] = "NK cell"
 
 # %%
+adata.obs["cell_type"] = adata.obs["cell_type"].astype(str)
+adata.obs["cell_type_coarse"] = adata.obs["cell_type_coarse"].astype(str)
 adata.obs.loc[
     adata.obs["cell_type"].isin(
-        ["Macrophage FABP4+", "Macrophage", "Monocyte", "myeloid dividing"]
+        [
+            "Macrophage alveolar",
+            "Macrophage",
+            "Monocyte classical",
+            "Monocyte non-classical",
+            "myeloid dividing",
+        ]
     ),
     "cell_type_coarse",
 ] = "Macrophage/Monocyte"
@@ -201,33 +288,58 @@ adata.obs.loc[
 # This may be useful for some downstream analyses. 
 
 # %%
-adata.obs["cell_type_major"] = adata.obs["cell_type"].astype(str)
-adata.obs.loc[
-    adata.obs["cell_type_coarse"] == "Stromal",
-    "cell_type_major",
-] = "Stromal"
-adata.obs.loc[
-    adata.obs["cell_type_coarse"] == "Endothelial cell",
-    "cell_type_major",
-] = "Endothelial cell"
-adata.obs.loc[
-    adata.obs["cell_type_major"].isin(
-        [
-            "other (T assoc.)",
-            "T cell dividing",
-            "B cell dividing",
-            "myeloid dividing",
-            "ROS1+ healthy epithelial",
-        ]
-    ),
-    "cell_type_major",
-] = "other"
+cell_type_major_map = {
+    "Alveolar cell type 1": "Alveolar cell type 1",
+    "Alveolar cell type 2": "Alveolar cell type 2",
+    "B cell": "B cell",
+    "B cell dividing": "other",
+    "Ciliated": "Ciliated",
+    "Club": "Club",
+    "DC mature": "DC mature",
+    "Endothelial cell arterial": "Endothelial cell",
+    "Endothelial cell capillary": "Endothelial cell",
+    "Endothelial cell lymphatic": "Endothelial cell",
+    "Endothelial cell venous": "Endothelial cell",
+    "Fibroblast adventitial": "Stromal",
+    "Fibroblast alveolar": "Stromal",
+    "Fibroblast peribronchial": "Stromal",
+    "Macrophage": "Macrophage",
+    "Macrophage alveolar": "Macrophage alveolar",
+    "Mast cell": "Mast cell",
+    "Mesothelial": "Stromal",
+    "Monocyte classical": "Monocyte",
+    "Monocyte non-classical": "Monocyte",
+    "NK cell": "NK cell",
+    "Neutrophils": "Neutrophils",
+    "Pericyte": "Stromal",
+    "Plasma cell": "Plasma cell",
+    "Plasma cell dividing": "other",
+    "ROS1+ healthy epithelial": "other",
+    "Smooth muscle cell": "Stromal",
+    "T cell CD4": "T cell CD4",
+    "T cell CD8": "T cell CD8",
+    "T cell dividing": "other",
+    "T cell regulatory": "T cell regulatory",
+    "Tumor cells": "Tumor cells",
+    "cDC1": "cDC1",
+    "cDC2": "cDC2",
+    "myeloid dividing": "other",
+    "pDC": "pDC",
+    "stromal dividing": "other",
+    "transitional club/AT2": "transitional club/AT2",
+}
+
+# %%
+adata.obs["cell_type_major"] = [cell_type_major_map[x] for x in adata.obs["cell_type"]]
 
 # %% [markdown]
 # # Dataset overview
 
 # %% [markdown]
 # ### Overview of celltypes
+
+# %%
+sc.pl.umap(adata, color="total_counts", vmax=10000)
 
 # %%
 sc.set_figure_params(figsize=(10, 10))
@@ -339,3 +451,5 @@ adata_epi.write_h5ad(f"{artifact_dir}/epithelial_cells_annotated.h5ad")
 # %%
 adata_cellxgene.write_h5ad(f"{artifact_dir}/full_atlas_{date_now}.h5ad")
 adata_cellxgene_epi.write_h5ad(f"{artifact_dir}/epithelial_cells_{date_now}.h5ad")
+
+# %%

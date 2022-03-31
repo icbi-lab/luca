@@ -279,9 +279,6 @@ ah.plot_umap(
 )
 
 # %%
-sc.pl.umap(adata_m, color=["log_counts", "n_genes_by_counts"])
-
-# %%
 ah2.plot_umap_scores(adata_m, filter_cell_type=["DC", "macro", "Mono"])
 
 # %%
@@ -289,6 +286,9 @@ ah2.plot_dotplot_scores(adata_m)
 
 # %%
 ah.plot_dotplot(adata_m, groupby="leiden")
+
+# %%
+sc.pl.umap(adata_m, color=["total_counts", "n_genes_by_counts", "dataset"], vmax=[10000, 2000, None])
 
 # %%
 sc.pl.umap(adata_m, color="leiden", legend_loc="on data", legend_fontoutline=2)
@@ -400,6 +400,9 @@ ah.plot_umap(
 ah2.score_cell_types(adata_stromal)
 
 # %%
+sc.pl.umap(adata_stromal, color=["total_counts", "n_genes_by_counts"], vmax=[10000, 2000])
+
+# %%
 ah2.plot_umap_scores(
     adata_stromal, filter_cell_type=["fibro", "muscle", "SM", "Peri", "Fibro", "Meso"]
 )
@@ -418,7 +421,7 @@ ct_map = {
     "Fibroblast adventitial": [0],
     "Fibroblast alveolar": [2],
     "Fibroblast peribronchial": [1],
-    "stromal": [5, 3, 7],
+    "potential empty droplets (stromal assoc.)": [5, 3, 7],
     "stromal dividing": [9],
 }
 
