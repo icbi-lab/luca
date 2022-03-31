@@ -305,4 +305,6 @@ adata_full.obs["condition"] = adata_full.obs["condition"].str.replace("LSCC", "L
 #
 
 # %%
+# TODO output for cellxgene
+# TODO output metadata table
 adata_full.write_h5ad(f"{artifact_dir}/full_atlas_merged.h5ad")

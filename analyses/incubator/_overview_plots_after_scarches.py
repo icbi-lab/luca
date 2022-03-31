@@ -38,9 +38,6 @@ from threadpoolctl import threadpool_limits
 alt.data_transformers.disable_max_rows()
 
 # %%
-sh.colors.plot_all_palettes()
-
-# %%
 sc.set_figure_params(figsize=(5, 5))
 
 # %%
@@ -52,7 +49,11 @@ artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 # %%
 main_adata = nxfvars.get(
     "main_adata",
-    "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+    "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
+)
+epithelial_adata = nxfvars.get(
+    "main_adata",
+    "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/epithelial_cells_annotated.h5ad",
 )
 threadpool_limits(nxfvars.get("cpus", 16))
 
@@ -60,8 +61,57 @@ threadpool_limits(nxfvars.get("cpus", 16))
 adata = sc.read_h5ad(main_adata)
 
 # %%
-with plt.rc_context({"figure.figsize": (5,5), "figure.dpi": 300}):
-    sc.pl.umap(
+adata_epi = sc.read_h5ad(epithelial_adata)
+
+# %% [markdown]
+# # Stats and metadata
+
+# %%
+## Export patient table
+patient_metadata = adata.obs.loc[
+    :,
+    [
+        # "study",
+        "dataset",
+        "patient",
+        "uicc_stage",
+        "tumor_stage",
+        "sex",
+        "ever_smoker",
+        "driver_genes",
+        "condition",
+        "age",
+        "platform",
+        "platform_fine",
+    ] + [x for x in adata.obs.columns if "mutation" in x],
+].drop_duplicates().sort_values(
+    [
+        # "study",
+        "dataset",
+        "patient",
+    ]
+).reset_index(
+    drop=True
+)
+
+patient_metadata.to_csv(
+    f"{artifact_dir}/patient_table.csv"
+)
+
+# %%
+pd.set_option("display.max_rows", 500)
+
+# %%
+patient_metadata
+
+# %% [markdown]
+# # UMAP plots
+#
+# UMAP overview plots of the "core" atlas (without projected datasets)
+
+# %%
+with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
+    fig = sc.pl.umap(
         adata,
         color="cell_type_coarse",
         legend_loc="on data",
@@ -70,10 +120,13 @@ with plt.rc_context({"figure.figsize": (5,5), "figure.dpi": 300}):
         frameon=False,
         # add_outline=True,
         size=1,
+        return_fig=True,
+        title="",
     )
+    fig.savefig(f"{artifact_dir}/umap_core_atlas.pdf")
 
-# %%
-adata.shape
+# %% [markdown]
+# # Stats
 
 # %%
 adata.obs["sample"].nunique()
@@ -92,30 +145,6 @@ adata.obs["study"].nunique()
 
 # %%
 adata.obs.columns
-
-# %%
-## Export patient table
-adata.obs.loc[
-    :,
-    [
-        "study",
-        "dataset",
-        "patient",
-        "uicc_stage",
-        "tumor_stage",
-        "sex",
-        "ever_smoker",
-        "driver_genes",
-        "condition",
-        "age",
-        "platform",
-        "platform_fine",
-    ],
-].drop_duplicates().sort_values(["study", "dataset", "patient"]).reset_index(
-    drop=True
-).to_csv(
-    f"{artifact_dir}/patient_table.csv"
-)
 
 # %%
 adata.obs.loc[lambda x: x["origin"].str.contains("tumor")]["patient"].nunique()
@@ -188,6 +217,9 @@ adatas = {
 adata.obs.loc[:, ["dataset", "patient", "tumor_stage"]].drop_duplicates().groupby(
     ["dataset", "tumor_stage"]
 ).size().unstack()
+
+# %% [markdown]
+# ---
 
 # %% [markdown]
 # ### Progeny and dorothea for tumor cell clusters

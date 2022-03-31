@@ -198,9 +198,16 @@ adata.obs.loc[
     lambda x: x["dataset"].str.contains("Maier_Merad") & (x["origin"] == "normal"),
     "origin",
 ] = "normal_adjacent"
-
-# %%
-adata.obs.loc[lambda x: x["dataset"].str.contains("Laughney"), "origin"].value_counts()
+# Normal samples from Mayr_Schiller should be normal adjacent
+adata.obs.loc[
+    lambda x: x["dataset"].str.contains("Mayr_Schiller") & (x["origin"] == "normal"),
+    "origin",
+] = "normal_adjacent"
+# Normal samples from Laughney_Massague should be normal adjacent
+adata.obs.loc[
+    lambda x: x["dataset"].str.contains("Laughney_Massague") & (x["origin"] == "normal"),
+    "origin",
+] = "normal_adjacent"
 
 # %% [markdown]
 # ### Simplify dataset names
@@ -229,6 +236,15 @@ for col in ["sample", "patient", "dataset"]:
 
 # %%
 adata.obs
+
+# %% [markdown]
+# ### Add "study" in addition to dataset
+
+# %%
+adata.obs["study"] = ["_".join(x.split("_")[:3]) for x in adata.obs["dataset"]]
+
+# %%
+adata.obs["study"].unique()
 
 # %% [markdown]
 # # Add sequencing platforms
@@ -262,24 +278,53 @@ adata.obs["cell_type"] = adata.obs["cell_type"].str.replace(
 # %%
 adata.obs.loc[adata.obs["cell_type"] == "NK cell", "cell_type_coarse"] = "NK cell"
 
+# %% [markdown]
+# ### cell_type_coarse
+
 # %%
-adata.obs["cell_type"] = adata.obs["cell_type"].astype(str)
-adata.obs["cell_type_coarse"] = adata.obs["cell_type_coarse"].astype(str)
-adata.obs.loc[
-    adata.obs["cell_type"].isin(
-        [
-            "Macrophage alveolar",
-            "Macrophage",
-            "Monocyte classical",
-            "Monocyte non-classical",
-            "myeloid dividing",
-        ]
-    ),
-    "cell_type_coarse",
-] = "Macrophage/Monocyte"
-adata.obs.loc[
-    adata.obs["cell_type"].isin(["cDC1", "cDC2", "DC mature"]), "cell_type_coarse"
-] = "cDC"
+cell_type_coarse_map = {
+    "Alveolar cell type 1": "Epithelial cell",
+    "Alveolar cell type 2": "Epithelial cell",
+    "B cell": "B cell",
+    "B cell dividing": "B cell",
+    "Ciliated": "Epithelial cell",
+    "Club": "Epithelial cell",
+    "DC mature": "cDC",
+    "Endothelial cell arterial": "Endothelial cell",
+    "Endothelial cell capillary": "Endothelial cell",
+    "Endothelial cell lymphatic": "Endothelial cell",
+    "Endothelial cell venous": "Endothelial cell",
+    "Fibroblast adventitial": "Stromal",
+    "Fibroblast alveolar": "Stromal",
+    "Fibroblast peribronchial": "Stromal",
+    "Macrophage": "Macrophage/Monocyte",
+    "Macrophage alveolar": "Macrophage/Monocyte",
+    "Mast cell": "Mast cell",
+    "Mesothelial": "Stromal",
+    "Monocyte classical": "Macrophage/Monocyte",
+    "Monocyte non-classical": "Macrophage/Monocyte",
+    "NK cell": "NK cell",
+    "Neutrophils": "Neutrophils",
+    "Pericyte": "Stromal",
+    "Plasma cell": "Plasma cell",
+    "Plasma cell dividing": "Plasma cell",
+    "ROS1+ healthy epithelial": "Epithelial cell",
+    "Smooth muscle cell": "Stromal",
+    "T cell CD4": "T cell",
+    "T cell CD8": "T cell",
+    "T cell dividing": "T cell",
+    "T cell regulatory": "T cell",
+    "Tumor cells": "Epithelial cell",
+    "cDC1": "cDC",
+    "cDC2": "cDC",
+    "myeloid dividing": "Macrophage/Monocyte",
+    "pDC": "pDC",
+    "stromal dividing": "Stromal",
+    "transitional club/AT2": "Epithelial cell",
+}
+
+# %%
+adata.obs["cell_type_coarse"] = [cell_type_coarse_map[x] for x in adata.obs["cell_type"]]
 
 # %% [markdown]
 # ### cell_type_major
