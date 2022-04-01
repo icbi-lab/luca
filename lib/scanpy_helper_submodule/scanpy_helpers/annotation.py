@@ -241,7 +241,15 @@ class AnnotationHelper:
 
 
 def classify_cell_types_nearest_neighbors(
-    adata, obs_key, *, mask_reference, mask_query, key_added, transitive=1
+    adata,
+    obs_key,
+    *,
+    mask_reference,
+    mask_query,
+    key_added,
+    transitive=1,
+    confidence=0.75,
+    confidence_suffix="_confidence",
 ):
     """
     Simple cell-type classifier based on the cell 2 cell neighborhood graph.
@@ -266,6 +274,10 @@ def classify_cell_types_nearest_neighbors(
     transitive
         If > 0 also neighbors of neighbors are considered. The number specifies
         the steps in the graph. Using neighbors of neighbors increases the robustness.
+    confidence
+        Confidence is defined as the weighted fraction of neighbors voting for a certain cell-type.
+        This threshold decides about the minimal confidence level a cell-type annotation needs to have to be considered
+        confident. Non-confident cells are labelled as `np.nan`.
     """
     conn = adata.obsp["connectivities"]
     for _ in range(transitive):
@@ -273,5 +285,9 @@ def classify_cell_types_nearest_neighbors(
     conn_subset = conn[mask_reference, :][:, mask_query]
     ct_dummies = pd.get_dummies(adata.obs.loc[mask_reference][obs_key])
     ct_weights = conn_subset.T.dot(ct_dummies.values)
-    predictions = ct_dummies.columns[np.argmax(ct_weights, axis=1)]
+    ct_confidence = ct_weights / np.sum(ct_weights, axis=1)[:, np.newaxis]
+    confidence_per_cell = np.max(ct_confidence, axis=1)
+    predictions = np.array(ct_dummies.columns[np.argmax(ct_confidence, axis=1)])
+    predictions[confidence_per_cell < confidence] = np.nan
     adata.obs.loc[mask_query, key_added] = predictions
+    adata.obs.loc[mask_query, key_added + confidence_suffix] = confidence_per_cell
