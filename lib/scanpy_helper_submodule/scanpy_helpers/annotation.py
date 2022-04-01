@@ -273,5 +273,5 @@ def classify_cell_types_nearest_neighbors(
     conn_subset = conn[mask_reference, :][:, mask_query]
     ct_dummies = pd.get_dummies(adata.obs.loc[mask_reference][obs_key])
     ct_weights = conn_subset.T.dot(ct_dummies.values)
-    predictions = ct_dummies.columns[np.argmax(ct_weights, axis=1)]
+    predictions = np.array(ct_dummies.columns[np.argmax(ct_weights, axis=1)])
     adata.obs.loc[mask_query, key_added] = predictions

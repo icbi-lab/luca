@@ -102,5 +102,5 @@ workflow annotate_dataset {
     emit:
         final_atlas = ch_atlas
         scanvi_model = SCANVI.out.scvi_model.map{ id, model -> model }
-        scanvi_h5ad = SCANVI.out.adata.map{ id, model -> modle }
+        scanvi_h5ad = SCANVI.out.adata.map{ id, adata -> adata }
 }

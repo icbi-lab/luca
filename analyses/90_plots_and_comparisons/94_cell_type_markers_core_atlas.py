@@ -88,10 +88,11 @@ sc.pl.dotplot(
         "B cell": ["CD79A", "MS4A1"],
         "cDC": ["CLEC9A", "CD1C"],
         "Endothelial cell": ["VWF", "CDH5"],
+        "Epithelial cell": ["EPCAM"],
         "Macrophage/Monocyte": ["CD14", "C1QB"],
         "Mast cell": ["TPSB2"],
-        "Neutrophils": ["FCGR3B"],
-        "NK cell": ["CD160", "NCR1"],
+        "Neutrophils": ["FCGR3B", "CSF3R"],
+        "NK cell": ["KLRD1", "GNLY"],
         "pDC": ["CLEC4C"],
         "Plasma cell": ["MZB1"],
         "Stromal": ["COL1A1", "VCAN"],
@@ -130,8 +131,8 @@ marker_dict = {
     "Monocyte": ["CD14", "VCAN", "FCN1"],
     "Monocyte conventional": ["S100A12"],
     "Monocyte non-coventional": ["LILRB1", "LILRB2"],
-    "Neutrophils": ["FCGR3B", "CXCR2"],
-    "NK cell": ["NCR1", "NCAM1", "CD160"],
+    "Neutrophils": ["FCGR3B", "CSF3R"],
+    "NK cell": ["KLRD1", "GNLY"],
     "pDC": ["IL3RA", "CLEC4C"],
     "Pericyte": ["COX4I2", "PDGFRB"],
     "Plasma cell": ["SDC1", "MZB1"],
@@ -177,7 +178,6 @@ tumor_markers = {
     "mitotic": ["MKI67", "TOP2A"],
     "undifferentiated": ["TACSTD2", "AGR2"],
 }
-
 
 # %%
 sc.pl.dotplot(adata_tumor, groupby="cell_type", var_names=tumor_markers)

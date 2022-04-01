@@ -101,12 +101,17 @@ adata.obs.columns
 adata.obs.loc[lambda x: x["origin"].str.contains("tumor")]["patient"].nunique()
 
 # %%
+adata.obs.loc[:, ["patient", "origin"]].drop_duplicates().assign(count=1).pivot_table(
+    index="patient", columns="origin", values="count", aggfunc=sum
+).to_csv(f"{artifact_dir}/origin_count.csv")
+
+# %%
 ## Export patient table
 patient_metadata = (
     adata.obs.loc[
         :,
         [
-            # "study",
+            "study",
             "dataset",
             "patient",
             "uicc_stage",
@@ -124,7 +129,7 @@ patient_metadata = (
     .drop_duplicates()
     .sort_values(
         [
-            # "study",
+            "study",
             "dataset",
             "patient",
         ]
@@ -187,6 +192,9 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
     fig.savefig(f"{artifact_dir}/umap_core_atlas_epithelial.pdf")
 
 # %%
+adata_epi.shape[0]
+
+# %%
 adata_epi.obs["cell_type"].value_counts()
 
 # %% [markdown]
@@ -223,6 +231,9 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
     fig.savefig(f"{artifact_dir}/umap_core_atlas_tumor.pdf")
 
 # %%
+adata_tumor.shape[0]
+
+# %%
 adata_tumor.obs["cell_type"].value_counts()
 
 
@@ -257,5 +268,49 @@ adatas = {
         ),
     }.items()
 }
+
+# %%
+with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
+    fig = sc.pl.umap(
+        adatas["immune"],
+        color="cell_type",
+        legend_loc="on data",
+        legend_fontsize=6,
+        legend_fontoutline=1,
+        frameon=False,
+        # add_outline=True,
+        size=1,
+        return_fig=True,
+        title="",
+    )
+    fig.savefig(f"{artifact_dir}/umap_core_atlas_immune.pdf")
+
+# %%
+adatas["immune"].shape[0]
+
+# %%
+adatas["immune"].obs["cell_type"].value_counts()
+
+# %%
+with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
+    fig = sc.pl.umap(
+        adatas["structural"],
+        color="cell_type",
+        legend_loc="on data",
+        legend_fontsize=6,
+        legend_fontoutline=1,
+        frameon=False,
+        # add_outline=True,
+        size=4,
+        return_fig=True,
+        title="",
+    )
+    fig.savefig(f"{artifact_dir}/umap_core_atlas_structural.pdf")
+
+# %%
+adatas["structural"].shape[0]
+
+# %%
+adatas["structural"].obs["cell_type"].value_counts()
 
 # %%
