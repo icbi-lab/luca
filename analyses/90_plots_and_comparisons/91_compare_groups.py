@@ -24,6 +24,7 @@ import numpy as np
 from scanpy_helpers import compare_groups
 import pickle
 import os
+import re
 
 sc.settings.set_figure_params(figsize=(5, 5))
 
@@ -231,4 +232,5 @@ for tool, adatas in datasets.items():
     outdir = f"{artifact_dir}/{comparison}_{tool}"
     os.makedirs(outdir, exist_ok=True)
     for ct, ad in adatas.items():
+        ct =  re.sub("[^a-z0-9_-]", "_", ct.lower())
         ad.write_h5ad(f"{outdir}/{ct}.h5ad")

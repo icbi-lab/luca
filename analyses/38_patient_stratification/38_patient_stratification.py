@@ -51,7 +51,7 @@ ah = AnnotationHelper()
 # %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+    "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 
 # %%
@@ -70,16 +70,16 @@ adata.obs["cell_type_major"].value_counts().sort_index()
 # exclude all non tumor/immune cell-types
 # exclude neutrophils, because essentially not present in 10x datasets
 EXCLUDE_CELL_TYPES = [
-    "other",
+    "Alveolar cell type 1",
+    "Alveolar cell type 2",
     "Neutrophils",
     "Ciliated",
     "Club",
-    "Goblet",
-    "Alveolar cell type 1",
-    "Alveolar cell type 2",
     "Endothelial cell",
     "Stromal",
-]  
+    "other",
+    "transitional club/AT2",
+]
 
 # %%
 # For the patient stratification, treat the two batches of the UKIM-V dataset as one
@@ -220,7 +220,7 @@ sc.pl.matrixplot(
 sc.pp.neighbors(ad_immune, use_rep="X", n_neighbors=15, metric="correlation")
 
 # %%
-sc.tl.leiden(ad_immune, resolution=0.5)
+sc.tl.leiden(ad_immune, resolution=0.75)
 
 # %%
 sc.pl.heatmap(
@@ -246,15 +246,13 @@ alt.Chart(
 )
 
 # %%
-sc.tl.rank_genes_groups(ad_immune, groupby="leiden", method="t-test")
-
-# %%
 ad_immune.obs["immune_type"] = [
     {
         "0": "T",
         "1": "desert",
         "2": "M",
         "3": "B",
+        "4": "B",
     }[x]
     for x in ad_immune.obs["leiden"]
 ]
@@ -374,7 +372,7 @@ p0 = (
         & get_row("tumor_type_inferred", "tumor_type"),
         get_row("sex"),
         get_row("tumor_stage", "tumor_stage_verbose"),
-        # get_row("study"),
+        get_row("study"),
         get_row("platform"),
         # get_row("infiltration_state"),
         # get_row("immune_infiltration"),
@@ -486,3 +484,5 @@ plot_df.to_csv(
         nxfvars.get("artifact_dir", "/home/sturm/Downloads")
     )
 )
+
+# %%

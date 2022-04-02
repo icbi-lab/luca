@@ -119,7 +119,7 @@ class COLORS:
     tumor_type = {
         "LUSC": "#beaed4",
         "LUAD": "#ffff99",
-        "NOS": "#999999",
+        "NSCLC NOS": "#999999",
         "LUAD EMT": "#386cb0",
         "LUAD NE": "#f0027f",
         "LUAD dedifferentiated": "#bf5b17",
