@@ -66,12 +66,6 @@ adata_ukim = adata_n[adata_n.obs["dataset"].str.contains("UKIM"), :].copy()
 adata_ukim.obs_names = [f"{patient}:{bc.split('_')[0]}" for patient, bc in zip(adata_ukim.obs["patient"], adata_ukim.obs_names)]
 
 # %%
-# TODO variable remapping (? --> do I even need that as I look at the dataset in isolation?)
-
-# %%
-# TODO match cell-ids -> metadata transfer...
-
-# %%
 for ad in adatas:
     ad.var_names_make_unique()
 
@@ -98,9 +92,6 @@ adata_ukim.obs["patient"].value_counts()
 
 # %%
 adata_scvelo.obs["patient"].value_counts()
-
-# %%
-adata_scvelo = adata_scvelo[adata_scvelo.obs["patient"] == "UKIM-V-2_P7", :].copy()
 
 # %%
 adata_scvelo.shape
@@ -147,5 +138,3 @@ scv.pl.velocity_embedding_stream(
     alpha=0,
     arrow_size=2
 )
-
-# %%

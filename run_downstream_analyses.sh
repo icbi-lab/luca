@@ -5,5 +5,5 @@ nextflow run main.nf --workflow downstream_analyses \
     --outdir ./data/30_downstream_analyses \
     -resume \
     -profile icbi \
-    --publish_dir_mode symlink \
+    --publish_dir_mode link \
     -w /data/scratch/sturm/projects/2020/pircher-scrnaseq-lung/downstream

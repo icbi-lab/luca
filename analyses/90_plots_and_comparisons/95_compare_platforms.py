@@ -41,12 +41,12 @@ matplotlib.rcParams["figure.dpi"] = 300
 adata = sc.read_h5ad(
     nxfvars.get(
         "main_adata",
-        "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+        "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
     )
 )
 
 # %% [markdown]
-# ## Cell types by platform
+# ## Total cell-type fractions
 
 # %%
 df = (
@@ -64,6 +64,46 @@ alt.Chart(df).mark_bar().encode(
     x="fraction",
     y=alt.Y("cell_type", sort="-x"),
 )
+
+# %%
+df
+
+# %% [markdown]
+# ## Neutrophil fractions per platform
+
+# %%
+df = (
+    adata.obs.loc[lambda x: ~x["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"])]
+    .groupby(
+        [
+            "platform",
+            "dataset",
+        ]
+    )["cell_type_coarse"]
+    .value_counts(normalize=True)
+    .reset_index(name="fraction")
+    .loc[lambda x: x["level_2"] == "Neutrophils"]
+)
+
+# %%
+order = (
+    df.groupby("platform")
+    .agg(np.mean)
+    .sort_values("fraction", ascending=False)
+    .index.tolist()
+)
+alt.Chart(df).mark_bar().encode(
+    color=alt.Color("platform", scale=sh.colors.altair_scale("platform"), legend=None),
+    x=alt.X("mean(fraction)", title="mean neutrophil fraction across all datasets"),
+    y=alt.Y("platform", sort=order),
+) 
+# + alt.Chart(df).mark_errorbar(extent="ci").encode(
+#     x=alt.X("fraction"),
+#     y=alt.Y("platform", sort=order),
+# )
+
+# %% [markdown]
+# ## Platform fractions per cell-type
 
 # %%
 df = (

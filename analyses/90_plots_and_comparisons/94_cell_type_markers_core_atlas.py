@@ -175,6 +175,7 @@ tumor_markers = {
     "LUSC": ["KRT5", "KRT6A", "TP63", "NTRK2", "SOX2", "KRT17"],
     "NE": ["CHGA", "SYP", "NCAM1", "TUBA1A"],
     "EMT": ["VIM", "SERPINE1", "CDH1"],
+    "non-coding": ["MALAT1", "NEAT1"],
     "mitotic": ["MKI67", "TOP2A"],
     "undifferentiated": ["TACSTD2", "AGR2"],
 }
