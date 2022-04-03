@@ -46,7 +46,7 @@ stratification_csv = nxfvars.get(
     "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv",
 )
 # run one of the comparisons defined in the list below
-comparison = nxfvars.get("comparison", "patient_immune_infiltration_treatment_coding")
+comparison = nxfvars.get("comparison", "patient_infiltration_status")
 cpus = nxfvars.get("cpus", 32)
 
 # %%
@@ -109,24 +109,42 @@ adata_primary_tumor.obs = (
     )
     .set_index("index")
 )
+adata_primary_tumor.obs["infiltration_status"] = [
+    {"desert": "desert", "M": "infiltrated", "T": "infiltrated", "B": "infiltrated"}.get(x, x)
+    for x in adata_primary_tumor.obs["immune_infiltration"]
+]
 
 # %% [markdown]
 # # List of comparisons
 
 # %%
 comparisons = {
-    "tumor_normal": {
-        "dataset": adata_tumor_normal,
+    # "tumor_normal": {
+    #     "dataset": adata_tumor_normal,
+    #     "dataset_cpdb": adata_cpdb,
+    #     "cell_type_column": "cell_type_major",
+    #     "pseudobulk_group_by": ["dataset", "patient"],
+    #     "column_to_test": "origin",
+    #     "lm_covariate_str": "+ patient",  # paired analysis by patient
+    #     "contrasts": "Treatment('normal')",
+    #     "tools": ["dorothea", "progeny", "cytosig"],
+    # },
+    "patient_infiltration_status": {
+        "dataset": adata_primary_tumor[
+            adata_primary_tumor.obs["condition"].isin(["LUAD", "LUSC"]), :
+        ],
         "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
-        "pseudobulk_group_by": ["dataset", "patient"],
-        "column_to_test": "origin",
-        "lm_covariate_str": "+ patient",  # paired analysis by patient
-        "contrasts": "Treatment('normal')",
+        "pseudobulk_group_by": ["dataset", "patient", "condition", "tumor_stage"],
+        "column_to_test": "infiltration_status",
+        "lm_covariate_str": "+ dataset + condition + tumor_stage",
+        "contrasts": "Treatment('desert')",
         "tools": ["dorothea", "progeny", "cytosig"],
     },
     "patient_immune_infiltration": {
-        "dataset": adata_primary_tumor,
+        "dataset": adata_primary_tumor[
+            adata_primary_tumor.obs["condition"].isin(["LUAD", "LUSC"]), :
+        ],
         "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient", "condition", "tumor_stage"],
@@ -136,16 +154,6 @@ comparisons = {
         "tools": ["dorothea", "progeny", "cytosig"],
     },
     "patient_immune_infiltration_treatment_coding": {
-        "dataset": adata_primary_tumor,
-        "dataset_cpdb": adata_cpdb,
-        "cell_type_column": "cell_type_major",
-        "pseudobulk_group_by": ["dataset", "patient"],
-        "column_to_test": "immune_infiltration",
-        "lm_covariate_str": "+ dataset",
-        "contrasts": "Treatment('desert')",
-        "tools": ["dorothea", "progeny", "cytosig"],
-    },
-    "patient_immune_infiltration_treatment_coding_condition": {
         "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LUSC"]), :
         ],
@@ -157,7 +165,7 @@ comparisons = {
         "contrasts": "Treatment('desert')",
         "tools": ["dorothea", "progeny", "cytosig"],
     },
-    "patient_immune_infiltration_treatment_coding_condition_random": {
+    "patient_immune_infiltration_treatment_coding_random": {
         "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LUSC"]), :
         ],
@@ -182,15 +190,6 @@ comparisons = {
         "tools": ["dorothea", "progeny", "cytosig"],
     },
     "early_advanced": {
-        "dataset": adata_primary_tumor,
-        "cell_type_column": "cell_type_major",
-        "pseudobulk_group_by": ["dataset", "patient"],
-        "column_to_test": "tumor_stage",
-        "lm_covariate_str": "+ dataset",
-        "contrasts": "Treatment('early')",
-        "tools": ["dorothea", "progeny", "cytosig"],
-    },
-    "early_advanced_condition": {
         "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LUSC"]), :
         ],
@@ -232,5 +231,5 @@ for tool, adatas in datasets.items():
     outdir = f"{artifact_dir}/{comparison}_{tool}"
     os.makedirs(outdir, exist_ok=True)
     for ct, ad in adatas.items():
-        ct =  re.sub("[^a-z0-9_-]", "_", ct.lower())
+        ct = re.sub("[^a-z0-9_-]", "_", ct.lower())
         ad.write_h5ad(f"{outdir}/{ct}.h5ad")

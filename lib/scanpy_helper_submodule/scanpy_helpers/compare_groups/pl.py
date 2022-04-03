@@ -13,6 +13,7 @@ def plot_lm_result_altair(
     y="group",
     color="coef",
     title="heatmap",
+    cluster=False,
     value_max=None,
 ):
     """
@@ -25,6 +26,17 @@ def plot_lm_result_altair(
     if not df_subset.shape[0]:
         print("No values to plot")
         return
+
+    order = "ascending"
+    if cluster:
+        from scipy.cluster.hierarchy import linkage, leaves_list
+
+        values_df = df_subset.pivot(index=y, columns=x, values=color)
+        order = values_df.columns.values[
+            leaves_list(
+                linkage(values_df.values.T, method="average", metric="euclidean")
+            )
+        ]
 
     def _get_significance(fdr):
         if fdr < 0.001:
@@ -46,7 +58,7 @@ def plot_lm_result_altair(
         alt.Chart(df_subset, title=title)
         .mark_rect()
         .encode(
-            x=x,
+            x=alt.X(x, sort=order),
             y=y,
             color=alt.Color(
                 color,
@@ -60,7 +72,7 @@ def plot_lm_result_altair(
         + alt.Chart(df_subset.loc[lambda x: ~x["FDR"].isnull()])
         .mark_point(color="white", filled=True, stroke="black", strokeWidth=0)
         .encode(
-            x=x,
+            x=alt.X(x, sort=order),
             y=y,
             size=alt.Size(
                 "FDR:N",

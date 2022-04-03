@@ -46,11 +46,15 @@ ah = AnnotationHelper()
 # %%
 adata_n = sc.read_h5ad(
     "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad"
+        # "/home/sturm/Downloads/adata_neutrophil_clusters.h5ad"
+
 )
 
 # %%
 adata = sc.read_h5ad(
     "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad"
+    # "/home/sturm/Downloads//full_atlas_neutrophil_clusters.h5ad"
+
 )
 
 # %%
@@ -83,7 +87,11 @@ neutro_recruitment_genes = pd.read_excel(
 )
 
 # %%
+# statsmodels interprets "NAN" as np.nan, therefore let's keep "NAN-" and relabel later...
 adata_n.obs["cell_type_tan_nan"] = [x[:4] for x in adata_n.obs["cell_type"]]
+
+# %%
+adata_n.obs["cell_type_tan_nan_label"] = [x[:3] for x in adata_n.obs["cell_type"]]
 
 # %% [markdown]
 # # UMAPs by covariate
@@ -92,7 +100,7 @@ adata_n.obs["cell_type_tan_nan"] = [x[:4] for x in adata_n.obs["cell_type"]]
 with plt.rc_context({"figure.dpi": 150}):
     sc.pl.umap(
         adata_n,
-        color="cell_type_tan_nan",
+        color="cell_type_tan_nan_label",
         legend_loc="on data",
         legend_fontoutline=2,
         frameon=False,
@@ -111,8 +119,17 @@ with plt.rc_context({"figure.dpi": 150}):
     )
 
 # %%
+# sh.colors.set_scale_anndata(adata_n, "condition")
 with plt.rc_context({"figure.dpi": 150}):
-    sc.pl.umap(adata_n, color="condition", legend_fontoutline=2, frameon=False, size=20)
+    sc.pl.umap(
+        adata_n,
+        color="condition",
+        legend_fontoutline=2,
+        frameon=False,
+        size=20,
+        add_outline=False,
+        outline_width=[0.05, 0],
+    )
 
 # %%
 with plt.rc_context({"figure.dpi": 150}):
@@ -126,6 +143,7 @@ with plt.rc_context({"figure.dpi": 150}):
     )
 
 # %%
+# sh.colors.set_scale_anndata(adata_n, "origin")
 with plt.rc_context({"figure.dpi": 150}):
     sc.pl.umap(
         adata_n[adata_n.obs["origin"] != "nan", :],
@@ -285,7 +303,7 @@ sh.pairwise.plot_paired_fc(
 
 # %%
 top_markers = (
-    marker_res.loc[lambda x: (x["fdr"] < 0.01) & (x["log2_fc"] > 1) & (x["coef"] > 1)]
+    marker_res.loc[lambda x: (x["fdr"] < 0.01) & (x["coef"] > 0.75)]
     .sort_values("log2_fc", ascending=False)
     .groupby("group")
     .apply(lambda x: x.head(15))
@@ -309,11 +327,11 @@ sc.pl.matrixplot(
 selected_top_markers = {
     "NAN": ["CST7", "TMX4"],
     "TAN": ["CCL4", "CCL3"],
-    "NAN-1": ["S100A12", "RBP7"],
-    "NAN-2": ["ENTPD1", "SLC8A1"],
-    "TAN-1": ["PIGR", "CD52"],
-    "TAN-2": ["PRR5L", "IFIT1"],
-    "TAN-3": ["PLPP3", "CD22"],
+    "NAN-1": ["PADI4", "RBP7"],
+    "NAN-2": ["ENTPD1", "TNFSF13B"],
+    "TAN-1": ["IL1A", "RHOH"],
+    "TAN-2": ["HLA-DRA", "IFIT1"],
+    "TAN-3": ["PLIN2", "PLPP3"],
 }
 
 # %%
@@ -353,17 +371,17 @@ results = sh.compare_groups.compare_signatures(
 
 # %%
 sh.compare_groups.pl.plot_lm_result_altair(
-    results["progeny"], p_cutoff=1, title="Progeny Neutrophils"
+    results["progeny"], p_cutoff=1, title="Progeny Neutrophils", cluster=True
 )
 
 # %%
 sh.compare_groups.pl.plot_lm_result_altair(
-    results["dorothea"], title="Dorothea Neutrophils", p_cutoff=0.01
+    results["dorothea"], title="Dorothea Neutrophils", p_cutoff=0.01, cluster=True
 )
 
 # %%
 sh.compare_groups.pl.plot_lm_result_altair(
-    results["cytosig"], title="Cytosig Neutrophils", p_cutoff=0.01
+    results["cytosig"], title="Cytosig Neutrophils", p_cutoff=0.01, cluster=True
 )
 
 # %% [markdown] tags=[]
@@ -637,17 +655,22 @@ res_outgoing = sh.compare_groups.lm.test_lm(
 # %%
 res_incoming.loc[lambda x: x["variable"].str.contains("Tumor cells")].pipe(
     sh.util.fdr_correction
-).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1)
+).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1, title="Tumor cells -> Neutrophils", cluster=True)
 
 # %%
 res_outgoing.loc[lambda x: x["variable"].str.contains("Tumor cells")].pipe(
     sh.util.fdr_correction
-).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1)
+).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1, title="Neutrophils -> Tumor cells", cluster=True)
 
 # %%
 res_outgoing.loc[lambda x: x["variable"].str.contains("T cell CD8+")].pipe(
     sh.util.fdr_correction
-).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1)
+).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1, title="Neutrophils -> CD8+ T cells", cluster=True)
+
+# %%
+res_outgoing.loc[lambda x: x["variable"].str.contains("DC mature")].pipe(
+    sh.util.fdr_correction
+).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1, title="Neutrophils -> DC mature", cluster=True)
 
 # %% [markdown]
 # # VEGFA sources in NSCLC
@@ -776,7 +799,7 @@ tmp_df
 
 # %%
 signature_genes_tan_nan = marker_res_tan_nan.loc[
-    lambda x: (x["fdr"] < 0.01) & (abs(x["log2_fc"]) > 1)
+    lambda x: (x["fdr"] < 0.05) & (abs(x["log2_fc"]) > 1)
 ]
 
 # %% [markdown]

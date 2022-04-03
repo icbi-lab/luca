@@ -26,16 +26,12 @@ import numpy as np
 # %%
 tools = ["dorothea", "progeny", "cytosig", "cpdb"]
 comparisons = [
-    "tumor_normal",
-    "infiltration_status",
-    "infiltration_type",
+    "patient_infiltration_status",
     "patient_immune_infiltration",
     "patient_immune_infiltration_treatment_coding",
-    "patient_immune_infiltration_treatment_coding_condition",
-    "patient_immune_infiltration_treatment_coding_condition_random",
+    "patient_immune_infiltration_treatment_coding_random",
     "luad_lusc",
     "early_advanced",
-    "early_advanced_condition",
 ]
 
 # %%
@@ -49,7 +45,7 @@ for comparison in comparisons:
                 sep="\t",
             )
         except IOError:
-            pass
+            print(f"{comparison}_{tool} not found")
 
 # %% [markdown]
 # # LUAD vs LUSC
@@ -103,26 +99,19 @@ results["early_advanced"]["progeny"].loc[
     plot_lm_result_altair, title="Differential pathways (tumor cells)", p_cutoff=1
 )
 
-# %%
-results["early_advanced_condition"]["progeny"].loc[
-    lambda x: x["cell_type"] == "Tumor cells", :
-].pipe(sh.util.fdr_correction).pipe(
-    plot_lm_result_altair, title="Differential pathways (tumor cells)", p_cutoff=1
-)
-
 # %% [markdown]
 # ## Cytosig
 # (Tumor and stromal cells)
 
 # %%
-results["early_advanced_condition"]["cytosig"].loc[
+results["early_advanced"]["cytosig"].loc[
     lambda x: x["cell_type"] == "Tumor cells", :
 ].pipe(sh.util.fdr_correction).pipe(
     plot_lm_result_altair, title="Cytosig (Neutrophils cells)"
 )
 
 # %%
-results["early_advanced_condition"]["cytosig"].loc[
+results["early_advanced"]["cytosig"].loc[
     lambda x: x["cell_type"] == "Stromal", :
 ].pipe(sh.util.fdr_correction).pipe(
     plot_lm_result_altair, title="Cytosig (Neutrophils cells)"
@@ -132,33 +121,45 @@ results["early_advanced_condition"]["cytosig"].loc[
 # # Infiltration groups
 
 # %%
-de_res_tumor_cells = pd.concat(
-    [
-        pd.read_csv(
-            f"../../data/30_downstream_analyses/de_analysis/{k}_desert/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
-            sep="\t",
-        ).assign(group=k.upper())
-        for k in "tmb"
-    ]
-).fillna(1).pipe(sh.util.fdr_correction).drop("gene_id", axis="columns").rename(columns={"gene_id.1": "gene_id"})
+de_res_tumor_cells = (
+    pd.concat(
+        [
+            pd.read_csv(
+                f"../../data/30_downstream_analyses/de_analysis/{k}_desert/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
+                sep="\t",
+            ).assign(group=k.upper())
+            for k in "tmb"
+        ]
+    )
+    .fillna(1)
+    .pipe(sh.util.fdr_correction)
+    .drop("gene_id", axis="columns")
+    .rename(columns={"gene_id.1": "gene_id"})
+)
 
 # %%
 de_res_tumor_cells
 
 # %%
-selected_genes = de_res_tumor_cells.groupby("group").apply(lambda x: x.head(15))["gene_id"].values
+selected_genes = (
+    de_res_tumor_cells.groupby("group").apply(lambda x: x.head(15))["gene_id"].values
+)
 
 # %%
-de_res_tumor_cells.loc[lambda x: x["gene_id"].isin(selected_genes)].assign(log2FoldChange=lambda x: np.clip(x["log2FoldChange"], -5, 5)).pipe(
+de_res_tumor_cells.loc[lambda x: x["gene_id"].isin(selected_genes)].assign(
+    log2FoldChange=lambda x: np.clip(x["log2FoldChange"], -5, 5)
+).pipe(
     plot_lm_result_altair,
-    title="Differential genes (tumor cells)", color="log2FoldChange", x="gene_id"
+    title="Differential genes (tumor cells)",
+    color="log2FoldChange",
+    x="gene_id",
 )
 
 # %% [markdown]
 # ## Dorothea
 
 # %%
-results["patient_immune_infiltration_treatment_coding_condition"]["dorothea"].loc[
+results["patient_immune_infiltration_treatment_coding"]["dorothea"].loc[
     lambda x: x["cell_type"] == "Tumor cells", :
 ].pipe(sh.util.fdr_correction).pipe(
     plot_lm_result_altair,
@@ -169,7 +170,7 @@ results["patient_immune_infiltration_treatment_coding_condition"]["dorothea"].lo
 # ## Progeny
 
 # %%
-results["patient_immune_infiltration_treatment_coding_condition"]["progeny"].loc[
+results["patient_immune_infiltration_treatment_coding"]["progeny"].loc[
     lambda x: x["cell_type"] == "Tumor cells", :
 ].pipe(sh.util.fdr_correction).pipe(
     plot_lm_result_altair, title="Differential pathways (tumor cells)", p_cutoff=1
@@ -181,7 +182,7 @@ results["patient_immune_infiltration_treatment_coding_condition"]["progeny"].loc
 
 # %%
 tmp_cytosig = (
-    results["patient_immune_infiltration_treatment_coding_condition"]["cytosig"]
+    results["patient_immune_infiltration_treatment_coding"]["cytosig"]
     .loc[lambda x: x["cell_type"].isin(["Tumor cells"]), :]
     .pipe(sh.util.fdr_correction)
 )
@@ -253,7 +254,7 @@ for ct in tmp_cytosig["cell_type"].unique():
 # ## Dorothea
 
 # %%
-results["patient_immune_infiltration_treatment_coding_condition_random"][
+results["patient_immune_infiltration_treatment_coding_random"][
     "dorothea"
 ].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(sh.util.fdr_correction).pipe(
     plot_lm_result_altair,
@@ -264,7 +265,7 @@ results["patient_immune_infiltration_treatment_coding_condition_random"][
 # ## Progeny
 
 # %%
-results["patient_immune_infiltration_treatment_coding_condition_random"]["progeny"].loc[
+results["patient_immune_infiltration_treatment_coding_random"]["progeny"].loc[
     lambda x: x["cell_type"] == "Tumor cells", :
 ].pipe(sh.util.fdr_correction).pipe(
     plot_lm_result_altair, title="Differential pathways (tumor cells)", p_cutoff=1
@@ -276,7 +277,7 @@ results["patient_immune_infiltration_treatment_coding_condition_random"]["progen
 
 # %%
 tmp_cytosig = (
-    results["patient_immune_infiltration_treatment_coding_condition_random"]["cytosig"]
+    results["patient_immune_infiltration_treatment_coding_random"]["cytosig"]
     .loc[lambda x: x["cell_type"].isin(["Tumor cells"]), :]
     .pipe(sh.util.fdr_correction)
 )

@@ -74,6 +74,9 @@ adata_tumor = sc.read_h5ad(tumor_adata)
 # # Stats and metadata
 
 # %%
+adata.X.data.size
+
+# %%
 adata.shape[0]
 
 # %%

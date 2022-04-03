@@ -11,14 +11,13 @@ workflow plots_and_comparisons {
     COMPARE_GROUPS(
         [[id: 'compare_groups'], file("${baseDir}/analyses/90_plots_and_comparisons/91_compare_groups.py")],
         Channel.from([
-            "tumor_normal",
+            // "tumor_normal",
+            "patient_infiltration_status",
             "patient_immune_infiltration",
             "patient_immune_infiltration_treatment_coding",
-            "patient_immune_infiltration_treatment_coding_condition",
-            "patient_immune_infiltration_treatment_coding_condition_random",
+            "patient_immune_infiltration_treatment_coding_random",
             "luad_lusc",
             "early_advanced",
-            "early_advanced_condition",
         ]).map {
             it -> [
                 "comparison": it,

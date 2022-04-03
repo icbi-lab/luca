@@ -61,7 +61,7 @@ immune_cells = c(
   "cDC2" ,
   "DC mature"     ,
   "Macrophage"     ,
-  "Macrophage FABP4+"  ,
+  "Macrophage alveolar"  ,
   "Mast cell"     ,
   "Monocyte"       ,
   "Neutrophils"   ,
@@ -152,13 +152,9 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
 
 ```{r, include=FALSE}
 cpdb_luad_lusc = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/luad_lusc_cpdb.tsv")
-
 cpdb_infiltration = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_cpdb.tsv")
-cpdb_infiltration_treatment_condition = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_treatment_coding_condition_cpdb.tsv")
-
-cpdb_tumor_normal = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/tumor_normal_cpdb.tsv")
-
-cytosig = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_cytosig.tsv")
+cpdb_infiltration_treatment_condition = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_treatment_coding_cpdb.tsv")
+cpdb_infiltration_status = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_infiltration_status_cpdb.tsv")
 ```
 
 ## Explanation of the plots
@@ -173,168 +169,28 @@ cytosig = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_c
 
 Comparison of LUAD and LUSC samples. Blue = Upregulated in LUAD, Red = upregulated in LUSC
 
-```{r, fig.width=20, fig.height=12, message=FALSE, warning=FALSE, results=FALSE}
-# cpdb_luad_lusc |> filter(abs(log2_fc) > 1, fdr < 0.1,  cluster_2 == "Neutrophils") |> cpdb_plot(edge_color = "abs(log10(fdr))", edge_color_scale=scale_edge_color_viridis())
-```
-
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lusc |> filter(abs(log2_fc) > 1) |> mutate(group2 = if_else(log2_fc < 0, "LUSC", "LUAD")) |> group_by(group2) |>
-  filter(row_number() < 30) |> ungroup() |> cpdb_plot(edge_color="coef")
+cpdb_luad_lusc |> mutate(group2 = if_else(log2_fc < 0, "LUSC", "LUAD")) |> group_by(group2) |>
+  mutate(coef = sign(coef) * pmin(abs(coef), 0.5)) |> 
+  filter(row_number() < 30, fdr < 0.1) |> ungroup() |> cpdb_plot(edge_color="coef")
 ```
 
-
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+cpdb_luad_lusc |> mutate(group2 = if_else(log2_fc < 0, "LUSC", "LUAD")) |> 
+  filter(cluster_1 == "Tumor cells", cluster_2 %in% immune_cells) |> mutate(fdr = p.adjust(pvalue, method="fdr")) |> group_by(group2) |>
+  mutate(coef = sign(coef) * pmin(abs(coef), 0.3)) |> 
+  filter(row_number() < 25, fdr < 0.1) |> ungroup() |> cpdb_plot(edge_color="coef")
+```
 
 ### Infiltration status
 
 Comparison of "infiltration status", i.e. immune desert vs. infiltrated (all three groups).
 Blue = interaction increased in desert, Red = interaction increased in infiltration.
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-# cpdb_infiltration_status |> filter(abs(log2_fc) > 1) |> head(100) |> cpdb_plot()
+cpdb_infiltration_status |> mutate(group2 = if_else(coef < 0, "desert", "infiltrated")) |> 
+  filter(cluster_1 == "Tumor cells", cluster_2 %in% immune_cells) |> mutate(fdr = p.adjust(pvalue, method="fdr")) |> group_by(group2) |> head(50) |> 
+  mutate(coef = sign(coef) * pmin(abs(coef), 0.3)) |> 
+  # filter(row_number() < 25, fdr < 0.1) |> ungroup() |>
+  cpdb_plot(edge_color="coef")
 ```
-
-### Infiltration status (only tumor and structural cells)
-
-Same as above, but only focusing on ligands on Tumor, stromal and endothelial cells.
-
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-# cpdb_infiltration_status |> filter(abs(log2_fc) > 1, cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell")) |> head(100) |> cpdb_plot()
-```
-
-### Infiltration type (originating from Tumor, stromal, endothelial cells)
-
-Comparison of the four infiltration types. Interactions are colored according to whether they
-are uniquely upregulated in either the immune desert group (grey), the B-cell infiltration group (orange), the Macro/Mono infiltration group (green), or the T-cell infiltration group (blue).
-
-```{r, fig.width=14, fig.height=8, message=FALSE, warning=FALSE, results=FALSE}
-
-cpdb_infiltration |> rename(variable=`...1`) |>
-  filter(coef > 0, fdr < 0.1, group != "desert") |> 
-  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |>
-  # mutate(fdr=p.adjust(pvalue, method="fdr")) |>
-  # group_by(group) |>
-  # filter(row_number() <= 15) |>
-  # ungroup() |>
-  cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
-```
-
-
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-
-cpdb_infiltration |> rename(variable=`...1`) |>
-  mutate(coef = if_else(group == "desert", -coef, coef)) |> 
-  filter(coef > 0) |> 
-  head(50) |> 
-  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |>
-  # mutate(fdr=p.adjust(pvalue, method="fdr")) |>
-  # group_by(group) |>
-  # filter(row_number() <= 15) |>
-  # ungroup() |>
-  cpdb_plot(edge_color="coef", edge_color_scale=scale_edge_color_viridis(direction=1, option="inferno"))
-```
-
-
-
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-
-variables = cpdb_infiltration_treatment_condition |> rename(variable=`...1`) |>
-  filter(log2_fc > 1) |>
-  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), cluster_2 %in% immune_cells ) |>
-  group_by(group) |>
-  filter(row_number() < 20) |> pull(variable)
-
-cpdb_infiltration_treatment_condition |> rename(variable=`...1`) |>
-  mutate(fdr=p.adjust(pvalue, method="fdr")) |>
-  filter(log2_fc > 1, fdr < 0.01) |>
-  filter(variable %in% variables) |> 
-  ungroup() |>
-  cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
-```
-
-### Tumor vs normal
-
-Differential signalling between tumor and normal adjacent tissue. Blue = up-regulated in normal, red= upregulated in tumor.
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_tumor_normal |> filter(abs(log2_fc) > 1) |>
-  # filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell")) |>
-  head(75) |>
-  # clip log fc for better aesthetics
-  mutate(log2_fc = sapply(log2_fc, \(x) if_else(x < 0, max(x, -5), min(x, 5)))) |>
-  cpdb_plot()
-```
-
-
-<!-- ## By cell type -->
-<!-- ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE} -->
-<!-- cpdb_cell_types |> filter(abs(log2_fc) > 1, group %in% c("Stromal", "Endothelial cell", "Tumor cells"), cluster_2 %in% c("Stromal", "Endothelial cell", "Tumor cells")) |> head(150) |> rename(variable=`...1`) |> mutate(cluster_1=group) |> cpdb_plot(edge_color="group", edge_color_scale=scale_edge_color_brewer(palette="Set2")) -->
-<!-- ``` -->
-
-```{r, include=FALSE}
-growth_factors = read_csv("../../tables/gene_annotations/genecards_growth_factors.csv", comment = "#")
-immune_checkpoints = read_csv("../../tables/gene_annotations/immune_checkpoints.csv", comment="#")
-neutro_genes_of_interest = read_excel("../../tables/gene_annotations/neutro_recruitment_chemokines.xlsx")
-```
-
-<!-- ## All growth factors (stromal -> tumor) -->
-<!-- ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE} -->
-<!-- cpdb_cell_types |> rename(variable=`...1`) |> mutate(cluster_1=group) |> filter(group %in% c("Endothelial cell", "Stromal"), cluster_2 == "Tumor cells", source %in% growth_factors$`Gene Symbol`, log2_fc > 2, fdr < 0.01) |>  -->
-<!--   cpdb_plot(edge_color="group", edge_color_scale=scale_edge_color_brewer(palette="Set2")) -->
-<!-- ``` -->
-
-<!-- ## All checkpoints (tumor immune) -->
-<!-- ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE} -->
-<!-- cpdb_cell_types |> rename(variable=`...1`) |> mutate(cluster_1=group) |> -->
-<!--   filter(group %in% c("Tumor cells"), cluster_2 %in% c("T cell CD4", "T cell CD8", "T cell regulatory"), target %in% immune_checkpoints$gene_symbol, log2_fc > 2, fdr < 0.1) |> cpdb_plot() -->
-<!-- ``` -->
-
-<!-- ## All checkpoints (LUAD LUSC, tumor immune) -->
-<!-- ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE} -->
-<!-- cpdb_luad_lusc |> filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |>  -->
-<!-- mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> cpdb_plot() -->
-<!-- ``` -->
-
-## Selected interactions (Neutrophils)
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-neutro_goi = c(neutro_genes_of_interest$`TME Ligand`, neutro_genes_of_interest$`(neutrophil) receptor`)
-
-cpdb_luad_lusc |> filter(
-  cluster_1 == "Neutrophils" | cluster_2 == "Neutrophils", source %in% neutro_goi | target %in% neutro_goi
-)|>
-mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |>
-  cpdb_plot()
-
-```
-
-## Selected interactions (from cytosig)
-
-Only focusing on interactions also found in the cytosig analysis.
-```{r, fig.width=18, fig.height=12, message=FALSE, warning=FALSE, results=FALSE}
-
-selected_cytosig_variables = cytosig |> filter(cell_type %in% c("Tumor cells", "Stromal", "Endothelial cell")) |>
-  mutate(fdr = p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> pull("variable")
-
-cpdb_infiltration |> rename(variable=`...1`) |>
-  # filter(log2_fc > 1) |>
-  filter(cluster_1 %in% c("Tumor cells", "Stromal", "Endothelial cell"), source %in% selected_cytosig_variables, cluster_2 %in% immune_cells ) |>
-mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |>
-  cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_manual(values = COLORS$immune_infiltration))
-```
-
-<!-- ## All checkpoints (infiltration) -->
-<!-- ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE} -->
-
-<!-- cpdb_infiltration |> rename(variable=`...1`) |> -->
-<!--   filter(log2_fc > 1) |>  -->
-<!--   filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |>  -->
-<!-- mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> -->
-<!--   cpdb_plot(edge_color="group", edge_color_scale = scale_edge_color_brewer(palette="Set2")) -->
-<!-- ``` -->
-
-
-<!-- ## All checkpoints (early_advanced) -->
-<!-- ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE} -->
-<!-- cpdb_early_advanced |> filter(cluster_1 %in% c("Tumor cells"), target %in% immune_checkpoints$gene_symbol) |>  -->
-<!-- mutate(fdr=p.adjust(pvalue, method="fdr")) |> filter(fdr < 0.1) |> cpdb_plot() -->
-<!-- ``` -->
-
-

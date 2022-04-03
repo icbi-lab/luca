@@ -118,6 +118,9 @@ scv.tl.velocity_graph(adata_scvelo)
 sc.set_figure_params(figsize=(10, 10))
 rcParams["axes.grid"] = False
 
+# %% [markdown]
+# ### Only UKIM-V dataset
+
 # %%
 ax = sc.pl.embedding(
     adata_ukim,
@@ -138,3 +141,31 @@ scv.pl.velocity_embedding_stream(
     alpha=0,
     arrow_size=2
 )
+
+# %% [markdown]
+# ### All neutrophils, with velocity from UKIM-V dataset
+
+# %%
+ax = sc.pl.embedding(
+    adata_n,
+    basis="umap",
+    color="cell_type",
+    show=False,
+    legend_loc="on data",
+    legend_fontoutline=4,
+    legend_fontsize=30,
+    size=70,
+    alpha=0.3,
+)
+scv.pl.velocity_embedding_stream(
+    adata_scvelo,
+    basis="umap",
+    color="cell_type",
+    #     arrow_color="white",
+    legend_loc="right margin",
+    ax=ax,
+    alpha=0,
+    arrow_size=2
+)
+
+# %%

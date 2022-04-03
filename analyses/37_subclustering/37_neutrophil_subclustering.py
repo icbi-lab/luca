@@ -187,9 +187,9 @@ ah.annotate_cell_types(
     {
         "NAN-1": [4],  # also in zillionis/klein, S100A12
         "NAN-2": [0],
-        "TAN-1": [5],  # ribosomal proteins
+        "TAN-3": [1, 5], 
         "TAN-2": [2],  # antigen presentation; also in zillionis/klein
-        "TAN-3": [1, 3],  # PLPP3
+        "TAN-1": [3], 
     },
 )
 

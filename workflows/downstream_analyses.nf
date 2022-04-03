@@ -38,10 +38,10 @@ workflow downstream_analyses {
 
     de_analysis(final_atlas, STRATIFY_PATIENTS.out.artifacts)
 
-    // scissor(final_atlas)
+    scissor(final_atlas)
     cell2cell_major(final_atlas, "cell_type_major")
     cell2cell_neutro(atlas_neutro_clusters, "cell_type_neutro")
-    // infercnv(final_atlas)
+    infercnv(final_atlas)
     plots_and_comparisons(atlas_neutro_clusters, cell2cell_major.out.adata_cpdb, STRATIFY_PATIENTS.out.artifacts)
 }
 
