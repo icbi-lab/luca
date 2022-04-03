@@ -62,19 +62,10 @@ scissor_clinical_data = pd.read_csv(
 adata = sc.read_h5ad(path_adata)
 
 # %%
-# adata.obs["cell_type_neutro_coarse"] = adata.obs["cell_type_major"].astype(str)
-# adata.obs.loc[
-#     adata.obs["cell_type_neutro"].str.startswith("NAN"), "cell_type_neutro_coarse"
-# ] = "NAN"
-# adata.obs.loc[
-#     adata.obs["cell_type_neutro"].str.startswith("TAN"), "cell_type_neutro_coarse"
-# ] = "TAN"
+sc.pl.umap(adata, color=["cell_type_coarse", "origin"], wspace=0.8)
 
 # %%
-sc.pl.umap(adata, color=["cell_type_coarse", "origin"])
-
-# %%
-sc.pl.umap(adata, color=["cell_type_neutro", "cell_type_neutro_coarse"])
+sc.pl.umap(adata, color=["cell_type_neutro", "cell_type_neutro_coarse"], wspace=0.8)
 
 # %% [markdown]
 # # Overview clinical data
@@ -235,7 +226,7 @@ scissor_cols = adata_primary.obs.columns[
 
 # %%
 for var in scissor_cols:
-    with plt.rc_context({"figure.figsize": (6, 6), "figure.dpi": 120}):
+    with plt.rc_context({"figure.figsize": (6, 6), "figure.dpi": 300}):
         sc.pl.umap(
             adata_primary,
             color=var,
@@ -244,18 +235,11 @@ for var in scissor_cols:
             frameon=False,
         )
 
+
 # %%
-# def conf_int(data, confidence=0.95):
-#     a = 1.0 * np.array(data)
-#     n = len(a)
-#     m, se = np.mean(a), scipy.stats.sem(a)
-#     h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
-#     return h
-
-
 def _scissor_test(df):
     c1, c2 = [x for x in df.columns if x != "nan"]
-    _, p = scipy.stats.ttest_rel(df[c1].values, df[c2].values)
+    _, p = scipy.stats.wilcoxon(df[c1].values, df[c2].values, zero_method="zsplit")
     return pd.Series(
         {
             c1: df[c1].mean(),
@@ -271,18 +255,9 @@ def scissor_by_group(
     *,
     groupby=["cell_type_major", "patient"],
     scissor_col,
-    adatas_for_gini=None,
     cell_cutoff=10,
 ):
-    """Aggregate scissor scores first by patient, then by a grouping variable
-
-    Parameters
-    ----------
-    adatas_for_gini
-        Set this to a dict {groupby: adata} with an AnnData object
-        for each group with a `leiden` clustering. This will
-        be used to obtain gini index.
-    """
+    """Aggregate scissor scores first by patient, then by a grouping variable"""
     obs = adata.obs.copy()
     # convert to str that nans are counted
     obs[scissor_col] = obs[scissor_col].astype(str)
