@@ -276,8 +276,12 @@ def scissor_by_group(
     df_grouped = df_grouped.loc[
         lambda x: x.apply(lambda row: np.sum(row), axis=1) > cell_cutoff
     ]
-    df_grouped += 1  # add pseudocount
     df_grouped = df_grouped.apply(lambda row: row / np.sum(row), axis=1)  # normalize
+    # Add pseudocount relative to number of total cells of that type.
+    # As opposed to applying a general pseudocount of 
+    #     df_grouped += 1  # add pseudocount
+    # this approach is fairer towards rare cell-type like neutrophils or dendritic cells. 
+    df_grouped += 0.01 
 
     df_grouped = (
         df_grouped.groupby(groupby[0]).apply(_scissor_test).pipe(sh.util.fdr_correction)
@@ -332,7 +336,7 @@ def plot_scissor_df_ratio(
         .mark_bar()
         .encode(
             x=alt.X(groupby, sort=order),
-            y=alt.Y("log2_ratio", scale=alt.Scale(domain=[-5, 5])),
+            y=alt.Y("log2_ratio", scale=alt.Scale(domain=[-5.5, 5.5])),
             color=alt.Color(
                 "log2_ratio", scale=alt.Scale(scheme="redblue", domain=[-max_, max_])
             )
@@ -383,3 +387,5 @@ scissor_dfs = {
 # %%
 for col, df in scissor_dfs.items():
     plot_scissor_df_ratio(df, title=col, groupby="cell_type_neutro").display()
+
+# %%
