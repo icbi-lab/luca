@@ -115,10 +115,13 @@ def run_sccoda(sccoda_data, reference_cell_type, n):
 res_tumor_ref2 = run_sccoda(data_all, reference_cell_type, mcmc_iterations)
 
 # %%
-credible_effects_condition = res_tumor_ref2.credible_effects(est_fdr=0.1)[
+res_tumor_ref2.set_fdr(0.1)
+
+# %%
+credible_effects_condition = res_tumor_ref2.credible_effects()[
     "condition[T.LUAD]"
 ]
-credible_effects_stage = res_tumor_ref2.credible_effects(est_fdr=0.1)[
+credible_effects_stage = res_tumor_ref2.credible_effects()[
     "tumor_stage[T.advanced]"
 ]
 
