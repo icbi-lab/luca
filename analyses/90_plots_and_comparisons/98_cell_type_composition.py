@@ -28,6 +28,10 @@ import sccoda.util.cell_composition_data as scc_dat
 import sccoda.util.comp_ana as scc_ana
 import sccoda.util.data_visualization as scc_viz
 import scanpy_helpers as sh
+import tensorflow as tf
+
+# %%
+tf.random.set_seed(0)
 
 # %%
 alt.data_transformers.disable_max_rows()
@@ -36,7 +40,7 @@ alt.data_transformers.disable_max_rows()
 # # Input data
 
 # %%
-sc.set_figure_params(figsize=(5, 5))
+sc.set_figure_params(figsize=(5, 5)) 
 
 # %%
 cell_type_column = nxfvars.get("cell_type_column", "cell_type_major")
