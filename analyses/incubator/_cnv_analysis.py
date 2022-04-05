@@ -62,7 +62,7 @@ artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 # %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/30_downstream_analyses/04_neutrophil_subclustering//artifacts/full_atlas_neutrophil_clusters.h5ad",
+    "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 
 # %%
@@ -77,64 +77,41 @@ patient_strat = pd.read_csv(
 # %%
 adata = sc.read_h5ad(path_adata)
 
-# %%
-# For the patient stratification, treat the two batches of the UKIM-V dataset as one
-adata.obs["dataset"] = adata.obs["dataset"].str.replace("UKIM-V-2", "UKIM-V")
-
-# %%
-patient_strat.set_index("patient", inplace=True)
-patient_strat["dataset"] = (
-    adata.obs.loc[:, ["patient", "dataset"]]
-    .drop_duplicates()
-    .set_index("patient")["dataset"]
-)
-patient_strat.reset_index(inplace=True)
-
 # %% [markdown]
 # # CNV
 
 # %%
-# TODO: compare to SCEVAN
-# TODO: regress out dataset-specific effects, or at least include dataset in linear model.
-
-# %%
-# scevan_res_files = list(
-#     Path("../../data/30_downstream_analyses/infercnv/scevan/").glob(
-#         "**/scevan_result.csv"
-#     )
-# )
-adatas_infercnvpy = list(
-    Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/*.h5ad")
+scevan_res_dirs = list(
+    Path("../../data/30_downstream_analyses/infercnv/scevan/").glob(
+        "**/output/*CNAmtx.RData"
+    )
 )
+# adatas_infercnvpy = list(
+#     Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/*.h5ad")
+# )
 
 # %%
-adatas_cnv = {}
-for f in tqdm(adatas_infercnvpy):
-    patient = str(f).split("/")[-2].replace("full_atlas_merged_", "")
-    adatas_cnv[patient] = sc.read_h5ad(f)
+for scevan_dir in scevan_res_dirs:
+    patient = str(h5ad_path).split("/")[-1].replace("full_atlas_merged_", "")
+    cnv.io.read_scevan(adatas_cnv[patient], scevan_dir, subclones=False)
+
 
 # %%
 ithgex = {}
 ithcna = {}
+ithcna_scevan = {}
+n_cells = {}
 for patient, tmp_ad in tqdm(adatas_cnv.items()):
-    ithgex[patient] = sh.diversity.ithgex(
+    ithgex[patient] = cnv.tl.ithgex(
         tmp_ad, groupby="cell_type_major", inplace=False
     )
-    ithcna[patient] = sh.diversity.ithcna(
+    ithcna[patient] = cnv.tl.ithcna(
         tmp_ad, groupby="cell_type_major", inplace=False
     )
-
-# %%
-cnv_scores = {}
-for patient, tmp_ad in tqdm(adatas_cnv.items()):
-    cnv_scores[patient] = sh.diversity.cnv_score(
-        tmp_ad, obs_key="cell_type_major", inplace=False
+    ithcna_scevan[patient] = cnv.tl.ithcna(
+        tmp_ad, groupby="cell_type_major", inplace=False, use_rep="X_scevan"
     )
-
-# %%
-n_tumor_cells = {}
-for patient, tmp_ad in tqdm(adatas_cnv.items()):
-    n_tumor_cells[patient] = tmp_ad.obs["cell_type_major"].value_counts().to_dict()
+    n_cells[patient] = tmp_ad.obs["cell_type_major"].value_counts().to_dict()
 
 # %%
 diversity_per_patient = (

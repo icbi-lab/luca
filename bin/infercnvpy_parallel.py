@@ -54,28 +54,6 @@ cnv.tl.infercnv(
     step=1,
 )
 
-cnv.tl.cnv_score(adata, obs_key="cell_type")
-np.savetxt(
-    "cnv_score.txt",
-    [adata.obs.loc[lambda x: x["cell_type"] == "Tumor cells", "cnv_score"].values[0]],
-)
-
-# Calculate ITHCNA and ITHGEX (https://www.nature.com/articles/s41467-021-22801-0#Sec11)
-pcorr = np.corrcoef(
-    adata[adata.obs["cell_type"] == "Tumor cells", :].obsm["X_cnv"].todense(),
-    rowvar=True,
-)
-q75, q25 = np.percentile(pcorr, [75, 25])
-ithcna = q75 - q25
-np.savetxt("ithcna.txt", [ithcna])
-
-pcorr = np.corrcoef(
-    adata[adata.obs["cell_type"] == "Tumor cells", :].raw.X.todense(), rowvar=True
-)
-q75, q25 = np.percentile(pcorr, [75, 25])
-ithgex = q75 - q25
-np.savetxt("ithgex.txt", [ithgex])
-
 cnv.pl.chromosome_heatmap(adata, groupby="cell_type", save="cnv_cell_type.png")
 cnv.pl.chromosome_heatmap(adata, groupby="origin", save="cnv_origin.png")
 
