@@ -446,7 +446,9 @@ pd.concat(
 # # Pairplot of candidate genes
 
 # %%
-pb_tan_nan.obs["cell_type_tan_nan_label"] = pd.Categorical(pb_tan_nan.obs["cell_type_tan_nan_label"] , categories=["NAN", "TAN"])
+pb_tan_nan.obs["cell_type_tan_nan_label"] = pd.Categorical(
+    pb_tan_nan.obs["cell_type_tan_nan_label"], categories=["NAN", "TAN"]
+)
 
 # %%
 PROPS = {
@@ -457,16 +459,17 @@ PROPS = {
 }
 
 genes_of_interest = [
-        "CXCR4",
-        "OLR1",
-        "CD83",
-        "VEGFA",
-        "CXCR1",
-        "CXCR2",
-        "PTGS2",
-        "SELL",
-        "CSF3R",
-    ]
+    "OLR1",
+    "VEGFA",
+    "CD83",
+    "ICAM1",
+    "CXCR4",
+    "CXCR1",
+    "CXCR2",
+    "PTGS2",
+    "SELL",
+    "CSF3R",
+]
 fig = sh.pairwise.plot_paired(
     pb_tan_nan,
     "cell_type_tan_nan_label",
@@ -475,8 +478,8 @@ fig = sh.pairwise.plot_paired(
     hue="study",
     ylabel="log2(CPM+1)",
     size=6,
-    n_cols=9,
-    panel_size=(1.5,4),
+    n_cols=10,
+    panel_size=(1.5, 4),
     show=False,
     return_fig=True,
     pvalue_template=lambda x: "FDR<0.01" if x < 0.01 else f"FDR={x:.2f}",
@@ -486,7 +489,7 @@ fig = sh.pairwise.plot_paired(
 for i, ax in enumerate(fig.axes):
     ax.set_ylim(-0.5, np.max(pb_tan_nan[:, genes_of_interest].X) + 0.5)
     ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
-    if i > 0: 
+    if i > 0:
         ax.yaxis.set_ticklabels([])
         ax.set_ylabel(None)
 

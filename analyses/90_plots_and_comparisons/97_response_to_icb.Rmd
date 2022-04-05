@@ -194,7 +194,8 @@ tcga_scores = data.frame(
   sig_b_cell_gc=scoring_function(tcga_tpm, b_cell$`Germinal center B cells`),
   sig_plasma=scoring_function(tcga_tpm, b_cell$`Plasma cells`)
 ) |> 
-  mutate(sig_lcam_consensus = norm01(sig_lcam_hi) - norm01(sig_lcam_lo)) |>
+  mutate(sig_lcam_consensus = norm01(sig_lcam_hi) - norm01(sig_lcam_lo), 
+         sig_tan_nan=(sig_tan + sig_nan) / 2) |>
   as_tibble(rownames="TCGA_patient_barcode")
 
 tcga_clin_and_scores = clinical_data %>% 
@@ -304,7 +305,8 @@ ici_scores = data.frame(
     sig_plasma=scoring_function(ici_tpm, b_cell$`Plasma cells`)
 ) |> 
   mutate(sig_lcam_consensus = norm01(sig_lcam_hi) - norm01(sig_lcam_lo)) |>
-  mutate(sig_combined = sig_lcam_hi + sig_neutro) |> 
+  mutate(sig_combined = sig_lcam_hi + sig_neutro) |>
+  mutate(sig_tan_nan=(sig_tan + sig_nan) / 2) |>
   as_tibble(rownames="sample")
 
 ici_clin_and_scores = ici_meta |> 
