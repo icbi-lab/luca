@@ -112,7 +112,7 @@ scv.tl.velocity_graph(adata_scvelo)
 # ## Plots
 
 # %%
-# scv.pl.proportions(adata_scvelo, groupby="patient")
+scv.pl.proportions(adata_scvelo, groupby="patient")
 
 # %%
 sc.set_figure_params(figsize=(10, 10))
@@ -169,3 +169,7 @@ scv.pl.velocity_embedding_stream(
 )
 
 # %%
+scv.tl.paga(adata_scvelo, groups="cell_type", minimum_spanning_tree=False)
+
+# %%
+scv.pl.paga(adata_scvelo, layout="fr", figsize=(3, 3), dpi=300, dashed_edges=None)

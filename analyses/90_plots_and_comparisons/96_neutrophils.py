@@ -46,15 +46,13 @@ ah = AnnotationHelper()
 # %%
 adata_n = sc.read_h5ad(
     "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad"
-        # "/home/sturm/Downloads/adata_neutrophil_clusters.h5ad"
-
+    # "/home/sturm/Downloads/adata_neutrophil_clusters.h5ad"
 )
 
 # %%
 adata = sc.read_h5ad(
     "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad"
     # "/home/sturm/Downloads//full_atlas_neutrophil_clusters.h5ad"
-
 )
 
 # %%
@@ -204,7 +202,80 @@ alt.Chart(patient_fracs).mark_bar().encode(
 )
 
 # %% [markdown]
+# # Quantify covariates by cluster
+
+# %%
+patients_with_neutros = (
+    adata_n.obs.groupby("patient").size().loc[lambda x: x > 10].index
+)
+
+# %%
+frac_by_patient = (
+    adata_n.obs.groupby(["patient", "condition", "origin_biopsy"], observed=True)
+    .apply(lambda x: x["cell_type_tan_nan_label"].value_counts(normalize=True))
+    .unstack()
+    .melt(ignore_index=False, var_name="cell_type", value_name="fraction")
+    .reset_index()
+    .loc[lambda x: x["patient"].isin(patients_with_neutros)]
+)
+
+# %%
+frac_by_patient
+
+# %%
+alt.Chart(
+    frac_by_patient.loc[lambda x: ~x["origin_biopsy"].isin(["nan", "tumor_metastasis"])]
+).mark_boxplot().encode(x="cell_type", y="fraction", color="cell_type").facet(
+    column="origin_biopsy"
+)
+
+# %%
+alt.Chart(
+    frac_by_patient.loc[lambda x: ~x["origin_biopsy"].isin(["nan", "tumor_metastasis"])]
+).mark_boxplot().encode(x="cell_type", y="fraction", color="cell_type").facet(
+    column="condition"
+)
+
+# %% [markdown]
 # # Find marker genes for Neutrophil clusters
+
+# %%
+pb_tan_nan = sh.pseudobulk.pseudobulk(
+    adata_n,
+    groupby=[
+        "cell_type_tan_nan_label",
+        "patient",
+        "condition",
+        "dataset",
+        "study",
+        "tumor_stage",
+    ],
+)
+
+# %%
+sc.pp.normalize_total(pb_tan_nan, target_sum=1e6)
+sc.pp.log1p(pb_tan_nan, base=2)
+
+# %%
+for ct in tqdm(pb_tan_nan.obs["cell_type_tan_nan_label"].unique()):
+    sh.signatures.fold_change(
+        pb_tan_nan,
+        obs_col="cell_type_tan_nan_label",
+        positive_class=ct,
+        key_added=f"{ct}_fc",
+    )
+    sh.signatures.specific_fold_change(
+        pb_tan_nan,
+        obs_col="cell_type_tan_nan_label",
+        positive_class=ct,
+        key_added=f"{ct}_sfc",
+    )
+    sh.signatures.roc_auc(
+        pb_tan_nan,
+        obs_col="cell_type_tan_nan_label",
+        positive_class=ct,
+        key_added=f"{ct}_auroc",
+    )
 
 # %%
 pb_n = sh.pseudobulk.pseudobulk(
@@ -216,109 +287,90 @@ sc.pp.normalize_total(pb_n, target_sum=1e6)
 sc.pp.log1p(pb_n, base=2)
 
 # %%
-pb_tan_nan = sh.pseudobulk.pseudobulk(
-    adata_n,
-    groupby=["cell_type_tan_nan", "patient", "condition", "dataset", "tumor_stage"],
-)
-
-# %%
-sc.pp.normalize_total(pb_tan_nan, target_sum=1e6)
-sc.pp.log1p(pb_tan_nan, base=2)
-
-# %%
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    marker_res = sh.compare_groups.lm.test_lm(
-        pb_n,
-        "~ C(cell_type, Sum) + patient",
-        "cell_type",
+for ct in tqdm(pb_n.obs["cell_type"].unique()):
+    sh.signatures.fold_change(
+        pb_n, obs_col="cell_type", positive_class=ct, key_added=f"{ct}_fc"
+    )
+    sh.signatures.specific_fold_change(
+        pb_n, obs_col="cell_type", positive_class=ct, key_added=f"{ct}_sfc"
+    )
+    sh.signatures.roc_auc(
+        pb_n, obs_col="cell_type", positive_class=ct, key_added=f"{ct}_auroc"
     )
 
+
 # %%
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    marker_res_tan_nan = sh.compare_groups.lm.test_lm(
-        pb_tan_nan,
-        "~ C(cell_type_tan_nan, Treatment('NAN-')) + patient",
-        "cell_type_tan_nan",
-        contrasts="Treatment('NAN-')",
+def metric_strip(
+    pb, markers, *, metric_key="auroc", metric_title="AUROC", domain=[0.5, 1], top=10
+):
+    metric = []
+    genes = []
+    cts = []
+    for ct, tmp_markers in markers.items():
+        for gene in tmp_markers[:top]:
+            metric.append(pb.var.loc[gene, f"{ct}_{metric_key}"])
+            genes.append(gene)
+            cts.append(ct)
+
+    tmp_df = pd.DataFrame().assign(marker=genes, cell_type=cts, metric=metric)
+
+    return (
+        alt.Chart(tmp_df)
+        .mark_rect()
+        .encode(
+            x=alt.X("marker", sort=None),
+            color=alt.Color(
+                "metric",
+                scale=alt.Scale(scheme="viridis", domain=domain),
+                title=metric_title,
+            ),
+        )
     )
 
-# %%
-marker_res_tan_nan = (
-    # the valuese are already on log-scale, therefore using logfun=identity
-    marker_res_tan_nan.pipe(sh.util.log2_fc, logfun=lambda x: x)
-    .loc[lambda x: ~pd.isnull(x["pvalue"])]
-    .pipe(sh.util.fdr_correction)
-    .sort_values("pvalue")
-    .assign(group=lambda x: ["TAN" if _ > 0 else "NAN" for _ in x["log2_fc"]])
-)
+
+def plot_markers(pb, groupby, markers, *, top=10):
+    sc.pl.matrixplot(
+        pb,
+        groupby=groupby,
+        var_names={k: v[:top] for k, v in markers.items()},
+        cmap="bwr",
+    )
+
 
 # %%
-marker_res = (
-    # the valuese are already on log-scale, therefore using logfun=identity
-    marker_res.pipe(sh.util.log2_fc, logfun=lambda x: x)
-    .loc[lambda x: ~pd.isnull(x["pvalue"]) & (x["log2_fc"] > 0)]
-    .pipe(sh.util.fdr_correction)
-    .sort_values("pvalue")
-)
+markers_tan_nan = {
+    ct: pb_tan_nan.var.loc[lambda x: (x[f"{ct}_auroc"] >= 0.75) & (x[f"{ct}_fc"] > 1.5)]
+    .sort_values(f"{ct}_auroc", ascending=False)
+    .index.tolist()
+    for ct in sorted(pb_tan_nan.obs["cell_type_tan_nan_label"].unique())
+}
 
 # %%
-marker_res_tan_nan.to_csv(f"{artifact_dir}/tan_vs_nan_markers.csv")
+markers = {
+    ct: pb_n.var.loc[
+        lambda x: (x[f"{ct}_auroc"] >= 0.75)
+        & (x[f"{ct}_fc"] > 1.5)
+        & (x[f"{ct}_sfc"] > 1)
+    ]
+    .sort_values(f"{ct}_auroc", ascending=False)
+    .index.tolist()
+    for ct in sorted(pb_n.obs["cell_type"].unique())
+}
 
 # %%
-marker_res.to_csv(f"{artifact_dir}/neutro_cluster_markers.csv")
-
-# %% [markdown]
-# ## Top markers TAN vs NAN
+plot_markers(pb_tan_nan, "cell_type_tan_nan_label", markers_tan_nan, top=10)
 
 # %%
-top_markers_tan_nan = (
-    marker_res_tan_nan.loc[lambda x: (abs(x["log2_fc"]) > 1) & (x["fdr"] < 0.01)]
-    .sort_values("log2_fc", key=abs, ascending=False)
-    .groupby("group")
-    .apply(lambda x: x.head(15))
-)
+plot_markers(pb_n, "cell_type", markers_tan_nan, top=10)
 
 # %%
-sc.pl.matrixplot(
-    pb_n,
-    groupby="cell_type",
-    var_names=top_markers_tan_nan["variable"],
-    cmap="bwr",
-)
+metric_strip(pb_tan_nan, markers_tan_nan)
 
 # %%
-sh.pairwise.plot_paired_fc(
-    pb_tan_nan,
-    "cell_type_tan_nan",
-    paired_by="patient",
-    var_names=top_markers_tan_nan.iloc[:30].sort_values("log2_fc")["variable"],
-    metric="diff",  # diff metric = log fold change, as data is already log-transformed.
-    metric_name="log2 fold change",
-)
-
-# %% [markdown]
-# ## Top markers Neutrophil subclusters
+plot_markers(pb_n, "cell_type", markers, top=5)
 
 # %%
-top_markers = (
-    marker_res.loc[lambda x: (x["fdr"] < 0.01) & (x["coef"] > 0.75)]
-    .sort_values("log2_fc", ascending=False)
-    .groupby("group")
-    .apply(lambda x: x.head(15))
-)
-
-# %%
-sc.pl.matrixplot(
-    pb_n,
-    var_names={
-        g: top_markers.loc[lambda x: x["group"] == g, "variable"]
-        for g in top_markers["group"].unique()
-    },
-    groupby="cell_type",
-    cmap="bwr",
-)
+metric_strip(pb_n, markers, top=5)
 
 # %% [markdown]
 # ## Selected Top markers
@@ -327,11 +379,12 @@ sc.pl.matrixplot(
 selected_top_markers = {
     "NAN": ["CST7", "TMX4"],
     "TAN": ["CCL4", "CCL3"],
-    "NAN-1": ["PADI4", "RBP7"],
-    "NAN-2": ["ENTPD1", "TNFSF13B"],
+    "NAN-1": ["PADI4", "MMP9"],
+    "NAN-2": ["CXCR2", "TNFSF13B"],
     "TAN-1": ["IL1A", "RHOH"],
-    "TAN-2": ["HLA-DRA", "IFIT1"],
+    "TAN-2": ["CD74", "IFIT1"],
     "TAN-3": ["PLIN2", "PLPP3"],
+    "TAN-4": ["RPL27", "RPS12"],
 }
 
 # %%
@@ -352,37 +405,90 @@ sc.pl.umap(
     frameon=False,
 )
 
+# %%
+marker_res_tan_nan = (
+    pd.concat(
+        [
+            pb_tan_nan.var.loc[lambda x: x["TAN_auroc"] > 0.5]
+            .assign(group="TAN")
+            .rename(columns={"TAN_fc": "fold-change", "TAN_auroc": "AUROC"}),
+            pb_tan_nan.var.loc[lambda x: x["NAN_auroc"] > 0.5]
+            .assign(group="NAN")
+            .rename(columns={"NAN_fc": "fold-change", "NAN_auroc": "AUROC"}),
+        ]
+    )
+    .loc[:, ["group", "fold-change", "AUROC"]]
+    .sort_values("AUROC", ascending=False)
+)
+marker_res_tan_nan.to_csv(f"{artifact_dir}/tan_vs_nan_markers.csv")
+
+# %%
+pd.concat(
+    [
+        pb_n.var.loc[lambda x: x[f"{ct}_auroc"] > 0.5]
+        .assign(group=ct)
+        .rename(
+            columns={
+                f"{ct}_fc": "fold-change",
+                f"{ct}_sfc": "specific-fold-change",
+                f"{ct}_auroc": "AUROC",
+            }
+        )
+        for ct in pb_n.obs["cell_type"].unique()
+    ]
+).loc[:, ["group", "fold-change", "specific-fold-change", "AUROC"]].sort_values(
+    "AUROC", ascending=False
+).to_csv(
+    f"{artifact_dir}/neutro_cluster_markers.csv"
+)
+
 # %% [markdown]
-# ## Pathways, TFs, CytoSig
+# # Pairplot of candidate genes
 
 # %%
-res = sh.compare_groups._run_tool(adata_n, sh.compare_groups.TOOLS)
+pb_tan_nan.obs["cell_type_tan_nan_label"] = pd.Categorical(pb_tan_nan.obs["cell_type_tan_nan_label"] , categories=["NAN", "TAN"])
 
 # %%
-results = sh.compare_groups.compare_signatures(
-    "neutrophil_clusters",
-    {tool: {"neutrophils": ad} for tool, ad in res.items()},
-    n_jobs=cpus,
-    pseudobulk_group_by=["patient"],
-    column_to_test="cell_type",
-    contrasts="Sum",
-    lm_covariate_str="+ patient",
+PROPS = {
+    "boxprops": {"facecolor": "none", "edgecolor": "black"},
+    "medianprops": {"color": "black"},
+    "whiskerprops": {"color": "black"},
+    "capprops": {"color": "black"},
+}
+
+genes_of_interest = [
+        "CXCR4",
+        "OLR1",
+        "CD83",
+        "VEGFA",
+        "CXCR1",
+        "CXCR2",
+        "PTGS2",
+        "SELL",
+        "CSF3R",
+    ]
+fig = sh.pairwise.plot_paired(
+    pb_tan_nan,
+    "cell_type_tan_nan_label",
+    paired_by="patient",
+    var_names=genes_of_interest,
+    hue="study",
+    ylabel="log2(CPM+1)",
+    size=6,
+    n_cols=9,
+    panel_size=(1.5,4),
+    show=False,
+    return_fig=True,
+    pvalue_template=lambda x: "FDR<0.01" if x < 0.01 else f"FDR={x:.2f}",
+    adjust_fdr=True,
+    boxplot_properties=PROPS,
 )
-
-# %%
-sh.compare_groups.pl.plot_lm_result_altair(
-    results["progeny"], p_cutoff=1, title="Progeny Neutrophils", cluster=True
-)
-
-# %%
-sh.compare_groups.pl.plot_lm_result_altair(
-    results["dorothea"], title="Dorothea Neutrophils", p_cutoff=0.01, cluster=True
-)
-
-# %%
-sh.compare_groups.pl.plot_lm_result_altair(
-    results["cytosig"], title="Cytosig Neutrophils", p_cutoff=0.01, cluster=True
-)
+for i, ax in enumerate(fig.axes):
+    ax.set_ylim(-0.5, np.max(pb_tan_nan[:, genes_of_interest].X) + 0.5)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+    if i > 0: 
+        ax.yaxis.set_ticklabels([])
+        ax.set_ylabel(None)
 
 # %% [markdown] tags=[]
 # # UMAP and Heatmaps of selected gene sets
@@ -537,142 +643,6 @@ sns.boxplot(
 plt.show()
 
 # %% [markdown]
-# # Cell2Cell communication
-
-# %%
-neutro_clusters = adata_n.obs["cell_type"].unique()
-
-# %%
-ad_cpdb_primary = adata_cpdb[
-    (adata_cpdb.obs["origin"] == "tumor_primary"),
-    (
-        adata_cpdb.var["cluster_2"].isin(neutro_clusters)
-        | adata_cpdb.var["cluster_1"].isin(neutro_clusters)
-    ),
-]
-# keep only interactions that are >0 in at least 5 samples
-ad_cpdb_primary = ad_cpdb_primary[:, np.sum(ad_cpdb_primary.X != 0, axis=0) > 5].copy()
-
-
-# %%
-def cpdb_for_cell_types(adata_cpdb, cell_types, direction="incoming"):
-    """
-    Regroup the CPDB anndata object to consider cell-types as samples (which allows
-    comparisons between cell-types, rather than only patients.
-
-    direction can be `incoming` for signalling towards the selected cell-types, or
-    `outgoing` for signalling originating from the selected cell-types.
-    """
-    cpdb_molten = pd.DataFrame(
-        adata_cpdb.X,
-        index=adata_cpdb.obs_names,
-        columns=adata_cpdb.var_names,
-    ).melt(ignore_index=False)
-
-    tmp_var = (
-        adata_cpdb.var.loc[
-            lambda x: x["cluster_1"].isin(cell_types)
-            != x["cluster_2"].isin(cell_types)  # != is xor
-        ]
-        .assign(
-            ligrec=lambda _: [
-                ("incoming" if x["cluster_2"] in cell_types else "outgoing")
-                for idx, x in _.iterrows()
-            ]
-        )
-        .reset_index()
-        .assign(
-            idx_new=lambda x: [
-                idx.replace("_" + (clus1 if ligrec == "outgoing" else clus2), "")
-                for idx, ligrec, clus1, clus2 in zip(
-                    x["idx"], x["ligrec"], x["cluster_1"], x["cluster_2"]
-                )
-            ]
-        )
-    )
-
-    cpdb_molten2 = (
-        cpdb_molten.reset_index()
-        .set_index("idx")
-        .rename(columns={"index": "patient"})
-        .join(tmp_var.set_index("idx"), how="inner")
-    )
-
-    cpdb_molten_directed = cpdb_molten2.loc[lambda x: x["ligrec"] == direction]
-
-    cluster_to_drop = "cluster_2" if direction == "incoming" else "cluster_1"
-    cluster_to_keep = "cluster_1" if direction == "incoming" else "cluster_2"
-    adata_directed = sc.AnnData(
-        cpdb_molten_directed.reset_index()
-        .assign(
-            sample=lambda x: x["patient"].astype(str)
-            + "_"
-            + x[cluster_to_drop].astype(str),
-        )
-        .pivot(
-            index=["patient", "sample", cluster_to_drop],
-            columns="idx_new",
-            values="value",
-        )
-        .fillna(0)
-    )
-
-    adata_directed.var = adata_directed.var.join(
-        tmp_var.loc[
-            lambda x: x["ligrec"] == direction,
-            ["idx_new", "source", "target", cluster_to_keep],
-        ]
-        .set_index("idx_new")
-        .drop_duplicates(),
-        how="left",
-    )
-    adata_directed.obs = adata_directed.obs.reset_index().rename(
-        columns={cluster_to_drop: "group"}
-    )
-    return adata_directed
-
-
-# %%
-adata_cpdb_neutro_incoming = cpdb_for_cell_types(
-    ad_cpdb_primary, neutro_clusters, "incoming"
-)
-
-# %%
-adata_cpdb_neutro_outgoing = cpdb_for_cell_types(
-    ad_cpdb_primary, neutro_clusters, "outgoing"
-)
-
-# %%
-res_incoming = sh.compare_groups.lm.test_lm(
-    adata_cpdb_neutro_incoming, "~ C(group, Sum) + patient", "group", robust=True
-)
-
-# %%
-res_outgoing = sh.compare_groups.lm.test_lm(
-    adata_cpdb_neutro_outgoing, "~ C(group, Sum) + patient", "group", robust=True
-)
-
-# %%
-res_incoming.loc[lambda x: x["variable"].str.contains("Tumor cells")].pipe(
-    sh.util.fdr_correction
-).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1, title="Tumor cells -> Neutrophils", cluster=True)
-
-# %%
-res_outgoing.loc[lambda x: x["variable"].str.contains("Tumor cells")].pipe(
-    sh.util.fdr_correction
-).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1, title="Neutrophils -> Tumor cells", cluster=True)
-
-# %%
-res_outgoing.loc[lambda x: x["variable"].str.contains("T cell CD8+")].pipe(
-    sh.util.fdr_correction
-).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1, title="Neutrophils -> CD8+ T cells", cluster=True)
-
-# %%
-res_outgoing.loc[lambda x: x["variable"].str.contains("DC mature")].pipe(
-    sh.util.fdr_correction
-).pipe(sh.compare_groups.pl.plot_lm_result_altair, p_cutoff=0.1, title="Neutrophils -> DC mature", cluster=True)
-
-# %% [markdown]
 # # VEGFA sources in NSCLC
 
 # %%
@@ -787,7 +757,7 @@ tmp_df
 tmp_df = (
     pb_primary.var.query("roc_auc >=0.90")
     .query("fold_change >=2")
-    .query("specific_fold_change >= 1")
+    .query("specific_fold_change >= 1.5")
 )
 neutro_sigs["neutro_sig3"] = tmp_df.index.tolist()
 tmp_df
@@ -799,24 +769,27 @@ tmp_df
 
 # %%
 signature_genes_tan_nan = marker_res_tan_nan.loc[
-    lambda x: (x["fdr"] < 0.05) & (abs(x["log2_fc"]) > 1)
+    itertools.chain.from_iterable(markers_tan_nan.values())
 ]
 
 # %% [markdown]
 # ### Only nan genes in specificity-level 1 and 2
 
 # %%
-tmp_df = signature_genes_tan_nan.loc[
-    lambda x: x["variable"].isin(neutro_sigs["neutro_sig"])
-]
-neutro_sigs["nan_sig"] = tmp_df["variable"].tolist()
+tmp_df = signature_genes_tan_nan.loc[lambda x: x.index.isin(neutro_sigs["neutro_sig"])]
+tmp_df
+
+# %%
+tmp_df = signature_genes_tan_nan.loc[lambda x: x.index.isin(neutro_sigs["neutro_sig2"])]
+neutro_sigs["nan_sig"] = tmp_df.loc[lambda x: x["group"] == "NAN"].index.tolist()
+# neutro_sigs["tan_sig"] = tmp_df.loc[lambda x: x["group"] == "TAN"].index.tolist()
 tmp_df
 
 # %%
 tmp_df = signature_genes_tan_nan.loc[
-    lambda x: x["variable"].isin(neutro_sigs["neutro_sig3"]) & (x["group"] == "TAN")
+    lambda x: x.index.isin(neutro_sigs["neutro_sig3"]) & (x["group"] == "TAN")
 ]
-neutro_sigs["tan_sig"] = tmp_df["variable"].tolist()
+neutro_sigs["tan_sig"] = tmp_df.index.tolist()
 tmp_df
 
 # %% [markdown]
@@ -834,14 +807,19 @@ for sig, genes in neutro_sigs.items():
     sc.tl.score_genes(adata_n, genes, score_name=sig)
 
 # %%
-sc.pl.matrixplot(
-    pb_n, var_names=list(neutro_sigs.keys()), cmap="bwr", groupby="cell_type"
-)
+sig_keys = list(neutro_sigs.keys()) + ["tan_nan_sig"]
+
+# %%
+adata_n.obs["tan_nan_sig"] = (adata_n.obs["tan_sig"] + adata_n.obs["nan_sig"]) / 2
+pb_n.obs["tan_nan_sig"] = (pb_n.obs["tan_sig"] + pb_n.obs["nan_sig"]) / 2
+
+# %%
+sc.pl.matrixplot(pb_n, var_names=sig_keys, cmap="bwr", groupby="cell_type")
 
 # %%
 sc.pl.umap(
     adata_n,
-    color=list(neutro_sigs.keys()),
+    color=sig_keys,
     cmap="inferno",
     size=20,
     ncols=3,
@@ -857,9 +835,17 @@ for sig, genes in tqdm(neutro_sigs.items()):
     sc.tl.score_genes(adata, genes, score_name=sig)
 
 # %%
+pb_primary.obs["tan_nan_sig"] = (
+    pb_primary.obs["tan_sig"] + pb_primary.obs["nan_sig"]
+) / 2
+
+# %%
+adata.obs["tan_nan_sig"] = (adata.obs["tan_sig"] + adata.obs["nan_sig"]) / 2
+
+# %%
 sc.pl.matrixplot(
     pb_primary,
-    var_names=list(neutro_sigs.keys()),
+    var_names=list(neutro_sigs.keys()) + ["tan_nan_sig"],
     cmap="bwr",
     groupby="cell_type_major",
 )
@@ -867,7 +853,7 @@ sc.pl.matrixplot(
 # %%
 sc.pl.umap(
     adata,
-    color=list(neutro_sigs.keys()),
+    color=list(neutro_sigs.keys()) + ["tan_nan_sig"],
     cmap="inferno",
     size=1,
     ncols=3,
