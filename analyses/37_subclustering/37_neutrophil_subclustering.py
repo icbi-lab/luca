@@ -187,9 +187,10 @@ ah.annotate_cell_types(
     {
         "NAN-1": [4],  # also in zillionis/klein, S100A12
         "NAN-2": [0],
-        "TAN-3": [1, 5], 
-        "TAN-2": [2],  # antigen presentation; also in zillionis/klein
         "TAN-1": [3], 
+        "TAN-2": [2], 
+        "TAN-3": [1],  
+        "TAN-4": [5], 
     },
 )
 
