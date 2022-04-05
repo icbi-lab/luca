@@ -2,6 +2,11 @@
 Functions to find and test gene signatures.
 
 Inspired by MCPCounter and BioQC.
+
+The original cutoffs used in the MCP counter paper are
+ * fold change >= ``min_fc`` (default=2)
+ * specific fold change >= ``min_sfc`` (default=1.5)
+ * AUC ROC >= ``min_auc`` (default=0.97)
 """
 
 import numpy as np

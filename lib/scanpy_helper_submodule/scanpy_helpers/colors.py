@@ -197,6 +197,19 @@ class COLORS:
         "pDC": "#f6c4e1",
         "transitional club/AT2": "#f79cd4",
     }
+    cell_type_tumor = {
+        "Hemoglobin+": "#1f77b4",
+        "Hepatocytes": "#ff7f0e",
+        "Tumor cells LUAD": "#279e68",
+        "Tumor cells LUAD EMT": "#d62728",
+        "Tumor cells LUAD MSLN": "#aa40fc",
+        "Tumor cells LUAD NE": "#8c564b",
+        "Tumor cells LUAD dedifferentiated": "#e377c2",
+        "Tumor cells LUAD mitotic": "#b5bd61",
+        "Tumor cells LUSC": "#17becf",
+        "Tumor cells LUSC mitotic": "#aec7e8",
+        "transitional club/AT2": "#ffbb78",
+    }
     study = {
         "Adams_Kaminski_2020": "#023fa5",
         "Chen_Zhang_2020": "#7d87b9",

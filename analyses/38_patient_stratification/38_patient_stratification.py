@@ -53,6 +53,7 @@ path_adata = nxfvars.get(
     "adata_in",
     "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
+artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
 # %%
 adata = sc.read_h5ad(path_adata)
@@ -336,153 +337,22 @@ plot_df = plot_df.reset_index()
 # %%
 plot_df
 
-# %%
-plot_df["immune_infiltration"].value_counts()
-
-
-# %%
-def get_row(col, color_scale=None):
-    if color_scale is None:
-        color_scale = col
-    return (
-        alt.Chart(plot_df.assign(ylab=col))
-        .mark_rect()
-        .encode(
-            x=alt.X(
-                "patient:N",
-                axis=alt.Axis(labels=False, ticks=False, title=None),
-                sort=plot_df["patient"].values,
-            ),
-            y=alt.Y("ylab", axis=alt.Axis(title=None)),
-            color=alt.Color(
-                col,
-                scale=sh.colors.altair_scale(color_scale, data=plot_df, data_col=col)
-                if color_scale != "tumor_type"
-                else sh.colors.altair_scale(color_scale),
-                legend=alt.Legend(columns=3),
-            ),
-        )
-        .properties(width=800)
-    )
-
-
-p0 = (
-    alt.vconcat(
-        get_row("tumor_type_annotated", "tumor_type")
-        & get_row("tumor_type_inferred", "tumor_type"),
-        get_row("sex"),
-        get_row("tumor_stage", "tumor_stage_verbose"),
-        # get_row("study"),
-        get_row("platform"),
-        # get_row("infiltration_state"),
-        # get_row("immune_infiltration"),
-        get_row("immune_infiltration"),
-    ).resolve_scale(color="independent")
-    # .resolve_legend("shared")
-    .configure_concat(spacing=0)
-)
-p0
-
-# %%
-tmp_ad = ad_immune[
-    plot_df.loc[plot_df["patient"].isin(ad_immune.obs_names), "patient"], :
-].copy()
-heatmap_df = (
-    pd.DataFrame(tmp_ad.X, columns=tmp_ad.var_names, index=tmp_ad.obs_names)
-    .reindex(plot_df["patient"])
-    .fillna(0)
-    .reset_index()
-    .rename(columns={"index": "patient"})
-    .melt(id_vars="patient")
-)
-p2 = (
-    alt.Chart(heatmap_df)
-    .mark_rect()
-    .encode(
-        x=alt.X(
-            "patient:N",
-            sort=plot_df["patient"].values,
-            axis=alt.Axis(ticks=False, labels=False),
-        ),
-        y=alt.Y(
-            "cell_type_major",
-            sort=[
-                "Tumor cells",
-                "B cell",
-                "Plasma cell",
-                "Mast cell",
-                "Macrophage",
-                "Macrophage FABP4+",
-                "Monocyte",
-                "DC mature",
-                "cDC1",
-                "cDC2",
-                "pDC",
-                "T cell CD4",
-                "T cell CD8",
-                "T cell regulatory",
-                "NK cell",
-            ],
-            axis=alt.Axis(title=None),
-        ),
-        color=alt.Color(
-            "value",
-            scale=sh.colors.altair_scale_mpl("bwr", reverse=False, domain=[-0.5, 0.5]),
-        ),
-    )
-    .properties(width=800, height=200)
-)
-
-# %%
-(p0 & p2).resolve_scale(x="shared")
-
-# %%
-np.random.seed(0)
-plot_df["random_stratum"] = np.array(["desert", "M", "T", "mixed"])[
-    np.random.randint(0, 4, size=plot_df.shape[0])
-]
-
-# %% [markdown]
-# ## groups by histological subtype
-
-# %%
-tumor_type_total = (
-    plot_df.groupby(["tumor_type_annotated"]).size().reset_index(name="total")
-)
-
-# %%
-tmp_df = (
-    plot_df.groupby(["immune_infiltration", "tumor_type_annotated"])
-    .size()
-    .reset_index(name="n")
-    .merge(tumor_type_total)
-    .assign(frac_of_total=lambda x: x["n"] / x["total"])
-)
-
-# %%
-alt.Chart(tmp_df).mark_bar().encode(
-    x=alt.X("immune_infiltration", title=None),
-    y="frac_of_total",
-    color=alt.Color(
-        "immune_infiltration", scale=sh.colors.altair_scale("immune_infiltration")
-    ),
-).facet(column="tumor_type_annotated")
-
-# %%
-alt.Chart(tmp_df).mark_bar().encode(
-    x=alt.X("tumor_type_annotated", title=None),
-    y="n",
-    color=alt.Color("tumor_type_annotated", scale=sh.colors.altair_scale("tumor_type")),
-).facet(column="immune_infiltration")
-
 # %% [markdown]
 # # Write output
 
 # %%
 plot_df.to_csv(
     "{}/patient_stratification.csv".format(
-        nxfvars.get("artifact_dir", "/home/sturm/Downloads")
+        artifact_dir
     )
 )
 
 # %%
+ad_immune.write_h5ad(
+    f"{artifact_dir}/adata_immune.h5ad"
+)
+
+# %%
+ad_tumor_subtypes.write_h5ad(
+    f"{artifact_dir}/adata_tumor_subtypes.h5ad"
+)

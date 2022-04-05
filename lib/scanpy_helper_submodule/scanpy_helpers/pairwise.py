@@ -9,6 +9,7 @@ import numpy as np
 import altair as alt
 from itertools import zip_longest
 from .util import _choose_mtx_rep
+import statsmodels.stats.multitest
 
 
 def plot_paired_fc(
@@ -153,7 +154,9 @@ def plot_paired(
     size=10,
     ylabel="expression",
     pvalues: Sequence[float] = None,
-    pvalue_template="unadj. p={:.2f}, t-test",
+    pvalue_template=lambda x: f"unadj. p={x:.2f}, t-test",
+    adjust_fdr=False,
+    boxplot_properties=None,
 ):
     """
     Pairwise expression plot.
@@ -171,6 +174,8 @@ def plot_paired(
     var_names
         Only plot these variables. Default is to plot all
     """
+    if boxplot_properties is None:
+        boxplot_properties = {}
     groups = adata.obs[groupby].unique()
     if len(groups) != 2:
         raise ValueError(
@@ -242,6 +247,9 @@ def plot_paired(
                 ],
             )
 
+    if adjust_fdr:
+        pvalues = statsmodels.stats.multitest.fdrcorrection(pvalues)[1]
+
     # transform data for seaborn
     df_melt = df.melt(
         id_vars=groupby_cols,
@@ -273,7 +281,7 @@ def plot_paired(
                 ax=ax,
                 hue=hue,
                 size=size,
-                linewidth=2,
+                linewidth=1,
             )
             if paired_by is not None:
                 sns.lineplot(
@@ -283,13 +291,16 @@ def plot_paired(
                     y="val",
                     ax=ax,
                     legend=False,
+                    ci=None,
                 )
             sns.boxplot(
                 x=groupby,
                 data=df_melt.loc[lambda x: x["var"] == var],
                 y="val",
                 ax=ax,
+                color="white",
                 fliersize=0,
+                **boxplot_properties,
             )
 
             ax.set_xlabel("")
@@ -300,7 +311,7 @@ def plot_paired(
             )
             ax.legend().set_visible(False)
             ax.set_ylabel(ylabel)
-            ax.set_title(var + "\n" + pvalue_template.format(pvalues[i]))
+            ax.set_title(var + "\n" + pvalue_template(pvalues[i]))
         else:
             ax.set_visible(False)
     fig.tight_layout()
