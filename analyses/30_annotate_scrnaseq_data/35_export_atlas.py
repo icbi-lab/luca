@@ -168,6 +168,20 @@ for gene in ["EGFR", "TP53", "ALK", "BRAF", "ERBB2", "KRAS", "ROS"]:
     ]
 
 # %%
+# He_Fan has tumor and normal samples switched
+adata.obs["origin"] = [
+    {"tumor_primary": "normal_adjacent", "normal_adjacent": "tumor_primary"}[x]
+    if dataset == "He_Fan_2021_LUAD"
+    else x
+    for x, dataset in zip(adata.obs["origin"], adata.obs["dataset"])
+]
+adata.obs["sample"] = [
+    x.replace("LUAD_N", "LUAD_tmp").replace("LUAD_LUAD", "LUAD_N").replace("LUAD_tmp", "LUAD_LUAD")
+    if dataset == "He_Fan_2021_LUAD"
+    else x
+    for x, dataset in zip(adata.obs["sample"], adata.obs["dataset"])
+]
+
 # aggregate additonal tumor origins from Lambrechts under "tumor_primary". Keep original annotation in separate column
 adata.obs["origin_fine"] = adata.obs["origin"].copy()
 adata.obs.loc[lambda x: x["origin"] == "tumor_middle", "origin"] = "tumor_primary"
@@ -184,7 +198,6 @@ adata.obs.loc[lambda x: x["origin"] == "effusion", "origin"] = "tumor_metastasis
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    adata.obs["origin"].cat.remove_unused_categories(inplace=True)
     adata._sanitize()
 
 # %%
@@ -205,7 +218,8 @@ adata.obs.loc[
 ] = "normal_adjacent"
 # Normal samples from Laughney_Massague should be normal adjacent
 adata.obs.loc[
-    lambda x: x["dataset"].str.contains("Laughney_Massague") & (x["origin"] == "normal"),
+    lambda x: x["dataset"].str.contains("Laughney_Massague")
+    & (x["origin"] == "normal"),
     "origin",
 ] = "normal_adjacent"
 
@@ -324,7 +338,9 @@ cell_type_coarse_map = {
 }
 
 # %%
-adata.obs["cell_type_coarse"] = [cell_type_coarse_map[x] for x in adata.obs["cell_type"]]
+adata.obs["cell_type_coarse"] = [
+    cell_type_coarse_map[x] for x in adata.obs["cell_type"]
+]
 
 # %% [markdown]
 # ### cell_type_major
