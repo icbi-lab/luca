@@ -151,10 +151,14 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
 ```
 
 ```{r, include=FALSE}
-cpdb_luad_lusc = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/luad_lusc_cpdb.tsv")
-cpdb_infiltration = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_cpdb.tsv")
-cpdb_infiltration_treatment_condition = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_treatment_coding_cpdb.tsv")
-cpdb_infiltration_status = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_infiltration_status_cpdb.tsv")
+
+expressed_genes = read_csv("/home/sturm/Downloads/expressed_genes.csv")
+de_tumor_ligands = read_csv("/home/sturm/Downloads/de_tumor_ligands.csv")
+cpdb = read_tsv("../../tables/cellphonedb_2022-04-06.tsv")
+# cpdb_luad_lusc = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/luad_lusc_cpdb.tsv")
+# cpdb_infiltration = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_cpdb.tsv")
+# cpdb_infiltration_treatment_condition = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_treatment_coding_cpdb.tsv")
+# cpdb_infiltration_status = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_infiltration_status_cpdb.tsv")
 ```
 
 ## Explanation of the plots
@@ -169,6 +173,15 @@ cpdb_infiltration_status = read_tsv("../../data/30_downstream_analyses/plots_and
 
 Comparison of LUAD and LUSC samples. Blue = Upregulated in LUAD, Red = upregulated in LUSC
 
+```{r}
+luad_lusc_interactions = de_tumor_ligands |> inner_join(cpdb, by=c("gene_id"="source_genesymbol")) |> inner_join(expressed_genes, by=c("target_genesymbol"="variable")) |> select(source=gene_id, target=target_genesymbol, fraction_expressed, fdr=fdr, log2_fc=log2FoldChange, cluster_2=cell_type_major, pvalue) |> mutate(cluster_1 = "Tumor cells") |> mutate(variable=sprintf("%s_%s_%s_%s", source, target, cluster_1, cluster_2), coef=log2_fc)
+
+
+```
+
+```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
+luad_lusc_interactions |> mutate(group = if_else(log2_fc < 0, "LUSC", "LUAD")) |> ungroup() |> filter(fraction_expressed>0.1) |> filter(cluster_2 %in% immune_cells) |>cpdb_plot(edge_color="log2_fc") 
+```
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
 cpdb_luad_lusc |> mutate(group2 = if_else(log2_fc < 0, "LUSC", "LUAD")) |> group_by(group2) |>

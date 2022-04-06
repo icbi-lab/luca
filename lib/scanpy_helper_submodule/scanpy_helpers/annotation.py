@@ -188,10 +188,14 @@ class AnnotationHelper:
         n_neighbors=10,
         leiden_res=1,
         use_rep="X_scVI",
+        neighbors_kws=None,
     ):
         """Recompute UMAP and leiden on a adata subset when scVI is used (no additional
         batch correction)"""
-        sc.pp.neighbors(adata, use_rep=use_rep, n_neighbors=n_neighbors)
+        neighbors_kws = {} if neighbors_kws is None else neighbors_kws
+        sc.pp.neighbors(
+            adata, use_rep=use_rep, n_neighbors=n_neighbors, **neighbors_kws
+        )
         sc.tl.umap(adata)
         sc.tl.leiden(adata, resolution=leiden_res)
 

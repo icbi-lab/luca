@@ -15,6 +15,7 @@ def plot_lm_result_altair(
     title="heatmap",
     cluster=False,
     value_max=None,
+    configure=lambda x: x.configure_mark(opacity=1),
 ):
     """
     Plot a results data frame of a comparison as a heatmap
@@ -54,7 +55,7 @@ def plot_lm_result_altair(
         value_max = max(
             abs(np.nanmin(df_subset[color])), abs(np.nanmax(df_subset[color]))
         )
-    return (
+    return configure(
         alt.Chart(df_subset, title=title)
         .mark_rect()
         .encode(
@@ -82,4 +83,4 @@ def plot_lm_result_altair(
                 ),
             ),
         )
-    ).configure_mark(opacity=1)
+    )

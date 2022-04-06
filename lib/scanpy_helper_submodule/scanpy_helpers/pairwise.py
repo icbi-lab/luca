@@ -166,7 +166,7 @@ def plot_paired(
     Parameters
     ----------
     adata
-        adata matrix (usually pseudobulk)
+        adata matrix (usually pseudobulk).
     group_by
         Column containing the grouping. Must contain exactely two different values.
     paired_by
