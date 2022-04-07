@@ -73,6 +73,7 @@ patient_strat = pd.read_csv(
     ),
     index_col=0,
 )
+MIN_TUMOR_CELLS = 50
 
 # %%
 adata = sc.read_h5ad(path_adata)
@@ -91,89 +92,87 @@ scevan_res_dirs = list(
 # )
 
 # %%
-for scevan_dir in scevan_res_dirs:
-    patient = str(h5ad_path).split("/")[-1].replace("full_atlas_merged_", "")
-    cnv.io.read_scevan(adatas_cnv[patient], scevan_dir, subclones=False)
+adata.obs["patient_lower"] = adata.obs["patient"].str.lower()
+
+# %%
+adatas_cnv = sh.util.split_anndata(adata, "patient_lower")
+
+# %%
+for scevan_dir in tqdm(scevan_res_dirs):
+    patient = str(scevan_dir).split("/")[-3].replace("full_atlas_merged_", "")
+    try:
+        cnv.io.read_scevan(
+            adatas_cnv[patient],
+            scevan_dir.parent,
+            subclones=False,
+            scevan_res_table=scevan_dir.parent.parent / "scevan_result.csv",
+        )
+    except (ValueError, KeyError) as e:
+        warnings.warn(f"Patient {patient} failed: " + str(e))
 
 
 # %%
 ithgex = {}
 ithcna = {}
-ithcna_scevan = {}
 n_cells = {}
 for patient, tmp_ad in tqdm(adatas_cnv.items()):
-    ithgex[patient] = cnv.tl.ithgex(
-        tmp_ad, groupby="cell_type_major", inplace=False
-    )
+    if "X_scevan" not in tmp_ad.obsm:
+        continue
+
+    tmp_ad = tmp_ad[tmp_ad.obs["origin"] == "tumor_primary", :]
+    ithgex[patient] = cnv.tl.ithgex(tmp_ad, groupby="cell_type_major", inplace=False)
     ithcna[patient] = cnv.tl.ithcna(
-        tmp_ad, groupby="cell_type_major", inplace=False
-    )
-    ithcna_scevan[patient] = cnv.tl.ithcna(
         tmp_ad, groupby="cell_type_major", inplace=False, use_rep="X_scevan"
     )
     n_cells[patient] = tmp_ad.obs["cell_type_major"].value_counts().to_dict()
 
 # %%
 diversity_per_patient = (
-    pd.DataFrame.from_dict(ithgex)
-    .T.reset_index()
-    .melt(id_vars="index", var_name="cell_type_major", value_name="ITHGEX")
-    .merge(
-        pd.DataFrame.from_dict(ithcna)
+    (
+        pd.DataFrame.from_dict(ithgex)
         .T.reset_index()
-        .melt(id_vars="index", var_name="cell_type_major", value_name="ITHCNA"),
-        on=["index", "cell_type_major"],
-        how="outer",
+        .melt(id_vars="index", var_name="cell_type_major", value_name="ITHGEX")
+        .merge(
+            pd.DataFrame.from_dict(ithcna)
+            .T.reset_index()
+            .melt(id_vars="index", var_name="cell_type_major", value_name="ITHCNA"),
+            on=["index", "cell_type_major"],
+            how="outer",
+        )
+        .merge(
+            pd.DataFrame.from_dict(n_cells)
+            .T.reset_index()
+            .melt(
+                id_vars="index", var_name="cell_type_major", value_name="n_tumor_cells"
+            ),
+            on=["index", "cell_type_major"],
+            how="outer",
+        )
     )
-    .merge(
-        pd.DataFrame.from_dict(cnv_scores)
-        .T.reset_index()
-        .melt(id_vars="index", var_name="cell_type_major", value_name="cnv_score"),
-        on=["index", "cell_type_major"],
-        how="outer",
-    )
-    .merge(
-        pd.DataFrame.from_dict(n_tumor_cells)
-        .T.reset_index()
-        .melt(id_vars="index", var_name="cell_type_major", value_name="n_tumor_cells"),
-        on=["index", "cell_type_major"],
-        how="outer",
-    )
+    .loc[lambda x: x["cell_type_major"] == "Tumor cells", :]
+    .set_index("index")
+    .drop(columns="cell_type_major")
 )
 
 # %%
-ith_df = diversity_per_patient.loc[
-    lambda x: x["cell_type_major"] == "Tumor cells", :
-].set_index("index")
+diversity_per_patient
 
 # %%
 patient_strat["patient_lc"] = patient_strat["patient"].str.lower()
 patient_strat.set_index("patient_lc", inplace=True)
 
 # %%
-ith_df.loc[lambda x: x["n_tumor_cells"] >= 100, :]
-
-# %%
 patient_strat2 = patient_strat.join(
-    ith_df.loc[lambda x: x["n_tumor_cells"] >= 50, :], how="inner"
+    ith_df.loc[lambda x: x["n_tumor_cells"] >= MIN_TUMOR_CELLS, :], how="inner"
 )
 patient_strat2["dataset"] = patient_strat2["dataset"].astype(str)
 
 # %%
 # TODO use linear model to check for confounding effects: dataset and number of cells!
-for var in ["ITHCNA", "ITHGEX", "cnv_score"]:
+for var in ["ITHCNA", "ITHGEX"]:
     # for var in ["cnvsum"]:
     print(var)
-    fig, (ax1, ax2, ax3, ax4, ax5) = plt.subplots(1, 5, figsize=(22, 5))
-    sns.swarmplot(x="TMIG", y=var, data=patient_strat2, ax=ax1, hue="dataset")
-    sns.boxplot(x="TMIG", y=var, data=patient_strat2, ax=ax1, width=0.2)
-    ax1.get_legend().remove()
-
-    sns.swarmplot(
-        x="infiltration_state", y=var, data=patient_strat2, ax=ax2, hue="dataset"
-    )
-    sns.boxplot(x="infiltration_state", y=var, data=patient_strat2, ax=ax2, width=0.2)
-    ax2.get_legend().remove()
+    fig, (ax3, ax4, ax5) = plt.subplots(1, 3, figsize=(15, 5))
 
     sns.swarmplot(
         x="tumor_type_annotated", y=var, data=patient_strat2, ax=ax3, hue="dataset"
@@ -194,115 +193,95 @@ for var in ["ITHCNA", "ITHGEX", "cnv_score"]:
 
 # %%
 mod = smf.ols(
-    "ITHCNA ~ C(immune_infiltration) + dataset + n_tumor_cells", data=patient_strat2
+    "ITHCNA ~ C(immune_infiltration) + tumor_stage + dataset + n_tumor_cells",
+    data=patient_strat2,
 )
 mod.fit().summary()
 
 # %%
 mod = smf.ols(
-    "ITHGEX ~ C(immune_infiltration) + dataset + n_tumor_cells", data=patient_strat2
+    "ITHGEX ~ C(immune_infiltration) +  tumor_stage + dataset + n_tumor_cells",
+    data=patient_strat2,
 )
 mod.fit().summary()
-
-# %%
-mod = smf.ols(
-    "cnv_score ~ C(immune_infiltration) + dataset + n_tumor_cells", data=patient_strat2
-)
-mod.fit().summary()
-
-# %%
-mod = smf.ols(
-    "cnv_score ~ C(tumor_type_annotated) + dataset + n_tumor_cells",
-    data=patient_strat2.loc[lambda x: x["tumor_type_annotated"].isin(["LUAD", "LUSC"])],
-)
-mod.fit().summary()
-
 
 # %% [markdown]
 # # Correlation with cell-types
 
 # %%
-def get_cell_type_group(ct):
-    for group, cts in cell_types.items():
-        if ct in cts:
-            return group
-    return "other"
-
-
-# %%
-adata_primary_tumor = adata[
-    (adata.obs["origin"] == "tumor_primary")
-    # exclude datasets that only contain a single cell-type
-    & ~adata.obs["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"]),
-    :,
-]
-
-# %%
-ad_cts = sc.AnnData(
-    X=(
-        adata_primary_tumor.obs.groupby(
-            ["dataset", "patient", "cell_type_major"], observed=True
-        )
-        .size()
-        .reset_index(name="n")
-        .pivot_table(
-            values="n",
-            columns="cell_type_major",
-            index=["dataset", "patient"],
-            fill_value=0,
-        )
-    )
-)
-ad_cts.obs = ad_cts.obs.reset_index().set_index("patient")
-
-# %%
-sc.pp.normalize_total(ad_cts, target_sum=1)
-
-# %%
-sc.pl.matrixplot(
-    ad_cts,
-    var_names=ad_cts.var_names,
-    groupby="patient",
-    dendrogram=False,
-    swap_axes=True,
-    cmap="viridis",
-    # vmin=-0.25,
-    # vmax=0.25
-    # # vmin=0,
-    # vmax=1,
-    standard_scale="var",
+# only on primary tumor samples;
+# exclude datasets with only a single cell-type
+frac_by_condition = (
+    adata.obs.loc[
+        lambda x: (x["origin"] == "tumor_primary")
+        & ~x["dataset"].isin(["Guo_Zhang_2018"])
+    ]
+    .groupby(["patient"], observed=True)
+    .apply(lambda x: x.value_counts("cell_type_major", normalize=True))
+    .reset_index(name="frac_cells")
 )
 
 # %%
-ad_cts.obs["patient"] = ad_cts.obs.index.values
-
-# %%
-ad_cts.obs.index = ad_cts.obs.index.str.lower()
-
-# %%
-ct_df = pd.DataFrame(ad_cts.X, index=ad_cts.obs_names, columns=ad_cts.var_names).join(
-    ad_cts.obs
+# only on primary tumor samples;
+# exclude datasets with only a single cell-type
+cells_per_dataset = (
+    adata.obs.loc[
+        lambda x: (x["origin"] == "tumor_primary")
+        & ~x["dataset"].isin(["Guo_Zhang_2018"])
+    ]
+    .groupby(["dataset"], observed=True)
+    .apply(lambda x: x.value_counts("cell_type_major", normalize=False))
+    .reset_index(name="n_cells")
 )
 
 # %%
-ith_df_subset = ith_df.loc[lambda x: x["n_tumor_cells"] >= 100, :]
+cna_ct_df = patient_strat2.merge(frac_by_condition, on="patient")
 
 # %%
-cna_ct_df = ith_df_subset.join(ct_df, how="inner")
+cells_per_dataset
 
 # %%
-cna_ct_df
-
-# %%
+results = []
 for x in ["ITHCNA", "ITHGEX"]:
-    for y in ["T cell CD8", "Neutrophils", "Macrophage"]:
+    for ct in cna_ct_df["cell_type_major"].unique():
+        tmp_data = cna_ct_df.loc[lambda x: x["cell_type_major"] == ct]
+        # only keep datasets that have at least 100 cells of a type
+        tmp_data = tmp_data.loc[
+            lambda x: x["dataset"].isin(
+                cells_per_dataset.loc[
+                    lambda x: (x["n_cells"] > 50) & (x["cell_type_major"] == ct),
+                    "dataset",
+                ]
+            )
+        ]
         fig, ax = plt.subplots(1, 1)
-        ax = sns.scatterplot(data=cna_ct_df, x=x, y=y, hue="dataset")
+        ax = sns.scatterplot(
+            data=tmp_data,
+            x=x,
+            y="frac_cells",
+            hue="dataset",
+        )
         ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+        ax.set_ylabel(ct)
         plt.show()
-        mod = smf.ols(f"{x} ~ Q('{y}') + dataset", data=cna_ct_df)
-        display(mod.fit().summary())
+        res = smf.rlm(
+            f"{x} ~ frac_cells + dataset + n_tumor_cells", data=tmp_data
+        ).fit()
+        results.append(
+            [
+                x,
+                ct,
+                res.params["Intercept"],
+                res.params["frac_cells"],
+                res.pvalues["frac_cells"],
+            ]
+        )
 
 # %%
+pd.DataFrame.from_records(
+    results, columns=["metric", "cell_type", "intercept", "coef", "pvalue"]
+).pipe(sh.util.fdr_correction).sort_values("fdr").pipe(
+    sh.compare_groups.pl.plot_lm_result_altair, x="cell_type", y="metric"
+)
 
 # %%

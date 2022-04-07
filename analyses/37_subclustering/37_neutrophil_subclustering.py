@@ -66,7 +66,7 @@ adata_n.shape
 
 # %%
 ah.reprocess_adata_subset_scvi(
-    adata_n, use_rep="X_scANVI", leiden_res=0.5
+    adata_n, use_rep="X_scANVI", leiden_res=0.5, n_neighbors=20
 )
 
 # %%

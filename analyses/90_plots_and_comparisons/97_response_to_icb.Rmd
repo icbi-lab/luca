@@ -20,7 +20,6 @@ library(stringr)
 library(immunedeconv)
 conflict_prefer("deconvolute", "immunedeconv")
 library(tibble)
-# library(omnideconv)
 library(ggbeeswarm)
 library(cowplot)
 library(corrplot)
@@ -68,67 +67,10 @@ selected_treatments = tcga_treatment |>
 # Signature scoring
 
 ```{r}
-# # These are genes highly specific for the Neutrophil cluster in primary tumor samples
-# neutro_sig = c('ADGRG3',
-#  'BCL6',
-#  'CMTM2',
-#  'CSF3R',
-#  'CXCR1',
-#  'CXCR2',
-#  'FCGR3B',
-#  'FFAR2',
-#  'HCAR3',
-#  'IFITM2',
-#  'IL1R2',
-#  'IVNS1ABP',
-#  'LITAF',
-#  'MBD6',
-#  'MX2',
-#  'NAMPT',
-#  'NSMAF',
-#  'PROK2',
-#  'R3HDM4',
-#  'RNF149',
-#  'SLC25A37',
-#  'SMCHD1',
-#  'TRIB1',
-#  'TRIM25',
-#  'USP15')
-# 
-# # These genes are a subset of the above. They are fewer, but even more specific. 
-# neutro_sig2 = c('ADGRG3', 'CMTM2', 'CXCR1', 'CXCR2', 'FCGR3B', 'PROK2')
-# 
-# neutro_sig3 = c("CMTM", "PROK2", "ADGRG3")
-# neutro_sig3 = c("FCGR3B")
-# 
 sig_pd1 = c("PDCD1")
-# 
-# # These are genes relatively specific for TANs vs. NANs and all other 
-# # cell-types based on single-cell data from primary tumor and normal adjacent
-# # data
-# tan_sig = c('ADGRG3',
-#  'BCL2A1',
-#  'CLEC4E',
-#  'DDX60L',
-#  'GK',
-#  'HCAR3',
-#  'IER3',
-#  'ITGAX',
-#  'LCP2',
-#  'LILRA2',
-#  'NFKBIZ',
-#  'NSMAF',
-#  'PHACTR1',
-#  'PPIF',
-#  'SLC11A1')
-# 
-# # These are the top genes differentially expressed between TANs and NANs
-# # They are not necessarily specific for the Neutrophil cluster. 
-# tan_sig2 = tan_deseq2 |> filter(log2FoldChange > 2) |> arrange(padj) |> head(20) |> pull(gene_id...2)
 
 neutro_sig_tab = read_csv("../../data/30_downstream_analyses/neutrophils/neutro_sigs.csv")
 neutro_sig = sapply(unique(neutro_sig_tab$signature), function(sig) { neutro_sig_tab |> filter(signature == !!sig) |> pull(gene_symbol)}, USE.NAMES = TRUE, simplify = FALSE)
-
 
 # LCAM signature from the Merad paper
 lcam_tab = read_excel("../../tables/gene_annotations/merad_lcam.xlsx", sheet="LCAM axis", col_names = c("signature", "genes"))
