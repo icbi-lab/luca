@@ -100,6 +100,163 @@ adata.obs.columns
 adata.obs.loc[lambda x: x["origin"].str.contains("tumor")]["patient"].nunique()
 
 # %% [markdown]
+# # Overview bar charts
+
+# %%
+df = (
+    adata.obs.loc[lambda x: x["origin"].str.contains("tumor_primary")]
+    .groupby(["study"])
+    .apply(lambda x: x["patient"].nunique())
+    .reset_index(name="# patients with primary tumor samples")
+    .loc[lambda x: x["# patients with primary tumor samples"] > 0]
+    .sort_values("# patients with primary tumor samples")
+)
+ch = (
+    alt.Chart(df)
+    .mark_bar()
+    .encode(
+        x="# patients with primary tumor samples",
+        y=alt.Y("study", sort="x"),
+        color=alt.Color(
+            "# patients with primary tumor samples",
+            scale=alt.Scale(scheme="viridis"),
+            legend=None,
+        ),
+    )
+)
+ch + (ch).mark_text(align="left", dx=3).encode(
+    text="# patients with primary tumor samples", color=alt.value("black")
+)
+
+# %% [markdown]
+# ## study by cell-type
+
+# %%
+count_by_cell_type = adata.obs.groupby(["study", "cell_type_coarse"]).agg(
+    n_cells=pd.NamedAgg("cell_type_coarse", "count")
+)
+count_by_cell_type["frac_cells"] = adata.obs.groupby("study")[
+    "cell_type_coarse"
+].value_counts(normalize=True)
+count_by_cell_type.reset_index(inplace=True)
+# count_by_cell_type.to_csv(f"{artifact_dir}/cell_type_coarse_per_dataset.tsv", sep="\t")
+
+# %%
+c1 = (
+    alt.Chart(count_by_cell_type)
+    .mark_bar()
+    .encode(
+        x="n_cells",
+        color=alt.Color(
+            "cell_type_coarse", scale=sh.colors.altair_scale("cell_type_coarse")
+        ),
+        y=alt.Y("study", sort="x"),
+    )
+)
+s1 = (
+    alt.Chart(count_by_cell_type)
+    .mark_bar()
+    .encode(
+        x=alt.X("n_cells", scale=alt.Scale(nice=False)),
+        color=alt.Color(
+            "cell_type_coarse", scale=sh.colors.altair_scale("cell_type_coarse")
+        ),
+    )
+)
+c1
+
+
+# %%
+c1.encode(x=alt.X("n_cells", title="n_cells", stack="normalize"), y=alt.Y("study"))
+
+# %%
+data = (
+    adata.obs.groupby(["study", "sample", "origin"], observed=True)
+    .size()
+    .reset_index(name="n_cells")
+)
+c2 = (
+    alt.Chart(data)
+    .mark_bar()
+    .encode(
+        x=alt.X("count(sample)", title="n_samples"),
+        color=alt.Color(
+            "origin",
+            scale=sh.colors.altair_scale("origin", data=data, data_col="origin"),
+        ),
+        y=alt.Y("study", axis=None),
+    )
+)
+s2 = (
+    alt.Chart(data)
+    .mark_bar()
+    .encode(
+        x=alt.X("count(sample)", title="n_samples", scale=alt.Scale(nice=False)),
+        color=alt.Color(
+            "origin",
+            scale=sh.colors.altair_scale("origin", data=data, data_col="origin"),
+        ),
+    )
+)
+
+# %% [markdown]
+# ### By patients
+
+# %%
+data = (
+    adata.obs.groupby(["study", "patient", "condition"], observed=True)
+    .size()
+    .reset_index(name="n_cells")
+)
+c3 = (
+    alt.Chart(data)
+    .mark_bar()
+    .encode(
+        x=alt.X("count(patient)", title="n_patients"),
+        color=alt.Color(
+            "condition",
+            scale=sh.colors.altair_scale("condition", data=data, data_col="condition"),
+        ),
+        y=alt.Y("study", axis=None),
+    )
+)
+s3 = (
+    alt.Chart(data)
+    .mark_bar()
+    .encode(
+        x=alt.X("count(patient)", title="n_patients", scale=alt.Scale(nice=False)),
+        color=alt.Color(
+            "condition",
+            scale=sh.colors.altair_scale("condition", data=data, data_col="condition"),
+        ),
+    )
+)
+
+
+# %%
+(
+    s1.properties(width=200) | s2.properties(width=200) | s3.properties(width=200)
+).resolve_scale(color="independent")
+
+# %%
+(
+    c1.encode(x=alt.X("n_cells", title="n_cells", stack="normalize")).properties(
+        width=200
+    )
+    | c2.encode(x=alt.X("n_cells", title="n_cells", stack="normalize")).properties(
+        width=200
+    )
+    | c3.encode(x=alt.X("n_cells", title="n_cells", stack="normalize")).properties(
+        width=200
+    )
+).resolve_scale(color="independent", y="shared")
+
+# %%
+(
+    c1.properties(width=200) | c2.properties(width=200) | c3.properties(width=200)
+).resolve_scale(color="independent", y="shared")
+
+# %% [markdown]
 # # UMAP plots
 #
 # UMAP overview plots of the "core" atlas (without projected datasets)
@@ -157,7 +314,8 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
 
 # %%
 adata.obs["study_extended"] = adata.obs.loc[
-    lambda x: x["dataset"].str.contains("Leader") | x["dataset"].str.contains("UKIM-V-2"),
+    lambda x: x["dataset"].str.contains("Leader")
+    | x["dataset"].str.contains("UKIM-V-2"),
     "study",
 ].astype(str)
 
@@ -171,7 +329,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         size=1,
         return_fig=True,
         title="",
-        alpha=0.5
+        alpha=0.5,
     )
     fig.savefig(f"{artifact_dir}/umap_extended_atlas_projected_data.pdf")
 
