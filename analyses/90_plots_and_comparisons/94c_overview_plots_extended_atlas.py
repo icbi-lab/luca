@@ -142,9 +142,11 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
     fig = sc.pl.umap(
         adata,
         color="cell_type_major",
+        groups=[x for x in adata.obs["cell_type_major"].unique() if x != "other"],
         legend_loc="on data",
         legend_fontsize=6,
         legend_fontoutline=2,
+        na_in_legend=False,
         frameon=False,
         # add_outline=True,
         # size=1,
@@ -154,18 +156,22 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
     fig.savefig(f"{artifact_dir}/umap_extended_atlas_cell_type_major.pdf")
 
 # %%
+adata.obs["study_extended"] = adata.obs.loc[
+    lambda x: x["dataset"].str.contains("Leader") | x["dataset"].str.contains("UKIM-V-2"),
+    "study",
+].astype(str)
+
+# %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
     fig = sc.pl.umap(
         adata,
-        color="dataset",
-        groups=[
-            x for x in adata.obs["dataset"].unique() if "Leader" in x or x == "UKIM-V-2"
-        ],
+        color="study_extended",
         frameon=False,
         # add_outline=True,
         size=1,
         return_fig=True,
         title="",
+        alpha=0.5
     )
     fig.savefig(f"{artifact_dir}/umap_extended_atlas_projected_data.pdf")
 
@@ -206,7 +212,7 @@ adatas = {
 }
 
 # %%
-# Initialize those with the positions from the core atlas. 
+# Initialize those with the positions from the core atlas.
 adatas["epithelial"] = adata[
     adata.obs["cell_type_coarse"].isin(["Epithelial cell"]), :
 ].copy()
@@ -216,7 +222,9 @@ adatas["tumor"] = adata[adata.obs["cell_type_major"] == "Tumor cells", :].copy()
 sh.colors.set_scale_anndata(adatas["tumor"], "cell_type_tumor")
 
 # %%
-for core_adata, tmp_adata in zip([adata_core_tumor, adata_core_epi], [adatas[x] for x in ["tumor", "epithelial"]]):
+for core_adata, tmp_adata in zip(
+    [adata_core_tumor, adata_core_epi], [adatas[x] for x in ["tumor", "epithelial"]]
+):
     # initalize umap with the original coordinates. Missing values (=query) are initialized with random values.
     init_pos_df = pd.DataFrame(
         core_adata.obsm["X_umap"], index=core_adata.obs_names

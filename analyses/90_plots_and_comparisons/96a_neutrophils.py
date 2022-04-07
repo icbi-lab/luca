@@ -56,11 +56,6 @@ adata = sc.read_h5ad(
 )
 
 # %%
-adata_cpdb = sc.read_h5ad(
-    "../../data/30_downstream_analyses/cell2cell_neutro/cpdb_h5ad/artifacts/adata_cpdb.h5ad"
-)
-
-# %%
 patient_stratification = pd.read_csv(
     "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv"
 )
@@ -469,6 +464,7 @@ genes_of_interest = [
     "PTGS2",
     "SELL",
     "CSF3R",
+    "FCGR3B"
 ]
 fig = sh.pairwise.plot_paired(
     pb_tan_nan,
@@ -478,7 +474,7 @@ fig = sh.pairwise.plot_paired(
     hue="study",
     ylabel="log2(CPM+1)",
     size=6,
-    n_cols=10,
+    n_cols=12,
     panel_size=(1.5, 4),
     show=False,
     return_fig=True,

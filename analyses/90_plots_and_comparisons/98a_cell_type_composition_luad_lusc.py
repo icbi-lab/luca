@@ -33,9 +33,6 @@ import tensorflow as tf
 # %%
 tf.random.set_seed(0)
 
-# %%
-alt.data_transformers.disable_max_rows()
-
 # %% [markdown]
 # # Input data
 
@@ -82,6 +79,9 @@ frac_pivot = frac_by_condition.pivot(
     columns=cell_type_column,
     values="n_cells",
 ).reset_index()
+
+# %%
+frac_pivot
 
 # %%
 data_all = scc_dat.from_pandas(

@@ -17,6 +17,7 @@ import scvelo as scv
 import scanpy as sc
 from multiprocessing import Pool
 import anndata
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib import rcParams
@@ -31,6 +32,7 @@ adata_n = sc.read_h5ad(
     "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad"
 )
 velocyto_dir = nxfvars.get("velocyto_dir", "../../data/11_own_datasets/velocyto/")
+artifact_dir = "../../data/30_downstream_analyses/neutrophils"
 
 # %%
 # !ls ../../data/11_own_datasets/velocyto/
@@ -165,11 +167,16 @@ scv.pl.velocity_embedding_stream(
     legend_loc="right margin",
     ax=ax,
     alpha=0,
-    arrow_size=2
+    arrow_size=2,
 )
+ax.get_figure().savefig(f"{artifact_dir}/umap_scvelo.svg")
 
 # %%
 scv.tl.paga(adata_scvelo, groups="cell_type", minimum_spanning_tree=False)
 
 # %%
-scv.pl.paga(adata_scvelo, layout="fr", figsize=(3, 3), dpi=300, dashed_edges=None)
+fig, ax=plt.subplots(figsize=(3,3), dpi=150)
+scv.pl.paga(adata_scvelo, layout="fr", figsize=(3, 3), dpi=150, dashed_edges=None, init_pos="umap", ax=ax)
+fig.savefig(f"{artifact_dir}/velocyto_paga_graph.pdf")
+
+# %%

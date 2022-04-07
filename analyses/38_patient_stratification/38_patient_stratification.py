@@ -335,6 +335,13 @@ plot_df.index.name = "patient"
 plot_df = plot_df.reset_index()
 
 # %%
+# negative control: random assignment of strata
+np.random.seed(0)
+plot_df["random_stratum"] = np.array(["desert", "M", "T", "mixed"])[
+    np.random.randint(0, 4, size=plot_df.shape[0])
+]
+
+# %%
 plot_df
 
 # %% [markdown]
@@ -356,3 +363,5 @@ ad_immune.write_h5ad(
 ad_tumor_subtypes.write_h5ad(
     f"{artifact_dir}/adata_tumor_subtypes.h5ad"
 )
+
+# %%

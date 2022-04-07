@@ -42,10 +42,14 @@ adata_file = nxfvars.get(
     "adata_in",
     "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
+neutro_clustering = nxfvars.get("neutro_clustering", "../../tables/neutrophil_clustering.csv")
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
 # %%
 adata = sc.read_h5ad(adata_file)
+
+# %%
+neutrophil_clustering = pd.read_csv(neutro_clustering, index_col=0)
 
 # %% [markdown]
 # # Neutrophil subset
@@ -62,12 +66,28 @@ adata_n.shape
 
 # %%
 ah.reprocess_adata_subset_scvi(
-    adata_n, use_rep="X_scANVI", leiden_res=0.5, n_neighbors=20
+    adata_n, use_rep="X_scANVI", leiden_res=0.5
 )
+
+# %%
+# We use a predefined clustering for neutrophils here. 
+# 
+# It was generated using exactly this notebook, but using an earlier version of the atlas. 
+# After fixing an unrelated mistake in the atlas metadata, the scANVI embedding has changed slightly. 
+# While the clustering is qualitativly similar, the clusters don't match 1:1 with the previous version
+# and at this point, we didn't want to change downstream results anymore. 
+adata_n.obs["leiden"] = neutrophil_clustering["leiden"].astype(str)
+adata_n = adata_n[~adata_n.obs["leiden"].isnull(), :].copy()
+
+# %%
+adata_n.shape
 
 # %%
 # flip UMAP y axis to be visually consistent with previous iterations of the dataset
 adata_n.obsm["X_umap"][:, 1] = np.max(adata_n.obsm["X_umap"][:, 1]) - adata_n.obsm["X_umap"][:, 1]
+
+# %%
+sc.pl.umap(adata_n, color="dataset")
 
 # %%
 sc.pl.umap(
@@ -213,6 +233,11 @@ with plt.rc_context({"figure.dpi": 150}):
 adata_n.obs["cell_type_neutro"] = adata_n.obs["cell_type"]
 adata.obs["cell_type_neutro"] = adata.obs["cell_type_major"]
 ah.integrate_back(adata, adata_n, variable="cell_type_neutro")
+# Get rid of the ~10 cells that don't have a neutrophil cluster assigned
+adata = adata[adata.obs["cell_type_neutro"] != "Neutrophils", :]
+
+# %%
+sc.pl.umap(adata, color="cell_type_neutro")
 
 # %%
 adata.obs["cell_type_neutro_coarse"] = adata.obs["cell_type_major"].astype(str)

@@ -1,5 +1,5 @@
 include { JUPYTERNOTEBOOK as COMPARE_GROUPS } from "../modules/local/jupyternotebook/main.nf"
-include { JUPYTERNOTEBOOK as SCCODA } from "../modules/local/jupyternotebook/main.nf"
+include { JUPYTERNOTEBOOK as SCCODA_CONDITION; JUPYTERNOTEBOOK as SCCODA_ORIGIN } from "../modules/local/jupyternotebook/main.nf"
 
 workflow plots_and_comparisons {
     take:
@@ -27,24 +27,31 @@ workflow plots_and_comparisons {
         adata_annotated.mix(patient_stratification).collect()
     )
 
-    ch_sccoda_params = adata_annotated.map{ it -> it.name }.combine([500000]).combine(
-        ["cell_type_major"]
-    ).combine(["Tumor cells", "Stromal"]).map{
-        adata, mcmc, col, ref -> [
-            "cell_type_column": col,
-            "reference_cell_type": ref,
-            "mcmc_iterations": mcmc,
-            "main_adata": adata
-        ]
-    }
-
-    // SCCODA(
-    //     ch_sccoda_params.map{params -> [
-    //         [id: "${params['cell_type_column']}_${params['reference_cell_type']}"],
-    //         file("${baseDir}/analyses/90_plots_and_comparisons/98_cell_type_composition.py")
-    //     ]},
-    //     ch_sccoda_params,
-    //     adata_annotated.collect()
-    // )
+    SCCODA_ORIGIN(
+        [
+            [id: "sccoda_condition"],
+            file("${baseDir}/analyses/90_plots_and_comparisons/98a_cell_type_composition_luad_lusc.py")
+        ],
+        [
+            "cell_type_column": "cell_type_major",
+            "reference_cell_type": "Tumor cells",
+            "mcmc_iterations": 500000,
+            "main_adata": "full_atlas_merged.h5ad"
+        ],
+        adata_annotated.collect()
+    )
+    SCCODA_CONDITION(
+        [
+            [id: "sccoda_origin"],
+            file("${baseDir}/analyses/90_plots_and_comparisons/98b_cell_type_composition_tumor_normal.py")
+        ],
+        [
+            "cell_type_column": "cell_type_major",
+            "reference_cell_type": "Stromal",
+            "mcmc_iterations": 500000,
+            "main_adata": "full_atlas_merged.h5ad"
+        ],
+        adata_annotated.collect()
+    )
 
 }

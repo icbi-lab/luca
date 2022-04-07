@@ -47,8 +47,8 @@ import scanpy_helpers as sh
 plot_df = pd.read_csv(
     "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv"
 )
-ad_immune = sc.read_h5ad("/home/sturm/Downloads/adata_immune.h5ad")
-ad_tumor_subtypes = sc.read_h5ad("/home/sturm/Downloads/adata_tumor_subtypes.h5ad")
+ad_immune = sc.read_h5ad("../../data/30_downstream_analyses/stratify_patients/artifacts/adata_immune.h5ad")
+ad_tumor_subtypes = sc.read_h5ad("../../data/30_downstream_analyses/stratify_patients/artifacts/adata_tumor_subtypes.h5ad")
 
 # %%
 plot_df["immune_infiltration"].value_counts()
@@ -86,7 +86,7 @@ p0 = (
         & get_row("tumor_type_inferred", "tumor_type"),
         get_row("sex"),
         get_row("tumor_stage", "tumor_stage_verbose"),
-        # get_row("study"),
+        get_row("study"),
         get_row("platform"),
         # get_row("infiltration_state"),
         # get_row("immune_infiltration"),
@@ -150,12 +150,6 @@ p2 = (
 # %%
 (p0 & p2).resolve_scale(x="shared")
 
-# %%
-np.random.seed(0)
-plot_df["random_stratum"] = np.array(["desert", "M", "T", "mixed"])[
-    np.random.randint(0, 4, size=plot_df.shape[0])
-]
-
 # %% [markdown]
 # ## groups by histological subtype
 
@@ -205,5 +199,7 @@ smf.glm(
     data=plot_df.loc[lambda x: x["sex"] != "unknown"],
     family=sm.families.Binomial(),
 ).fit().summary()
+
+# %%
 
 # %%
