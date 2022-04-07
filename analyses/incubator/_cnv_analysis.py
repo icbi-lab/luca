@@ -87,15 +87,21 @@ scevan_res_dirs = list(
         "**/output/*CNAmtx.RData"
     )
 )
-# adatas_infercnvpy = list(
-#     Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/*.h5ad")
-# )
+infercnvpy_res_files = list(
+    Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/*.h5ad")
+)
 
 # %%
 adata.obs["patient_lower"] = adata.obs["patient"].str.lower()
 
 # %%
 adatas_cnv = sh.util.split_anndata(adata, "patient_lower")
+
+# %%
+adatas_infercnvpy = {}
+for infercnvpy_path in tqdm(infercnvpy_res_files):
+    patient = str(infercnvpy_path).split("/")[-2].replace("full_atlas_merged_", "")
+    adatas_infercnvpy[patient] = sc.read_h5ad(infercnvpy_path)
 
 # %%
 for scevan_dir in tqdm(scevan_res_dirs):
@@ -110,6 +116,13 @@ for scevan_dir in tqdm(scevan_res_dirs):
     except (ValueError, KeyError) as e:
         warnings.warn(f"Patient {patient} failed: " + str(e))
 
+
+# %%
+ithcna_infercnvpy = {}
+for patient, tmp_ad in tqdm(adatas_infercnvpy.items()):
+    ithcna_infercnvpy[patient] = cnv.tl.ithcna(
+        tmp_ad, groupby="cell_type_major", inplace=False
+    )
 
 # %%
 ithgex = {}
@@ -148,6 +161,15 @@ diversity_per_patient = (
             on=["index", "cell_type_major"],
             how="outer",
         )
+        .merge(
+            pd.DataFrame.from_dict(ithcna_infercnvpy)
+            .T.reset_index()
+            .melt(
+                id_vars="index", var_name="cell_type_major", value_name="ithcna_infercnvpy"
+            ),
+            on=["index", "cell_type_major"],
+            how="outer",
+        )
     )
     .loc[lambda x: x["cell_type_major"] == "Tumor cells", :]
     .set_index("index")
@@ -163,32 +185,45 @@ patient_strat.set_index("patient_lc", inplace=True)
 
 # %%
 patient_strat2 = patient_strat.join(
-    ith_df.loc[lambda x: x["n_tumor_cells"] >= MIN_TUMOR_CELLS, :], how="inner"
+    diversity_per_patient.loc[lambda x: x["n_tumor_cells"] >= MIN_TUMOR_CELLS, :], how="inner"
 )
 patient_strat2["dataset"] = patient_strat2["dataset"].astype(str)
 
 # %%
+ax = sns.scatterplot(x="ITHCNA", y="ithcna_infercnvpy", data=patient_strat2, hue="study")
+ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+
+# %%
+mod = smf.ols(
+    "ITHCNA ~ ithcna_infercnvpy + dataset",
+    data=patient_strat2,
+)
+res = mod.fit()
+res.summary()
+
+# %%
 # TODO use linear model to check for confounding effects: dataset and number of cells!
-for var in ["ITHCNA", "ITHGEX"]:
+for var in ["ITHCNA", "ithcna_infercnvpy", "ITHGEX"]:
     # for var in ["cnvsum"]:
     print(var)
-    fig, (ax3, ax4, ax5) = plt.subplots(1, 3, figsize=(15, 5))
+    fig, (ax3, ax4, ax5) = plt.subplots(1, 3, figsize=(15, 5), gridspec_kw={"wspace": 0.5})
 
     sns.swarmplot(
-        x="tumor_type_annotated", y=var, data=patient_strat2, ax=ax3, hue="dataset"
+        x="tumor_type_annotated", y=var, data=patient_strat2, ax=ax3, hue="study"
     )
     sns.boxplot(x="tumor_type_annotated", y=var, data=patient_strat2, ax=ax3, width=0.2)
     ax3.get_legend().remove()
 
     sns.swarmplot(
-        x="immune_infiltration", y=var, data=patient_strat2, ax=ax4, hue="dataset"
+        x="immune_infiltration", y=var, data=patient_strat2, ax=ax4, hue="study"
     )
     sns.boxplot(x="immune_infiltration", y=var, data=patient_strat2, ax=ax4, width=0.8)
     ax4.get_legend().remove()
 
-    sns.swarmplot(x="tumor_stage", y=var, data=patient_strat2, ax=ax5, hue="dataset")
+    sns.swarmplot(x="tumor_stage", y=var, data=patient_strat2, ax=ax5, hue="study")
     sns.boxplot(x="tumor_stage", y=var, data=patient_strat2, ax=ax5, width=0.8)
-    ax5.get_legend().remove()
+    ax5.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+    # ax5.get_legend().remove()
     plt.show()
 
 # %%
@@ -242,8 +277,8 @@ cells_per_dataset
 
 # %%
 results = []
-for x in ["ITHCNA", "ITHGEX"]:
-    for ct in cna_ct_df["cell_type_major"].unique():
+for x in ["ITHCNA", "ITHGEX", "ithcna_infercnvpy"]:
+    for ct in sorted(cna_ct_df["cell_type_major"].unique()):
         tmp_data = cna_ct_df.loc[lambda x: x["cell_type_major"] == ct]
         # only keep datasets that have at least 100 cells of a type
         tmp_data = tmp_data.loc[
@@ -252,8 +287,8 @@ for x in ["ITHCNA", "ITHGEX"]:
                     lambda x: (x["n_cells"] > 50) & (x["cell_type_major"] == ct),
                     "dataset",
                 ]
-            )
-        ]
+            ), [x, "frac_cells", "dataset", "n_tumor_cells"]
+        ].dropna(how="any")
         fig, ax = plt.subplots(1, 1)
         ax = sns.scatterplot(
             data=tmp_data,
@@ -274,14 +309,21 @@ for x in ["ITHCNA", "ITHGEX"]:
                 res.params["Intercept"],
                 res.params["frac_cells"],
                 res.pvalues["frac_cells"],
+                *scipy.stats.pearsonr(tmp_data[x], tmp_data["frac_cells"])
             ]
         )
 
 # %%
-pd.DataFrame.from_records(
-    results, columns=["metric", "cell_type", "intercept", "coef", "pvalue"]
-).pipe(sh.util.fdr_correction).sort_values("fdr").pipe(
-    sh.compare_groups.pl.plot_lm_result_altair, x="cell_type", y="metric"
+res_df = pd.DataFrame.from_records(
+    results, columns=["metric", "cell_type", "intercept", "coef", "pvalue", "pearson", "pvalue_pearson"]
+).pipe(sh.util.fdr_correction).sort_values("fdr")
+
+# %%
+res_df[:20]
+
+# %%
+res_df.pipe(
+    sh.compare_groups.pl.plot_lm_result_altair, x="cell_type", y="metric", color="pearson", p_cutoff=1, reverse=True
 )
 
 # %%

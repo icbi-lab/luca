@@ -16,6 +16,9 @@ def plot_lm_result_altair(
     cluster=False,
     value_max=None,
     configure=lambda x: x.configure_mark(opacity=1),
+    cmap="redblue",
+    reverse=True,
+    domain=lambda x: [-x, x],
 ):
     """
     Plot a results data frame of a comparison as a heatmap
@@ -63,11 +66,7 @@ def plot_lm_result_altair(
             y=y,
             color=alt.Color(
                 color,
-                scale=alt.Scale(
-                    scheme="redblue",
-                    reverse=True,
-                    domain=[-value_max, value_max],
-                ),
+                scale=alt.Scale(scheme=cmap, reverse=reverse, domain=domain(value_max)),
             ),
         )
         + alt.Chart(df_subset.loc[lambda x: ~x["FDR"].isnull()])
