@@ -131,8 +131,8 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
     geom_node_point(aes(color=cell_type, shape=type), size=8, stroke=2, fill="white") +
     geom_conn_bundle(
       data = get_con(from=from, to=to, coef=conn_meta$coef, log2_fc=conn_meta$log2_fc, pvalue=conn_meta$pvalue, group=conn_meta$group, fdr=conn_meta$fdr),
-      aes_string(color=edge_color, width="abs(coef)"),
-      # aes_string(color=edge_color, width="abs(log10(fdr))"),
+      # aes_string(color=edge_color, width="abs(coef)"),
+      aes_string(color=edge_color, width="abs(log10(fdr))"),
       tension=0.4,
       arrow=arrow()) +
     edge_color_scale +
@@ -180,7 +180,9 @@ luad_lusc_interactions = de_tumor_ligands |> inner_join(cpdb, by=c("gene_id"="so
 ```
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-luad_lusc_interactions |> mutate(group = if_else(log2_fc < 0, "LUSC", "LUAD")) |> ungroup() |> filter(fraction_expressed>0.1) |> filter(cluster_2 %in% immune_cells) |>cpdb_plot(edge_color="log2_fc") 
+luad_lusc_interactions |> mutate(group = if_else(log2_fc < 0, "LUSC", "LUAD")) |> ungroup() |> filter(fraction_expressed>0.1, source %in% de_tumor_ligands$gene_id[1:35]) |> 
+  filter(!source %in% c("COPA", "ADGRE5","LGALS9", "NRG1", "SPP1", "JAG1")) |>
+  filter(cluster_2 %in% immune_cells) |> cpdb_plot(edge_color="log2_fc") 
 ```
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}

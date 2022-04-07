@@ -4,7 +4,6 @@ include { JUPYTERNOTEBOOK as SCCODA } from "../modules/local/jupyternotebook/mai
 workflow plots_and_comparisons {
     take:
     adata_annotated
-    adata_cpdb
     patient_stratification
 
     main:
@@ -21,16 +20,15 @@ workflow plots_and_comparisons {
         ]).map {
             it -> [
                 "comparison": it,
-                "adata_in": "full_atlas_neutrophil_clusters.h5ad",
-                "adata_in_cpdb": "adata_cpdb.h5ad",
+                "adata_in": "full_atlas_merged.h5ad",
                 "stratification_csv": "patient_stratification.csv"
             ]
         },
-        adata_annotated.mix(adata_cpdb, patient_stratification).collect()
+        adata_annotated.mix(patient_stratification).collect()
     )
 
     ch_sccoda_params = adata_annotated.map{ it -> it.name }.combine([500000]).combine(
-        ["cell_type_major", "cell_type_neutro"]
+        ["cell_type_major"]
     ).combine(["Tumor cells", "Stromal"]).map{
         adata, mcmc, col, ref -> [
             "cell_type_column": col,
@@ -40,13 +38,13 @@ workflow plots_and_comparisons {
         ]
     }
 
-    SCCODA(
-        ch_sccoda_params.map{params -> [
-            [id: "${params['cell_type_column']}_${params['reference_cell_type']}"],
-            file("${baseDir}/analyses/90_plots_and_comparisons/98_cell_type_composition.py")
-        ]},
-        ch_sccoda_params,
-        adata_annotated.collect()
-    )
+    // SCCODA(
+    //     ch_sccoda_params.map{params -> [
+    //         [id: "${params['cell_type_column']}_${params['reference_cell_type']}"],
+    //         file("${baseDir}/analyses/90_plots_and_comparisons/98_cell_type_composition.py")
+    //     ]},
+    //     ch_sccoda_params,
+    //     adata_annotated.collect()
+    // )
 
 }

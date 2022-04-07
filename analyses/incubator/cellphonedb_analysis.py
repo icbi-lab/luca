@@ -99,12 +99,22 @@ pb_fracs = sh.pseudobulk.pseudobulk(
     groupby=["dataset", "patient", "cell_type_major"],
     aggr_fun=lambda x, axis: np.sum(x > 0, axis) / x.shape[axis],
 )
-
-# %%
 fractions_expressed = sh.pseudobulk.pseudobulk(
     pb_fracs, groupby="cell_type_major", aggr_fun=np.mean
 )
 fractions_expressed.obs.set_index("cell_type_major", inplace=True)
+
+# %%
+pb = sh.pseudobulk.pseudobulk(
+    adata_primary_tumor,
+    groupby=["dataset", "patient", "cell_type_major"],
+)
+sc.pp.normalize_total(pb, target_sum=1e6)
+sc.pp.log1p(pb)
+pb_mean_cell_type = sh.pseudobulk.pseudobulk(
+    pb, groupby="cell_type_major", aggr_fun=np.mean
+)
+pb_mean_cell_type.obs.set_index("cell_type_major", inplace=True)
 
 # %%
 expressed_genes = (
@@ -112,39 +122,13 @@ expressed_genes = (
     .melt(ignore_index=False, value_name="fraction_expressed")
     .loc[lambda x: x["fraction_expressed"] >= 0.1]
     .reset_index()
-)
-
-# %%
-heatmap_df = (
-    expressed_genes.merge(
-        significant_interactions.loc[:, ["source_genesymbol", "target_genesymbol"]],
-        left_on="variable",
-        right_on="target_genesymbol",
-    )
-    .drop(columns=["variable"])
-    .groupby(["cell_type_major", "source_genesymbol"])
-    .agg(
-        n=("target_genesymbol", len),
-        max_frac_expressed=("fraction_expressed", np.max),
-    )
-).reset_index()
-
-# %%
-p1 = (
-    de_res_tumor_cells.loc[
-        lambda x: x["gene_id"].isin(significant_interactions["source_genesymbol"])
-        & x["gene_id"].isin(heatmap_df["source_genesymbol"])
-    ]
-    .assign(log2FoldChange=lambda x: np.clip(x["log2FoldChange"], -5, 5))
-    .pipe(
-        sh.compare_groups.pl.plot_lm_result_altair,
-        title="Differential genes (tumor cells)",
-        color="log2FoldChange",
-        x="gene_id",
-        configure=lambda x: x,
+    .merge(
+        pb_mean_cell_type.to_df()
+        .melt(ignore_index=False, value_name="expr_mean")
+        .reset_index(),
+        on=["cell_type_major", "variable"],
     )
 )
-p1
 
 # %%
 immune_cells = [
@@ -166,6 +150,42 @@ immune_cells = [
 ]
 
 # %%
+heatmap_df = (
+    expressed_genes.merge(
+        significant_interactions.loc[:, ["source_genesymbol", "target_genesymbol"]],
+        left_on="variable",
+        right_on="target_genesymbol",
+    )
+    .drop(columns=["variable"])
+    .groupby(["cell_type_major", "source_genesymbol"])
+    .agg(
+        n=("target_genesymbol", len),
+        max_frac_expressed=("fraction_expressed", np.max),
+        max_mean=("expr_mean", np.max)
+    )
+).reset_index().loc[lambda x: x["cell_type_major"].isin(immune_cells)]
+
+# %%
+p1 = (
+    de_res_tumor_cells.loc[
+        lambda x: x["gene_id"].isin(significant_interactions["source_genesymbol"])
+        & x["gene_id"].isin(heatmap_df["source_genesymbol"])
+    ]
+    .assign(log2FoldChange=lambda x: np.clip(x["log2FoldChange"], -5, 5))
+    .pipe(
+        sh.compare_groups.pl.plot_lm_result_altair,
+        title="Differential genes (tumor cells)",
+        color="log2FoldChange",
+        x="gene_id",
+        cluster=True,
+        configure=lambda x: x,
+    )
+)
+p1
+
+# %%
+
+# %%
 (
     p1
     & alt.Chart(heatmap_df.loc[lambda x: x["cell_type_major"].isin(immune_cells)])
@@ -174,15 +194,16 @@ immune_cells = [
         x=alt.X(
             "source_genesymbol",
             axis=alt.Axis(grid=True),
+            sort=p1._kwds["layer"][0]._kwds['encoding']['x']['sort']
             # scale=alt.Scale(
             #     domain=np.unique(significant_interactions["source_genesymbol"].values)
             # ),
         ),
         y=alt.Y("cell_type_major", axis=alt.Axis(grid=True)),
-        size=alt.Size("n:N", scale=alt.Scale(domain=[1, 2], range=[80, 140])),
-        color=alt.Color("max_frac_expressed", scale=alt.Scale(scheme="cividis")),
+        size=alt.Size("max_frac_expressed"),
+        color=alt.Color("max_mean", scale=alt.Scale(scheme="cividis")),
     )
-).resolve_scale(size="independent", color="independent", x="shared").configure_mark(
+).resolve_scale(size="independent", color="independent", x="independent").configure_mark(
     opacity=1
 )
 

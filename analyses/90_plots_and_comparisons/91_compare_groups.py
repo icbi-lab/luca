@@ -35,11 +35,7 @@ sc.settings.set_figure_params(figsize=(5, 5))
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 adata_in = nxfvars.get(
     "adata_in",
-    "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
-)
-adata_in_cpdb = nxfvars.get(
-    "adata_in_cpdb",
-    "../../data/30_downstream_analyses/cell2cell_major/cpdb_h5ad/artifacts/adata_cpdb.h5ad",
+    "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 stratification_csv = nxfvars.get(
     "stratification_csv",
@@ -54,9 +50,6 @@ patient_strat = pd.read_csv(stratification_csv, index_col=0)
 
 # %%
 adata = sc.read_h5ad(adata_in)
-
-# %%
-adata_cpdb = sc.read_h5ad(adata_in_cpdb)
 
 # %%
 sc.pl.umap(adata, color=["cell_type_major"], wspace=1)
@@ -91,6 +84,9 @@ adata_primary_tumor = adata[
 ]
 
 # %%
+patient_strat
+
+# %%
 adata_primary_tumor.obs = (
     adata_primary_tumor.obs.reset_index()
     .merge(
@@ -121,7 +117,6 @@ adata_primary_tumor.obs["infiltration_status"] = [
 comparisons = {
     # "tumor_normal": {
     #     "dataset": adata_tumor_normal,
-    #     "dataset_cpdb": adata_cpdb,
     #     "cell_type_column": "cell_type_major",
     #     "pseudobulk_group_by": ["dataset", "patient"],
     #     "column_to_test": "origin",
@@ -133,7 +128,6 @@ comparisons = {
         "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LUSC"]), :
         ],
-        "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient", "condition", "tumor_stage"],
         "column_to_test": "infiltration_status",
@@ -145,7 +139,6 @@ comparisons = {
         "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LUSC"]), :
         ],
-        "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient", "condition", "tumor_stage"],
         "column_to_test": "immune_infiltration",
@@ -157,7 +150,6 @@ comparisons = {
         "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LUSC"]), :
         ],
-        "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient", "condition", "tumor_stage"],
         "column_to_test": "immune_infiltration",
@@ -169,7 +161,6 @@ comparisons = {
         "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LUSC"]), :
         ],
-        "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient", "condition", "tumor_stage"],
         "column_to_test": "random_stratum",
@@ -181,7 +172,6 @@ comparisons = {
         "dataset": adata_primary_tumor[
             adata_primary_tumor.obs["condition"].isin(["LUAD", "LUSC"]), :
         ],
-        "dataset_cpdb": adata_cpdb,
         "cell_type_column": "cell_type_major",
         "pseudobulk_group_by": ["dataset", "patient", "tumor_stage"],
         "column_to_test": "condition",
@@ -217,12 +207,6 @@ results = compare_groups.compare_signatures(
 )
 
 # %%
-if "dataset_cpdb" in comparison_config:
-    results["cpdb"] = compare_groups.compare_cpdb(
-        comparison, n_jobs=cpus, **comparison_config
-    )
-
-# %%
 for tool, results in results.items():
     results.to_csv(f"{artifact_dir}/{comparison}_{tool}.tsv", sep="\t")
 
@@ -233,3 +217,5 @@ for tool, adatas in datasets.items():
     for ct, ad in adatas.items():
         ct = re.sub("[^a-z0-9_-]", "_", ct.lower())
         ad.write_h5ad(f"{outdir}/{ct}.h5ad")
+
+# %%
