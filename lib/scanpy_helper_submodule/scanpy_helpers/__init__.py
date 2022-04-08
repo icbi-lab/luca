@@ -12,3 +12,4 @@ from . import colors
 from . import annotation
 from . import deconvolution
 from . import signatures
+from . import cell2cell
