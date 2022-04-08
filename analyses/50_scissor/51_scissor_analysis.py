@@ -49,7 +49,7 @@ ah = AnnotationHelper()
 # %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
+    "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 
 # %%
@@ -63,9 +63,6 @@ adata = sc.read_h5ad(path_adata)
 
 # %%
 sc.pl.umap(adata, color=["cell_type_coarse", "origin"], wspace=0.8)
-
-# %%
-sc.pl.umap(adata, color=["cell_type_neutro", "cell_type_neutro_coarse"], wspace=0.8)
 
 # %% [markdown]
 # # Overview clinical data
@@ -357,35 +354,3 @@ scissor_dfs = {
 # %%
 for col, df in scissor_dfs.items():
     plot_scissor_df_ratio(df, title=col).display()
-
-# %%
-scissor_dfs = {
-    k: scissor_by_group(
-        adata_primary,
-        scissor_col=k,
-        groupby=["cell_type_neutro_coarse", "patient"],
-        cell_cutoff=1,
-    )
-    for k in scissor_cols
-}
-
-# %%
-for col, df in scissor_dfs.items():
-    plot_scissor_df_ratio(df, title=col, groupby="cell_type_neutro_coarse").display()
-
-# %%
-scissor_dfs = {
-    k: scissor_by_group(
-        adata_primary,
-        scissor_col=k,
-        groupby=["cell_type_neutro", "patient"],
-        cell_cutoff=1,
-    )
-    for k in scissor_cols
-}
-
-# %%
-for col, df in scissor_dfs.items():
-    plot_scissor_df_ratio(df, title=col, groupby="cell_type_neutro").display()
-
-# %%

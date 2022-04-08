@@ -225,9 +225,12 @@ g.set_xticklabels(rotation=90)
 g.set_titles("Neutrophils")
 g.add_legend()
 
-
 # %% [markdown]
 # # scCODA
+
+# %%
+1
+
 
 # %%
 def run_sccoda(sccoda_data, reference_cell_type, n):
@@ -246,6 +249,7 @@ cell_type_count_pivot = (
     .pivot(index=["patient", "origin"], columns="cell_type", values="n")
     .fillna(0)
     .reset_index()
+    .drop(columns=["other", "Tumor cells"])
 )
 
 # %%

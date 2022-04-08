@@ -37,7 +37,7 @@ workflow downstream_analyses {
 
     de_analysis(final_atlas, STRATIFY_PATIENTS.out.artifacts)
 
-    scissor(final_atlas)
+    // scissor(final_atlas)
     infercnv(final_atlas)
     plots_and_comparisons(final_atlas, STRATIFY_PATIENTS.out.artifacts)
 }

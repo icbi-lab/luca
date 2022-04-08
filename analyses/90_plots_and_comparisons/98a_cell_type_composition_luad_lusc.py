@@ -37,14 +37,14 @@ tf.random.set_seed(0)
 # # Input data
 
 # %%
-sc.set_figure_params(figsize=(5, 5)) 
+sc.set_figure_params(figsize=(5, 5))
 
 # %%
 cell_type_column = nxfvars.get("cell_type_column", "cell_type_major")
 reference_cell_type = nxfvars.get("reference_cell_type", "Tumor cells")
 # Using 500k MCMC iterations. With fewer (tested up to 100k) the results differed
 # due to limited random sampling.
-mcmc_iterations = nxfvars.get("mcmc_iterations", 10000)
+mcmc_iterations = nxfvars.get("mcmc_iterations", 200000)
 main_adata_file = nxfvars.get(
     "main_adata",
     "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
@@ -74,11 +74,15 @@ frac_by_condition = (
 )
 
 # %%
-frac_pivot = frac_by_condition.pivot(
-    index=["patient", "dataset", "condition", "tumor_stage"],
-    columns=cell_type_column,
-    values="n_cells",
-).reset_index()
+frac_pivot = (
+    frac_by_condition.pivot(
+        index=["patient", "dataset", "condition", "tumor_stage"],
+        columns=cell_type_column,
+        values="n_cells",
+    )
+    .reset_index()
+    .drop(columns="other")
+)
 
 # %%
 frac_pivot
@@ -89,7 +93,9 @@ data_all = scc_dat.from_pandas(
 )
 
 # %%
-data_all.obs["condition"] = pd.Categorical(data_all.obs["condition"], categories=["LUSC", "LUAD"])
+data_all.obs["condition"] = pd.Categorical(
+    data_all.obs["condition"], categories=["LUSC", "LUAD"]
+)
 
 # %%
 data_all._sanitize()
@@ -122,12 +128,8 @@ res_tumor_ref2 = run_sccoda(data_all, reference_cell_type, mcmc_iterations)
 res_tumor_ref2.set_fdr(0.1)
 
 # %%
-credible_effects_condition = res_tumor_ref2.credible_effects()[
-    "condition[T.LUAD]"
-]
-credible_effects_stage = res_tumor_ref2.credible_effects()[
-    "tumor_stage[T.advanced]"
-]
+credible_effects_condition = res_tumor_ref2.credible_effects()["condition[T.LUAD]"]
+credible_effects_stage = res_tumor_ref2.credible_effects()["tumor_stage[T.advanced]"]
 
 # %%
 (

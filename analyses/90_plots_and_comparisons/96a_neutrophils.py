@@ -189,6 +189,9 @@ dataset_fracs = (
 )
 
 # %%
+patient_fracs.loc[lambda x: x["fraction"] > 0, "patient"].nunique()
+
+# %%
 alt.Chart(dataset_fracs).mark_bar().encode(x="fraction", y="cell_type", color="dataset")
 
 # %%
@@ -203,6 +206,9 @@ alt.Chart(patient_fracs).mark_bar().encode(
 patients_with_neutros = (
     adata_n.obs.groupby("patient").size().loc[lambda x: x > 10].index
 )
+
+# %%
+patients_with_neutros.nunique()
 
 # %%
 frac_by_patient = (

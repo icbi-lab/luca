@@ -366,6 +366,7 @@ adatas = {
         "structural": adata.obs["cell_type_coarse"].isin(
             ["Endothelial cell", "Stromal"]
         ),
+        "UKIM-V": adata.obs["study"] == "UKIM-V"
     }.items()
 }
 
@@ -397,6 +398,25 @@ for core_adata, tmp_adata in zip(
 
 # %% [markdown]
 # # Visualize subsets
+
+# %%
+adatas["UKIM-V"].obs["cell_type_coarse"].value_counts()
+
+# %%
+with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
+    fig = sc.pl.umap(
+        adatas["UKIM-V"],
+        color="cell_type_coarse",
+        legend_loc="on data",
+        legend_fontsize=8,
+        legend_fontoutline=2,
+        frameon=False,
+        # add_outline=True,
+        size=2,
+        return_fig=True,
+        title="",
+    )
+    fig.savefig(f"{artifact_dir}/umap_ukim-v.pdf")
 
 # %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
