@@ -76,7 +76,12 @@ immune_cells = c(
 
 
 ```{r, include=FALSE}
-cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge_color_gradientn(colors=pals::coolwarm(100), limits=c(-1,1) * max(abs(conn_meta[[edge_color]])))) {
+cpdb_plot = function(
+  cpdb_res,
+  edge_color="log2_fc",
+  edge_color_scale=scale_edge_color_gradientn(colors=pals::coolwarm(100), limits=c(-1,1) * max(abs(conn_meta[[edge_color]]))),
+  cell_type_color_scale=zeileis_28
+) {
   # make edges df
   edges = cpdb_res |>
     mutate( from=sprintf("%s_%s_ligand", cluster_1, source), to=sprintf("%s_%s_receptor", cluster_2, target)) |>
@@ -88,15 +93,15 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
   # make nodes df
   nodes_source = cpdb_res |>
     select(cell_type=cluster_1, gene=source) |>
-    mutate(type="ligand") |>
+    mutate(type="ligand", fraction_expressed=0.5) |>
     mutate(name=sprintf("%s_%s_%s", cell_type, gene, type))
   nodes_target = cpdb_res |>
-    select(cell_type=cluster_2, gene=target) |>
+    select(cell_type=cluster_2, gene=target, fraction_expressed) |>
     mutate(type="receptor") |>
     mutate(name=sprintf("%s_%s_%s", cell_type, gene, type))
   nodes = bind_rows(nodes_source, nodes_target) |>
     distinct() |>
-    select(name, cell_type, gene, type) |>
+    select(name, cell_type, gene, type, fraction_expressed) |>
     filter(name %in% edges$to | name %in% edges$from)
 
   cell_types = unique(c(cpdb_res$cluster_1, cpdb_res$cluster_2))
@@ -116,7 +121,7 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
       n2 = n - 1 - n1
       x$cell_type_label = c(rep(NA, n1), key$cell_type, rep(NA, n2))
       x
-    }) |> ungroup() |> select(name, cell_type, gene, type, cell_type_label)
+    }) |> ungroup() |> select(name, cell_type, gene, type, cell_type_label, fraction_expressed)
   G_ct =graph_from_data_frame(edges_ct_hierarchy, directed=TRUE, vertices=nodes_ct_hierarchy)
 
 
@@ -125,10 +130,10 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
   to = match(edges$to, nodes_ct_hierarchy$name)
   conn_meta = data.frame(from=nodes_ct_hierarchy[from,]$name, to=nodes_ct_hierarchy[to,]$name) |>
     left_join(edges, by=c("from", "to"))
-
+  
   # plot using ggraph
   p = ggraph(G_ct, layout="dendrogram", circular=TRUE) +
-    geom_node_point(aes(color=cell_type, shape=type), size=8, stroke=2, fill="white") +
+    geom_node_point(aes(color=cell_type, shape=type, size=fraction_expressed), stroke=2, fill="white") +
     geom_conn_bundle(
       data = get_con(from=from, to=to, coef=conn_meta$coef, log2_fc=conn_meta$log2_fc, pvalue=conn_meta$pvalue, group=conn_meta$group, fdr=conn_meta$fdr),
       # aes_string(color=edge_color, width="abs(coef)"),
@@ -136,29 +141,23 @@ cpdb_plot = function(cpdb_res, edge_color="log2_fc", edge_color_scale=scale_edge
       tension=0.4,
       arrow=arrow()) +
     edge_color_scale +
-    scale_edge_width_continuous(range=c(1,5)) +
+    scale_edge_width_continuous(range=c(1,3)) +
     theme_void() +
     geom_text_repel(aes(x=x, y=y, label=gene), size=5 ) +
     geom_label_repel(aes(x=x, y=y, nudge_x=1.3*x, nudge_y=1.3*y, label=cell_type_label), xlim=c(-2, 2), size=8, force=3, alpha=.8) +
     coord_fixed(clip="off") +
-    scale_shape_manual(values=c("receptor"=23, "ligand"=19))  +
-    scale_color_manual(values=zeileis_28)   +
+    scale_shape_manual(values=c("receptor"=19, "ligand"=21))  +
+    scale_color_manual(values=cell_type_color_scale)   +
+    scale_size_continuous(range=c(2, 14)) + 
     theme(legend.position="top")
   p
 }
 
-# ggsave("cell2cell.pdf")
 ```
 
 ```{r, include=FALSE}
-
-expressed_genes = read_csv("/home/sturm/Downloads/expressed_genes.csv")
-de_tumor_ligands = read_csv("/home/sturm/Downloads/de_tumor_ligands.csv")
-cpdb = read_tsv("../../tables/cellphonedb_2022-04-06.tsv")
-# cpdb_luad_lusc = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/luad_lusc_cpdb.tsv")
-# cpdb_infiltration = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_cpdb.tsv")
-# cpdb_infiltration_treatment_condition = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_immune_infiltration_treatment_coding_cpdb.tsv")
-# cpdb_infiltration_status = read_tsv("../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/patient_infiltration_status_cpdb.tsv")
+cpdb_res_luad_lusc = read_csv("/home/sturm/Downloads/cpdb_luad_lusc.csv")
+cpdb_res_luad_lusc_coarse = read_csv("/home/sturm/Downloads/cpdb_luad_lusc_coarse.csv")
 ```
 
 ## Explanation of the plots
@@ -174,38 +173,39 @@ cpdb = read_tsv("../../tables/cellphonedb_2022-04-06.tsv")
 Comparison of LUAD and LUSC samples. Blue = Upregulated in LUAD, Red = upregulated in LUSC
 
 ```{r}
-luad_lusc_interactions = de_tumor_ligands |> inner_join(cpdb, by=c("gene_id"="source_genesymbol")) |> inner_join(expressed_genes, by=c("target_genesymbol"="variable")) |> select(source=gene_id, target=target_genesymbol, fraction_expressed, fdr=fdr, log2_fc=log2FoldChange, cluster_2=cell_type_major, pvalue) |> mutate(cluster_1 = "Tumor cells") |> mutate(variable=sprintf("%s_%s_%s_%s", source, target, cluster_1, cluster_2), coef=log2_fc)
 
+luad_lusc_interactions = cpdb_res_luad_lusc |> 
+  select(source=source_genesymbol, target=target_genesymbol, fraction_expressed, fdr=fdr, log2_fc=log2FoldChange, cluster_2=cell_type_major, pvalue) |> 
+  mutate(group = if_else(log2_fc < 0, "LUSC", "LUAD")) |> 
+  mutate(cluster_1 = "Tumor cells") |> 
+  mutate(variable=sprintf("%s_%s_%s_%s", source, target, cluster_1, cluster_2), coef=log2_fc) |>
+  filter(cluster_2 %in% c(immune_cells))
 
+top_genes = luad_lusc_interactions |> select(source, fdr) |> distinct() |> arrange(fdr) |> pull(source) |> head(10)
 ```
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-luad_lusc_interactions |> mutate(group = if_else(log2_fc < 0, "LUSC", "LUAD")) |> ungroup() |> filter(fraction_expressed>0.1, source %in% de_tumor_ligands$gene_id[1:35]) |> 
-  filter(!source %in% c("COPA", "ADGRE5","LGALS9", "NRG1", "SPP1", "JAG1")) |>
-  filter(cluster_2 %in% immune_cells) |> cpdb_plot(edge_color="log2_fc") 
+luad_lusc_interactions  |> filter(source %in% top_genes) |> cpdb_plot(edge_color="log2_fc", cell_type_color_scale = COLORS$cell_type_major) 
+```
+
+
+
+```{r}
+
+luad_lusc_interactions_coarse = cpdb_res_luad_lusc_coarse |> 
+  select(source=source_genesymbol, target=target_genesymbol, fraction_expressed, fdr=fdr, log2_fc=log2FoldChange, cluster_2=cell_type_coarse, pvalue) |> 
+  mutate(group = if_else(log2_fc < 0, "LUSC", "LUAD")) |> 
+  mutate(cluster_1 = "Tumor cells") |> 
+  mutate(variable=sprintf("%s_%s_%s_%s", source, target, cluster_1, cluster_2), coef=log2_fc) |>
+  filter(cluster_2 %in% c(immune_cells))
+
+top_genes = luad_lusc_interactions_coarse |> select(source, fdr) |> distinct() |> arrange(fdr) |> pull(source) |> head(15)
 ```
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lusc |> mutate(group2 = if_else(log2_fc < 0, "LUSC", "LUAD")) |> group_by(group2) |>
-  mutate(coef = sign(coef) * pmin(abs(coef), 0.5)) |> 
-  filter(row_number() < 30, fdr < 0.1) |> ungroup() |> cpdb_plot(edge_color="coef")
+luad_lusc_interactions_coarse  |> filter(source %in% top_genes) |> cpdb_plot(edge_color="log2_fc", cell_type_color_scale = COLORS$cell_type_coarse) 
 ```
 
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_luad_lusc |> mutate(group2 = if_else(log2_fc < 0, "LUSC", "LUAD")) |> 
-  filter(cluster_1 == "Tumor cells", cluster_2 %in% immune_cells) |> mutate(fdr = p.adjust(pvalue, method="fdr")) |> group_by(group2) |>
-  mutate(coef = sign(coef) * pmin(abs(coef), 0.3)) |> 
-  filter(row_number() < 25, fdr < 0.1) |> ungroup() |> cpdb_plot(edge_color="coef")
-```
 
-### Infiltration status
 
-Comparison of "infiltration status", i.e. immune desert vs. infiltrated (all three groups).
-Blue = interaction increased in desert, Red = interaction increased in infiltration.
-```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-cpdb_infiltration_status |> mutate(group2 = if_else(coef < 0, "desert", "infiltrated")) |> 
-  filter(cluster_1 == "Tumor cells", cluster_2 %in% immune_cells) |> mutate(fdr = p.adjust(pvalue, method="fdr")) |> group_by(group2) |> head(50) |> 
-  mutate(coef = sign(coef) * pmin(abs(coef), 0.3)) |> 
-  # filter(row_number() < 25, fdr < 0.1) |> ungroup() |>
-  cpdb_plot(edge_color="coef")
-```
+

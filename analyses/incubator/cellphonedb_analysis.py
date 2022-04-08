@@ -87,6 +87,14 @@ cpdba = sh.cell2cell.CpdbAnalysis(
     cell_type_column="cell_type_major",
 )
 
+# %%
+cpdba_coarse = sh.cell2cell.CpdbAnalysis(
+    cpdb,
+    adata_primary_tumor,
+    pseudobulk_group_by=["patient"],
+    cell_type_column="cell_type_coarse",
+)
+
 # %% [markdown] tags=[]
 # # LUAD vs LUSC
 
@@ -102,6 +110,10 @@ de_res_tumor_cells_luad_lusc = (
     .rename(columns={"gene_id.1": "gene_id"})
     .assign(group="LUSC")
 )
+
+# %%
+cpdb_res = cpdba_coarse.significant_interactions(de_res_tumor_cells_luad_lusc, max_pvalue=0.1)
+cpdb_res.to_csv(f"{artifact_dir}/cpdb_luad_lusc_coarse.csv")
 
 # %%
 cpdb_res = cpdba.significant_interactions(de_res_tumor_cells_luad_lusc, max_pvalue=0.1)
