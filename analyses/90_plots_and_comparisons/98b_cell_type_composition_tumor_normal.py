@@ -249,7 +249,7 @@ cell_type_count_pivot = (
     .pivot(index=["patient", "origin"], columns="cell_type", values="n")
     .fillna(0)
     .reset_index()
-    .drop(columns=["other", "Tumor cells"])
+    .drop(columns=["other"])
 )
 
 # %%

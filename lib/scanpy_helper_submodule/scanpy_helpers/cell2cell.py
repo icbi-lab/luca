@@ -9,6 +9,7 @@ import numpy as np
 import scanpy as sc
 import altair as alt
 from .compare_groups.pl import plot_lm_result_altair
+from .util import fdr_correction
 
 
 class CpdbAnalysis:
@@ -79,9 +80,12 @@ class CpdbAnalysis:
         self,
         de_res: pd.DataFrame,
         *,
-        pvalue_col="fdr",
+        pvalue_col="pvalue",
+        fc_col="log2FoldChange",
         gene_symbol_col="gene_id",
         max_pvalue=0.1,
+        min_abs_fc=1,
+        adjust_fdr=True,
         min_frac_expressed=0.1,
         de_genes_mode: Literal["ligand", "receptor"] = "ligand",
     ) -> pd.DataFrame:
@@ -105,12 +109,30 @@ class CpdbAnalysis:
             If the list of de genes provided are ligands (default) or receptors. In case of `ligand`, cell-types
             that express corresonding receptors above the threshold will be identified. In case of `receptor`,
             cell-types that express corresponding ligands above the threshold will be identified.
-        compact
-            if True, only display the most relevant columns
+        adjust_fdr
+            If True, calculate false discovery rate on the pvalue, after filtering for genes that are contained
+            in the cellphonedb.
         """
-        significant_genes = de_res.loc[lambda x: x[pvalue_col] < max_pvalue, gene_symbol_col].unique()  # type: ignore
+        if de_genes_mode == "ligand":
+            cpdb_de_col = "source_genesymbol"
+            cpdb_expr_col = "target_genesymbol"
+        elif de_genes_mode == "receptor":
+            cpdb_de_col = "target_genesymbol"
+            cpdb_expr_col = "source_genesymbol"
+        else:
+            raise ValueError("Invalud value for de_genes_mode!")
+
+        de_res = de_res.loc[lambda x: x[gene_symbol_col].isin(self.cpdb[cpdb_de_col])]
+        if adjust_fdr:
+            de_res = fdr_correction(de_res, pvalue_col=pvalue_col, key_added="fdr")
+            pvalue_col = "fdr"
+
+        significant_genes = de_res.loc[
+            lambda x: (x[pvalue_col] < max_pvalue) & (np.abs(x[fc_col]) >= min_abs_fc),
+            gene_symbol_col,
+        ].unique()  # type: ignore
         significant_interactions = self.cpdb.loc[
-            lambda x: x["source_genesymbol"].isin(significant_genes)
+            lambda x: x[cpdb_de_col].isin(significant_genes)
         ]
 
         res_df = (
@@ -120,10 +142,10 @@ class CpdbAnalysis:
             .merge(
                 significant_interactions,
                 left_on="variable",
-                right_on="target_genesymbol",
+                right_on=cpdb_expr_col,
             )
             .drop(columns=["variable"])
-            .merge(de_res, left_on="source_genesymbol", right_on=gene_symbol_col)
+            .merge(de_res, left_on=cpdb_de_col, right_on=gene_symbol_col)
             .drop(columns=[gene_symbol_col])
         )
 
@@ -141,7 +163,33 @@ class CpdbAnalysis:
         clip_fc_at=(-5, 5),
         label_limit=100,
         cluster: Literal["heatmap", "dotplot"] = "dotplot",
+        de_genes_mode: Literal["ligand", "receptor"] = "ligand",
     ):
+        """
+        Plot cpdb results as heatmap
+
+        Parameters
+        ----------
+        cpdb_res
+            result of `significant_interactions`. May be further filtered or modified.
+        group_col
+            column to be used for the y axis of the heatmap
+        aggregate
+            whether to merge multiple targets of the same ligand into a single column
+        de_genes_mode
+            If the list of de genes provided are ligands (default) or receptors. If receptor, will show the dotplot
+            at the top (source are expressed ligands) and the de heatmap at the bottom (target are the DE receptors).
+            Otherwise the other way round.
+        """
+        if de_genes_mode == "ligand":
+            cpdb_de_col = "source_genesymbol"
+            cpdb_expr_col = "target_genesymbol"
+        elif de_genes_mode == "receptor":
+            cpdb_de_col = "target_genesymbol"
+            cpdb_expr_col = "source_genesymbol"
+        else:
+            raise ValueError("Invalud value for de_genes_mode!")
+
         cpdb_res[fc_col] = np.clip(cpdb_res[fc_col], *clip_fc_at)
 
         # aggregate if there are multiple receptors per ligand
@@ -150,34 +198,33 @@ class CpdbAnalysis:
                 cpdb_res.groupby(
                     [
                         self.cell_type_column,
-                        "source_genesymbol",
+                        cpdb_de_col,
                         fc_col,
                         pvalue_col,
                         group_col,
                     ]
                 )
                 .agg(
-                    n=("target_genesymbol", len),
+                    n=(cpdb_expr_col, len),
                     fraction_expressed=("fraction_expressed", np.max),
                     expr_mean=("expr_mean", np.max),
                 )
                 .reset_index()
                 .merge(
-                    cpdb_res.groupby("source_genesymbol").agg(
-                        target_genesymbol=(
-                            "target_genesymbol",
-                            lambda x: "|".join(np.unique(x)),
-                        )
+                    cpdb_res.groupby(cpdb_de_col).agg(
+                        **{
+                            cpdb_expr_col: (
+                                cpdb_expr_col,
+                                lambda x: "|".join(np.unique(x)),
+                            )
+                        }
                     ),
-                    on="source_genesymbol",
+                    on=cpdb_de_col,
                 )
             )
 
         cpdb_res["interaction"] = [
-            f"{s}_{t}"
-            for s, t in zip(
-                cpdb_res["source_genesymbol"], cpdb_res["target_genesymbol"]
-            )
+            f"{s}_{t}" for s, t in zip(cpdb_res[cpdb_de_col], cpdb_res[cpdb_expr_col])
         ]
 
         # cluster heatmap
@@ -211,12 +258,15 @@ class CpdbAnalysis:
             p_col=pvalue_col,
             x="interaction",
             configure=lambda x: x,
-            title=title,
+            title="",
             order=order,
         ).encode(
             x=alt.X(
                 title=None,
-                axis=alt.Axis(labelExpr="split(datum.label, '_')[0]"),
+                axis=alt.Axis(
+                    labelExpr="split(datum.label, '_')[0]",
+                    orient="top" if de_genes_mode == "receptor" else "bottom",
+                ),
             )
         )
 
@@ -228,21 +278,24 @@ class CpdbAnalysis:
                     "interaction",
                     axis=alt.Axis(
                         grid=True,
-                        orient="top",
+                        orient="bottom" if de_genes_mode == "receptor" else "top",
                         title=None,
                         labelExpr="split(datum.label, '_')[1]",
                         labelLimit=label_limit,
                     ),
                     sort=order,
                 ),
-                y=alt.Y(self.cell_type_column, axis=alt.Axis(grid=True)),
+                y=alt.Y(self.cell_type_column, axis=alt.Axis(grid=True), title=None),
                 size=alt.Size("fraction_expressed"),
                 color=alt.Color("expr_mean", scale=alt.Scale(scheme="cividis")),
             )
         )
 
+        if de_genes_mode == "receptor":
+            p1, p2 = p2, p1
+
         return (
-            (p1 & p2)
+            alt.vconcat(p1, p2, title=title)
             .resolve_scale(size="independent", color="independent", x="independent")
             .configure_mark(opacity=1)
             .configure_concat(spacing=label_limit - 130)

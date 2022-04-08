@@ -27,7 +27,7 @@ workflow plots_and_comparisons {
         adata_annotated.mix(patient_stratification).collect()
     )
 
-    SCCODA_ORIGIN(
+    SCCODA_CONDITION(
         [
             [id: "sccoda_condition"],
             file("${baseDir}/analyses/90_plots_and_comparisons/98a_cell_type_composition_luad_lusc.py")
@@ -40,17 +40,17 @@ workflow plots_and_comparisons {
         ],
         adata_annotated.collect()
     )
-    SCCODA_CONDITION(
+    SCCODA_ORIGIN(
         [
             [id: "sccoda_origin"],
             file("${baseDir}/analyses/90_plots_and_comparisons/98b_cell_type_composition_tumor_normal.py")
         ],
-        [
+        Channel.from(["T cell CD8", "Tumor cells", "Mast cell"]).map{it -> [
             "cell_type_column": "cell_type_major",
-            "reference_cell_type": "Stromal",
+            "reference_cell_type": it,
             "mcmc_iterations": 500000,
             "main_adata": "full_atlas_merged.h5ad"
-        ],
+        ]},
         adata_annotated.collect()
     )
 
