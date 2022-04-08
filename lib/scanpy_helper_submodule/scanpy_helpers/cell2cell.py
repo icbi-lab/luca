@@ -7,6 +7,8 @@ import pandas as pd
 from .pseudobulk import pseudobulk
 import numpy as np
 import scanpy as sc
+import altair as alt
+from .compare_groups.pl import plot_lm_result_altair
 
 
 class CpdbAnalysis:
@@ -78,12 +80,10 @@ class CpdbAnalysis:
         de_res: pd.DataFrame,
         *,
         pvalue_col="fdr",
-        log_fc_col="log2FoldChange",
         gene_symbol_col="gene_id",
         max_pvalue=0.1,
         min_frac_expressed=0.1,
         de_genes_mode: Literal["ligand", "receptor"] = "ligand",
-        compact=True
     ) -> pd.DataFrame:
         """
         Generates a data frame of differentiall cellphonedb interactions.
@@ -127,16 +127,123 @@ class CpdbAnalysis:
             .drop(columns=[gene_symbol_col])
         )
 
-        if compact:
-            return res_df.loc[
-                :,
-                [
-                    self.cell_type_column,
-                    "fraction_expressed",
-                    "expr_mean",
-                    "source_genesymbol",
-                    "target_genesymbol",
-                    pvalue_col,
-                    log_fc_col,
-                ],
+        return res_df
+
+    def plot_result(
+        self,
+        cpdb_res,
+        *,
+        pvalue_col="fdr",
+        group_col="group",
+        fc_col="log2FoldChange",
+        title="CPDB analysis",
+        aggregate=True,
+        clip_fc_at=(-5, 5),
+        label_limit=100,
+        cluster: Literal["heatmap", "dotplot"] = "dotplot",
+    ):
+        cpdb_res[fc_col] = np.clip(cpdb_res[fc_col], *clip_fc_at)
+
+        # aggregate if there are multiple receptors per ligand
+        if aggregate:
+            cpdb_res = (
+                cpdb_res.groupby(
+                    [
+                        self.cell_type_column,
+                        "source_genesymbol",
+                        fc_col,
+                        pvalue_col,
+                        group_col,
+                    ]
+                )
+                .agg(
+                    n=("target_genesymbol", len),
+                    fraction_expressed=("fraction_expressed", np.max),
+                    expr_mean=("expr_mean", np.max),
+                )
+                .reset_index()
+                .merge(
+                    cpdb_res.groupby("source_genesymbol").agg(
+                        target_genesymbol=(
+                            "target_genesymbol",
+                            lambda x: "|".join(np.unique(x)),
+                        )
+                    ),
+                    on="source_genesymbol",
+                )
+            )
+
+        cpdb_res["interaction"] = [
+            f"{s}_{t}"
+            for s, t in zip(
+                cpdb_res["source_genesymbol"], cpdb_res["target_genesymbol"]
+            )
+        ]
+
+        # cluster heatmap
+        if cluster is not None:
+            from scipy.cluster.hierarchy import linkage, leaves_list
+
+            _idx = self.cell_type_column if cluster == "dotplot" else group_col
+            _values = "fraction_expressed" if cluster == "dotplot" else fc_col
+            _columns = "interaction"
+            values_df = (
+                cpdb_res.loc[:, [_idx, _values, _columns]]
+                .drop_duplicates()
+                .pivot(
+                    index=_idx,
+                    columns=_columns,
+                    values=_values,
+                )
+                .fillna(0)
+            )
+            order = values_df.columns.values[
+                leaves_list(
+                    linkage(values_df.values.T, method="average", metric="euclidean")
+                )
             ]
+        else:
+            order = "ascending"
+
+        p1 = plot_lm_result_altair(
+            cpdb_res,
+            color=fc_col,
+            p_col=pvalue_col,
+            x="interaction",
+            configure=lambda x: x,
+            title=title,
+            order=order,
+        ).encode(
+            x=alt.X(
+                title=None,
+                axis=alt.Axis(labelExpr="split(datum.label, '_')[0]"),
+            )
+        )
+
+        p2 = (
+            alt.Chart(cpdb_res)
+            .mark_circle()
+            .encode(
+                x=alt.X(
+                    "interaction",
+                    axis=alt.Axis(
+                        grid=True,
+                        orient="top",
+                        title=None,
+                        labelExpr="split(datum.label, '_')[1]",
+                        labelLimit=label_limit,
+                    ),
+                    sort=order,
+                ),
+                y=alt.Y(self.cell_type_column, axis=alt.Axis(grid=True)),
+                size=alt.Size("fraction_expressed"),
+                color=alt.Color("expr_mean", scale=alt.Scale(scheme="cividis")),
+            )
+        )
+
+        return (
+            (p1 & p2)
+            .resolve_scale(size="independent", color="independent", x="independent")
+            .configure_mark(opacity=1)
+            .configure_concat(spacing=label_limit - 130)
+        )

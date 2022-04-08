@@ -34,6 +34,7 @@ import progeny
 import dorothea
 import scipy.stats
 from threadpoolctl import threadpool_limits
+import warnings
 
 # %%
 path_adata = nxfvars.get(
@@ -48,86 +49,9 @@ adata = sc.read_h5ad(path_adata)
 adata_primary_tumor = adata[(adata.obs["origin"] == "tumor_primary")].copy()
 
 # %%
-# de_res_tumor_cells = (
-#     pd.concat(
-#         [
-#             pd.read_csv(
-#                 f"../../data/30_downstream_analyses/de_analysis/{k}_desert/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
-#                 sep="\t",
-#             ).assign(group=k.upper())
-#             for k in "tmb"
-#         ]
-#     )
-#     .fillna(1)
-#     .pipe(sh.util.fdr_correction)
-#     .drop("gene_id", axis="columns")
-#     .rename(columns={"gene_id.1": "gene_id"})
-# )
-
-# %%
-de_res_tumor_cells = (
-    pd.read_csv(
-        "../../data/30_downstream_analyses/de_analysis/luad_lusc/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
-        sep="\t",
-    )
-    .fillna(1)
-    .pipe(sh.util.fdr_correction)
-    .drop("gene_id", axis="columns")
-    .rename(columns={"gene_id.1": "gene_id"})
-    .assign(group="LUSC")
-)
-
-# %%
-cpdb = pd.read_csv("../../tables/cellphonedb_2022-04-06.tsv", sep="\t")
-
-# %%
-cpdb
-
-# %%
-significant_genes = de_res_tumor_cells.loc[
-    lambda x: x["fdr"] < 0.001, "gene_id"
-].unique()
-
-# %%
-significant_interactions = cpdb.loc[
-    lambda x: x["source_genesymbol"].isin(significant_genes)
-]
-
-# %%
-pb_fracs = sh.pseudobulk.pseudobulk(
-    adata_primary_tumor,
-    groupby=["dataset", "patient", "cell_type_major"],
-    aggr_fun=lambda x, axis: np.sum(x > 0, axis) / x.shape[axis],
-)
-fractions_expressed = sh.pseudobulk.pseudobulk(
-    pb_fracs, groupby="cell_type_major", aggr_fun=np.mean
-)
-fractions_expressed.obs.set_index("cell_type_major", inplace=True)
-
-# %%
-pb = sh.pseudobulk.pseudobulk(
-    adata_primary_tumor,
-    groupby=["dataset", "patient", "cell_type_major"],
-)
-sc.pp.normalize_total(pb, target_sum=1e6)
-sc.pp.log1p(pb)
-pb_mean_cell_type = sh.pseudobulk.pseudobulk(
-    pb, groupby="cell_type_major", aggr_fun=np.mean
-)
-pb_mean_cell_type.obs.set_index("cell_type_major", inplace=True)
-
-# %%
-expressed_genes = (
-    fractions_expressed.to_df()
-    .melt(ignore_index=False, value_name="fraction_expressed")
-    .loc[lambda x: x["fraction_expressed"] >= 0.1]
-    .reset_index()
-    .merge(
-        pb_mean_cell_type.to_df()
-        .melt(ignore_index=False, value_name="expr_mean")
-        .reset_index(),
-        on=["cell_type_major", "variable"],
-    )
+adata_n = sc.read_h5ad(
+    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad"
+    # "/home/sturm/Downloads/adata_neutrophil_clusters.h5ad"
 )
 
 # %%
@@ -149,71 +73,99 @@ immune_cells = [
     "T cell regulatory",
 ]
 
-# %%
-heatmap_df = (
-    expressed_genes.merge(
-        significant_interactions.loc[:, ["source_genesymbol", "target_genesymbol"]],
-        left_on="variable",
-        right_on="target_genesymbol",
-    )
-    .drop(columns=["variable"])
-    .groupby(["cell_type_major", "source_genesymbol"])
-    .agg(
-        n=("target_genesymbol", len),
-        max_frac_expressed=("fraction_expressed", np.max),
-        max_mean=("expr_mean", np.max)
-    )
-).reset_index().loc[lambda x: x["cell_type_major"].isin(immune_cells)]
+# %% [markdown]
+# ## Neutrophils
 
 # %%
-p1 = (
-    de_res_tumor_cells.loc[
-        lambda x: x["gene_id"].isin(significant_interactions["source_genesymbol"])
-        & x["gene_id"].isin(heatmap_df["source_genesymbol"])
-    ]
-    .assign(log2FoldChange=lambda x: np.clip(x["log2FoldChange"], -5, 5))
-    .pipe(
-        sh.compare_groups.pl.plot_lm_result_altair,
-        title="Differential genes (tumor cells)",
-        color="log2FoldChange",
-        x="gene_id",
-        cluster=True,
-        configure=lambda x: x,
-    )
-)
-p1
-
-# %%
-
-# %%
-(
-    p1
-    & alt.Chart(heatmap_df.loc[lambda x: x["cell_type_major"].isin(immune_cells)])
-    .mark_circle()
-    .encode(
-        x=alt.X(
-            "source_genesymbol",
-            axis=alt.Axis(grid=True),
-            sort=p1._kwds["layer"][0]._kwds['encoding']['x']['sort']
-            # scale=alt.Scale(
-            #     domain=np.unique(significant_interactions["source_genesymbol"].values)
-            # ),
-        ),
-        y=alt.Y("cell_type_major", axis=alt.Axis(grid=True)),
-        size=alt.Size("max_frac_expressed"),
-        color=alt.Color("max_mean", scale=alt.Scale(scheme="cividis")),
-    )
-).resolve_scale(size="independent", color="independent", x="independent").configure_mark(
-    opacity=1
+pb_adata = sh.pseudobulk.pseudobulk(
+    adata_n, groupby=["dataset", "patient", "cell_type"]
 )
 
 # %%
-heatmap_df
+sc.pp.normalize_total(pb_adata, target_sum=1e6)
+sc.pp.log1p(pb_adata)
+
+# %%
+with warnings.catch_warnings():
+    warnings.filterwarnings("ignore")
+    de_genes = sh.compare_groups.lm.test_lm(
+        pb_adata, "~ C(cell_type, Sum) + patient", groupby="cell_type", n_jobs=16
+    )
+
+# %%
+# de_res_tumor_cells = (
+#     pd.concat(
+#         [
+#             pd.read_csv(
+#                 f"../../data/30_downstream_analyses/de_analysis/{k}_desert/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
+#                 sep="\t",
+#             ).assign(group=k.upper())
+#             for k in "tmb"
+#         ]
+#     )
+#     .fillna(1)
+#     .pipe(sh.util.fdr_correction)
+#     .drop("gene_id", axis="columns")
+#     .rename(columns={"gene_id.1": "gene_id"})
+# )
+
+# %% [markdown]
+# ## LUAD vs LUSC
+
+# %%
+cpdb = pd.read_csv("../../tables/cellphonedb_2022-04-06.tsv", sep="\t")
+
+# %%
+cpdba = sh.cell2cell.CpdbAnalysis(
+    cpdb,
+    adata_primary_tumor,
+    pseudobulk_group_by=["patient"],
+    cell_type_column="cell_type_major",
+)
+
+# %%
+de_res_tumor_cells = (
+    pd.read_csv(
+        "../../data/30_downstream_analyses/de_analysis/luad_lusc/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
+        sep="\t",
+    )
+    .fillna(1)
+    .pipe(sh.util.fdr_correction)
+    .drop("gene_id", axis="columns")
+    .rename(columns={"gene_id.1": "gene_id"})
+    .assign(group="LUSC")
+)
+
+# %%
+cpdb_res = cpdba.significant_interactions(de_res_tumor_cells, max_pvalue=0.1)
+
+# %%
+cpdb_res
+
+# %%
+top_genes = (
+    cpdb_res.loc[:, ["source_genesymbol", "fdr"]]
+    .drop_duplicates()
+    .sort_values("fdr")["source_genesymbol"][:30]
+    .tolist()
+)
+
+# %%
+cpdba.plot_result(
+    cpdb_res.loc[
+        lambda x: x["cell_type_major"].isin(immune_cells)
+        & x["source_genesymbol"].isin(top_genes)
+    ],
+    title="LUAD vs LUSC: tumor cells",
+    aggregate=False,
+    cluster="heatmap",
+)
+
+# %% [markdown]
+# ---
 
 # %%
 expressed_genes.to_csv("/home/sturm/Downloads/expressed_genes.csv")
-
-# %%
 de_res_tumor_cells.loc[
     lambda x: x["gene_id"].isin(significant_interactions["source_genesymbol"])
 ].assign(log2FoldChange=lambda x: np.clip(x["log2FoldChange"], -5, 5)).to_csv(

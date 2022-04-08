@@ -19,6 +19,7 @@ def plot_lm_result_altair(
     cmap="redblue",
     reverse=True,
     domain=lambda x: [-x, x],
+    order=None,
 ):
     """
     Plot a results data frame of a comparison as a heatmap
@@ -31,16 +32,17 @@ def plot_lm_result_altair(
         print("No values to plot")
         return
 
-    order = "ascending"
-    if cluster:
-        from scipy.cluster.hierarchy import linkage, leaves_list
+    if order is None:
+        order = "ascending"
+        if cluster:
+            from scipy.cluster.hierarchy import linkage, leaves_list
 
-        values_df = df_subset.pivot(index=y, columns=x, values=color)
-        order = values_df.columns.values[
-            leaves_list(
-                linkage(values_df.values.T, method="average", metric="euclidean")
-            )
-        ]
+            values_df = df_subset.pivot(index=y, columns=x, values=color)
+            order = values_df.columns.values[
+                leaves_list(
+                    linkage(values_df.values.T, method="average", metric="euclidean")
+                )
+            ]
 
     def _get_significance(fdr):
         if fdr < 0.001:
