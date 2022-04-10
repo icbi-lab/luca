@@ -327,7 +327,7 @@ ici_clin_and_scores |> select(type, starts_with("sig_")) |>
 ## Survival analysis
 
 ```{r, fig.width=6, fig.height=6}
-lapply(c("all", "LUSC", "LUAD"), function(type) {
+coxph_results = lapply(c("all", "LUSC", "LUAD"), function(type) {
   filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
   type_covar = ifelse(type == "all", "+ type ", "")
   coxph_res = lapply(colnames(select(chemo_data, starts_with("sig_"), starts_with("ct_"))), function(col) {
@@ -335,7 +335,8 @@ lapply(c("all", "LUSC", "LUAD"), function(type) {
      res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col, type=type)
   }) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> arrange(-coef) |> mutate(var=factor(var, levels=unique(var)))
   
-  coxph_res |> ggplot(aes(x=var, y=coef)) + geom_bar(aes(fill=sig_code), stat="identity") + scale_fill_brewer(palette= "Blues", direction=-1)  + theme_cowplot()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_hline(yintercept = 0, color="black") + facet_wrap(~type, ncol=1)
+  print(coxph_res |> ggplot(aes(x=var, y=coef)) + geom_bar(aes(fill=sig_code), stat="identity") + scale_fill_brewer(palette= "Blues", direction=-1)  + theme_cowplot()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_hline(yintercept = 0, color="black") + facet_wrap(~type, ncol=1))
+  coxph_res
 })
 ```
 

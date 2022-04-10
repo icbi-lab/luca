@@ -278,3 +278,29 @@ for title, tmp_adata in {
     ).display()
 
 # %%
+for title, tmp_adata in {
+    "counts per platform": adata,
+    "counts per platform (Epithelial cells)": adata[
+        adata.obs["cell_type_coarse"] == "Epithelial cell", :
+    ],
+}.items():
+    counts_per_platform = (
+        tmp_adata.obs.groupby(["sample", "platform_fine"], observed=True)
+        .agg(total_counts=("total_counts", "median"))
+        .reset_index()
+    )
+    order = (
+        counts_per_platform.groupby("platform_fine")
+        .median()
+        .sort_values("total_counts")
+        .index.tolist()
+    )
+    alt.Chart(counts_per_platform, title=title).mark_boxplot().encode(
+        x=alt.X("platform_fine", sort=order[::-1]),
+        y=alt.Y("total_counts", scale=alt.Scale(type="log")),
+        color=alt.Color(
+            "platform_fine",
+            # scale=sh.colors.altair_scale("platform"),
+            legend=None,
+        ),
+    ).display()

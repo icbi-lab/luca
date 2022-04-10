@@ -45,7 +45,7 @@ workflow plots_and_comparisons {
             [id: "sccoda_origin"],
             file("${baseDir}/analyses/90_plots_and_comparisons/98b_cell_type_composition_tumor_normal.py")
         ],
-        Channel.from(["T cell CD8", "Tumor cells", "Mast cell"]).map{it -> [
+        Channel.from(["T cell CD8", "Tumor cells", "Mast cell", "automatic", "Macrophage"]).map{it -> [
             "cell_type_column": "cell_type_major",
             "reference_cell_type": it,
             "mcmc_iterations": 500000,

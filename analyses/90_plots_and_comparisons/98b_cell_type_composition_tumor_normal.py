@@ -98,7 +98,7 @@ keep = (
 # %%
 plot_cell_type_fracs = (
     cell_type_fracs.merge(keep, how="inner")
-    .loc[lambda x: x["cell_type"] != "other"]
+    .loc[lambda x: ~x["cell_type"].isin(["other", "Tumor cells"])]
     .assign(
         cell_type=lambda x: x["cell_type"]
         .str.replace("Alveolar cell type ", "AT")
@@ -161,6 +161,9 @@ for ax, ct, fdr in zip(g.axes.flatten(), pvalue_df["cell_type"], pvalue_df["fdr"
     fdr_str = "FDR<0.01" if fdr < 0.01 else f"FDR={fdr:.2f}"
     ax.set_title(f"{ct}\n{fdr_str}")
 g.add_legend()
+
+# %%
+plot_cell_type_fracs
 
 # %%
 PROPS = {

@@ -366,7 +366,7 @@ adatas = {
         "structural": adata.obs["cell_type_coarse"].isin(
             ["Endothelial cell", "Stromal"]
         ),
-        "UKIM-V": adata.obs["study"] == "UKIM-V"
+        "UKIM-V": adata.obs["study"] == "UKIM-V",
     }.items()
 }
 
@@ -417,6 +417,31 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         title="",
     )
     fig.savefig(f"{artifact_dir}/umap_ukim-v.pdf")
+
+# %%
+print(
+    adatas["UKIM-V"]
+    .obs.groupby("patient")
+    .agg(
+        median_n_counts=("total_counts", np.median),
+        mean_n_counts=("total_counts", np.mean),
+    )
+    .to_string()
+)
+
+# %%
+print(
+    adatas["UKIM-V"][(adatas["UKIM-V"].obs["cell_type_coarse"] == "Epithelial cell") & (adatas["UKIM-V"].obs["origin"] == "normal_adjacent"), :]
+    .obs.groupby("patient")
+    .agg(
+        median_n_counts=("total_counts", np.median),
+        mean_n_counts=("total_counts", np.mean),
+    )
+    .to_string()
+)
+
+# %%
+adatas["UKIM-V"][adatas["UKIM-V"].obs["cell_type_coarse"] == "Neutrophils", :].obs.groupby(["patient", "origin"]).size()
 
 # %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
