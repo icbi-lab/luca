@@ -34,7 +34,7 @@ def altair_scale(variable, *, data=None, data_col=None, **kwargs):
     tmp_colors = getattr(COLORS, variable)
     if data is not None:
         data_col = variable if data_col is None else data_col
-        tmp_colors = {k: tmp_colors[k] for k in data[data_col].unique()}
+        tmp_colors = {k: tmp_colors[k] for k in sorted(data[data_col].unique())}
 
     return alt.Scale(
         domain=list(tmp_colors.keys()),
