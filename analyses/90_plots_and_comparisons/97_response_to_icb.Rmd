@@ -11,6 +11,7 @@ params:
 library(conflicted)
 library(dplyr)
 conflict_prefer("filter", "dplyr")
+conflict_prefer("select", "dplyr")
 library(readxl)
 library(survminer)
 library(survival)
@@ -267,15 +268,23 @@ glm_res = lapply(colnames(select(chemo_data, starts_with("sig_"), starts_with("c
 glm_res |> ggplot(aes(x=var, y=Estimate)) + geom_bar(aes(fill=sig_code), stat="identity") + scale_fill_brewer(palette= "Blues", direction=-1)  + theme_cowplot()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_hline(yintercept = 0, color="black")
 ```
 
-```{r, fig.width=5, fig.height=7}
-chemo_data |> select(measure_of_response, type, `ct_T cell CD8+`, sig_neutro) |> pivot_longer(-c(type, measure_of_response), names_to="signature", values_to="value") |> 
+```{r, fig.width=3, fig.height=5}
+pvalue_df = glm_res |> filter(var %in% c("sig_neutro2")) |> 
+  select(signature=var, pvalue=`Pr(>|z|)`) |> 
+  mutate(pvalue = sprintf("p=%*.3f", 3, pvalue)) |>
+  distinct()
+p = chemo_data |> select(measure_of_response, type, sig_neutro2) |> pivot_longer(-c(type, measure_of_response), names_to="signature", values_to="value") |> 
   ggplot(aes(x=measure_of_response, y=value)) + geom_boxplot(outlier.alpha=0, width=.2) + 
     geom_quasirandom(aes(color=type), size=0.5) + 
-    stat_compare_means(method="wilcox.test") +
     theme_cowplot() + 
+    geom_text(aes(label = pvalue), x=-Inf, y=Inf, data=pvalue_df, hjust = -0.2, vjust=1) +
     background_grid() + 
     facet_wrap(~signature, ncol = 5) + 
-    ggtitle(sprintf("Scoring function: %s", params$scoring_function)) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggsave(file.path(params$artifact_dir, "tcga_response_to_chemotherapy.pdf"), width = 3, height = 5)
+p
+
 ```
 
 In response data:
@@ -331,31 +340,38 @@ coxph_results = lapply(c("all", "LUSC", "LUAD"), function(type) {
   filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
   type_covar = ifelse(type == "all", "+ type ", "")
   coxph_res = lapply(colnames(select(chemo_data, starts_with("sig_"), starts_with("ct_"))), function(col) {
-     res = summary(coxph(as.formula(sprintf("Surv(time, status) ~ `%s` %s + ajcc_stage", col, type_covar)), data=tcga_clin_and_scores |> filter(type %in% filter_type)))
+     res = summary(coxph(as.formula(sprintf("Surv(time, status) ~ `%s` %s + ajcc_stage + age", col, type_covar)), data=tcga_clin_and_scores |> filter(type %in% filter_type)))
      res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col, type=type)
   }) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> arrange(-coef) |> mutate(var=factor(var, levels=unique(var)))
   
   print(coxph_res |> ggplot(aes(x=var, y=coef)) + geom_bar(aes(fill=sig_code), stat="identity") + scale_fill_brewer(palette= "Blues", direction=-1)  + theme_cowplot()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_hline(yintercept = 0, color="black") + facet_wrap(~type, ncol=1))
-  coxph_res
-})
+  coxph_res |> mutate(type=type)
+}) |> bind_rows()
 ```
 
-```{r, fig.width=6, fig.height=6}
-plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75)) {
+```{r, fig.width=4, fig.height=4}
+plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75), pvalue=TRUE) {
   tmp_col = clinical_data[[column]]
   cutoffs = quantile(tmp_col, q)
   group = rep(NA, length(tmp_col))
-  group[tmp_col < cutoffs[1]] = "low"
-  group[tmp_col > cutoffs[2]] = "high"
+  group[tmp_col < cutoffs[1]] = "bottom 25%"
+  group[tmp_col > cutoffs[2]] = "top 25%"
   clinical_data$group = group
   clinical_data = clinical_data |> filter(time < 365 * 5)
   fit = survfit(Surv(time, status) ~ group, data=clinical_data)
-  ggsurvplot(fit, data=clinical_data, pval=TRUE, risk.table = FALSE)
+  ggsurvplot(fit, data=clinical_data, pval=pvalue, risk.table = FALSE, xlab="time in days")
 }
 
 lapply(c("LUAD", "LUSC"), function(type) {
   lapply(c("sig_neutro", "sig_nan", "sig_tan", "sig_b_cell_follicular", "sig_neutro2", "sig_neutro3"), function(sig) {
-    plot_kaplan_meyer(tcga_clin_and_scores |> filter(type == !!type), sig) + ggtitle(sprintf("%s (%s)", sig, type))
+    p = plot_kaplan_meyer(
+      tcga_clin_and_scores |> filter(type == !!type),
+      sig,
+      pvalue=sprintf("p=%*.3f, CoxPH reg.", 3, coxph_results |> filter(var == sig, type == !!type) |> pull(`Pr(>|z|)`)),
+    ) + 
+      ggtitle(sprintf("%s (%s)", sig, type))
+    ggsave(file.path(params$artifact_dir, sprintf("KM_%s_%s.pdf", sig, type)), width=4.5, height=4)
+    p
   })
 })
 
@@ -375,18 +391,25 @@ glm_res |> ggplot(aes(x=var, y=Estimate)) + geom_bar(aes(fill=sig_code), stat="i
 ```
 
 ```{r, fig.width=18, fig.height=7}
-ici_clin_and_scores |> select(type, response, dataset, starts_with("sig_"), starts_with("ct_")) |>
+pvalue_df = glm_res |> filter(`Pr(>|z|)` < 0.05) |> 
+  select(signature=var, pvalue=`Pr(>|z|)`) |> 
+  mutate(pvalue = sprintf("p=%*.3f", 3, pvalue)) |>
+  distinct()
+p = ici_clin_and_scores |> select(type, response, dataset, starts_with("sig_"), starts_with("ct_")) |>
     pivot_longer(-c(type, response, dataset), names_to="signature", values_to="score") |>
-    filter(signature %in% (glm_res |> filter(`Pr(>|z|)` < 0.05) |> pull(var))) |> 
+    inner_join(pvalue_df) |> 
     ggplot(aes(x=response, y=score)) + 
     geom_boxplot(outlier.alpha=0, width=.2) + 
-    geom_quasirandom(aes(color=type, shape=dataset)) + 
-    stat_compare_means(method="wilcox.test") +
+    geom_quasirandom(aes(color=type, shape=dataset)) +
+    geom_text(aes(label = pvalue), x=-Inf, y=Inf, data=pvalue_df, hjust = -0.2, vjust=1) +
     theme_cowplot() + 
     background_grid() + 
     facet_wrap(~signature, ncol = 7, scales="free_y") + 
     ggtitle(sprintf("Scoring function: %s", params$scoring_function)) + 
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggsave(file.path(params$artifact_dir, "ici_treatment_response.pdf"), width = 18, height=7)
+p
 ```
 
 ```{r, fig.width=30, fig.height=30}
@@ -419,6 +442,7 @@ ici_clin_and_scores |>
 
 ici_clin_and_scores |> 
   ggplot(aes(y=sig_lcam_hi, x=sig_neutro2)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
+ggsave(file.path(params$artifact_dir, "corr_lcam_hi_vs_neutro2.pdf"), width=6, height=4)
 
 ici_clin_and_scores |> 
   ggplot(aes(y=sig_lcam_hi, x=sig_neutro3)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
