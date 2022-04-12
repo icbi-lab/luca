@@ -8,7 +8,6 @@ include { SPLIT_ANNDATA } from "../scconversion/main.nf"
 process PREPARE_ANNDATA {
     cpus 1
     container "${baseDir}/containers/seuratdisk.sif"
-    // conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
 
     input:
     tuple val(id), path(input_adata)
@@ -80,7 +79,6 @@ process PREPARE_ANNDATA {
 process MAKE_PSEUDOBULK {
     cpus 1
     container "${baseDir}/containers/seuratdisk.sif"
-    // conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
 
     input:
     tuple val(id), path(input_adata)
@@ -171,7 +169,6 @@ process DE_DESEQ2 {
      */
     cpus 2
     container "${baseDir}/containers/deseq2.sif"
-    // conda "/data/scratch/sturm/conda/envs/2020-pircher-deseq2"
 
     input:
     tuple val(id), path(counts), path(samplesheet)

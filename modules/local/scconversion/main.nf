@@ -3,7 +3,6 @@ nextflow.enable.dsl = 2
 
 process H5AD_TO_SEURAT {
     container "${baseDir}/containers/seuratdisk.sif"
-    // conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
     stageInMode 'link'
 
     input:
@@ -22,7 +21,6 @@ process H5AD_TO_SEURAT {
 process H5AD_TO_SCE {
     // requires rpy2 <= 3.4.2, see https://github.com/theislab/anndata2ri/issues/63
     container "${baseDir}/containers/seuratdisk.sif"
-    // conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
     stageInMode 'link'
 
     input:
@@ -58,7 +56,6 @@ process H5AD_TO_SCE {
 
 process SEURAT_TO_SCE {
     container "${baseDir}/containers/seuratdisk.sif"
-    // conda "/data/scratch/sturm/conda/envs/2020-pircher-seuratdisk"
 
     input:
         tuple val(id), path(input_seurat)
