@@ -43,6 +43,9 @@ path_adata = nxfvars.get(
 )
 
 # %%
+adata.obs["condition"].unique()
+
+# %%
 adata = sc.read_h5ad(path_adata)
 
 # %%
@@ -88,6 +91,22 @@ cpdba = sh.cell2cell.CpdbAnalysis(
 )
 
 # %%
+cpdba_luad = sh.cell2cell.CpdbAnalysis(
+    cpdb,
+    adata_primary_tumor[adata_primary_tumor.obs["condition"] == "LUAD", :].copy(),
+    pseudobulk_group_by=["patient"],
+    cell_type_column="cell_type_major",
+)
+
+# %%
+cpdba_lusc = sh.cell2cell.CpdbAnalysis(
+    cpdb,
+    adata_primary_tumor[adata_primary_tumor.obs["condition"] == "LUSC", :].copy(),
+    pseudobulk_group_by=["patient"],
+    cell_type_column="cell_type_major",
+)
+
+# %%
 cpdba_coarse = sh.cell2cell.CpdbAnalysis(
     cpdb,
     adata_primary_tumor,
@@ -108,7 +127,7 @@ de_res_tumor_cells_luad_lusc = (
     .pipe(sh.util.fdr_correction)
     .drop("gene_id", axis="columns")
     .rename(columns={"gene_id.1": "gene_id"})
-    .assign(group="LUSC")
+    .assign(group="LUAD")
 )
 
 # %%
@@ -130,7 +149,56 @@ cpdba.plot_result(
         & x["source_genesymbol"].isin(top_genes)
     ],
     title="LUAD vs LUSC: tumor cells, top 30 DE ligands",
-    aggregate=True,
+    aggregate=False,
+    cluster="heatmap",
+    label_limit=80
+)
+
+# %% [markdown]
+# ### LUAD
+
+# %%
+cpdb_res = cpdba_luad.significant_interactions(de_res_tumor_cells_luad_lusc, max_pvalue=0.1)
+top_genes = (
+    cpdb_res.loc[:, ["source_genesymbol", "fdr"]]
+    .drop_duplicates()
+    .sort_values("fdr")["source_genesymbol"][:30]
+    .tolist()
+)
+# cpdb_res.to_csv(f"{artifact_dir}/cpdb_luad_lusc.csv")
+cpdba_luad.plot_result(
+    cpdb_res.loc[
+        lambda x: x["cell_type_major"].isin(immune_cells)
+        & x["source_genesymbol"].isin(top_genes)
+    ],
+    title="LUAD vs LUSC: tumor cells, top 30 DE ligands",
+    aggregate=False,
+    cluster="heatmap",
+    label_limit=80
+)
+
+# %% [markdown]
+# ### LUSC
+
+# %%
+sc.pl.dotplot(adata_primary_tumor[adata_primary_tumor.obs["cell_type_major"] == "Tumor cells", :], var_names=["PGF"], groupby="condition")
+
+# %%
+cpdb_res = cpdba_lusc.significant_interactions(de_res_tumor_cells_luad_lusc, max_pvalue=0.1)
+top_genes = (
+    cpdb_res.loc[:, ["source_genesymbol", "fdr"]]
+    .drop_duplicates()
+    .sort_values("fdr")["source_genesymbol"][:30]
+    .tolist()
+)
+# cpdb_res.to_csv(f"{artifact_dir}/cpdb_luad_lusc.csv")
+cpdba_lusc.plot_result(
+    cpdb_res.loc[
+        lambda x: x["cell_type_major"].isin(immune_cells)
+        & x["source_genesymbol"].isin(top_genes)
+    ],
+    title="LUAD vs LUSC: tumor cells, top 30 DE ligands",
+    aggregate=False,
     cluster="heatmap",
     label_limit=80
 )
