@@ -1,3 +1,0 @@
-[submodule "lib/scanpy_helper_submodule"]
-	path = lib/scanpy_helper_submodule
-	url = git@gitlab.i-med.ac.at:icbi-lab/tools/scanpy_helpers.git
