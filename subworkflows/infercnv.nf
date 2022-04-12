@@ -20,6 +20,7 @@ process RUN_SCEVAN {
 process RUN_INFERCNVPY {
     input:
     tuple val(id), path(input_file)
+    path(gtffile)
 
     output:
     path "*", emit: output_file
@@ -29,7 +30,7 @@ process RUN_INFERCNVPY {
     // (they will always fail due to characteristics of the data, e.g. too few cells)
     ignore_exit_code = task.ext.ignore_error ? "|| true" : ""
     """
-    infercnvpy_parallel.py ${input_file} > ${id}.log 2>&1 $ignore_exit_code
+    infercnvpy_parallel.py ${input_file} ${gtffile} > ${id}.log 2>&1 $ignore_exit_code
     """
 }
 
@@ -43,7 +44,10 @@ workflow infercnv {
     ch_adatas_by_patient = SPLIT_ANNDATA.out.adata.flatten().map{ it -> [it.baseName, it]}
     H5AD_TO_SCE(ch_adatas_by_patient)
 
-    RUN_INFERCNVPY(ch_adatas_by_patient)
+    RUN_INFERCNVPY(
+        ch_adatas_by_patient,
+        file("${baseDir}/data/10_references/gencode.v33.primary_assembly.annotation.gtf", checkIfExists: true)
+    )
     RUN_SCEVAN(H5AD_TO_SCE.out.sce)
 }
 

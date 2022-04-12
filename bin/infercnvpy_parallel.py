@@ -1,5 +1,11 @@
 #!/usr/bin/env python
+"""
+Run infercnvpy on an anndata object
 
+Usage:
+ ./infercnvpy_parallel.py adata.h5ad /path/to/gencode_gtf.gtf
+
+"""
 import os
 import numpy as np
 import pandas as pd
@@ -14,13 +20,11 @@ sc.settings.set_figure_params(dpi=80, facecolor="white")
 sc.settings.set_figure_params(figsize=(5, 5))
 
 arg1 = sys.argv[1]
+gtffile = sys.argv[2]
 adata = sc.read_h5ad(arg1)
 
 # TODO this is inefficient. Would be better to read in once and store in anndata before splitting.
-cnv.io.genomic_position_from_gtf(
-    "/data/genomes/hg38/annotation/gencode/gencode.v33.primary_assembly.annotation.gtf",
-    adata,
-)
+cnv.io.genomic_position_from_gtf(gtffile, adata)
 
 
 immune_cells = [
