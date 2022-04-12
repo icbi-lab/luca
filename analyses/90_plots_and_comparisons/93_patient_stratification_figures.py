@@ -86,7 +86,7 @@ p0 = (
         & get_row("tumor_type_inferred", "tumor_type"),
         get_row("sex"),
         get_row("tumor_stage", "tumor_stage_verbose"),
-        get_row("study"),
+        # get_row("study"),
         get_row("platform"),
         # get_row("infiltration_state"),
         # get_row("immune_infiltration"),

@@ -130,12 +130,16 @@ ad_tumor_subtypes.obs = ad_tumor_subtypes.obs.join(
 sc.pp.normalize_total(ad_tumor_subtypes, target_sum=1)
 
 # %%
-sc.pl.heatmap(
+ax = sc.pl.heatmap(
     ad_tumor_subtypes,
     groupby="condition",
     var_names=ad_tumor_subtypes.var_names,
     swap_axes=True,
     figsize=(14, 1.5),
+    show=False,
+)
+ax["heatmap_ax"].get_figure().savefig(
+    f"{artifact_dir}/heatmap_predominant_tumor_cell_type.pdf", bbox_inches="tight"
 )
 
 # %%
@@ -348,20 +352,12 @@ plot_df
 # # Write output
 
 # %%
-plot_df.to_csv(
-    "{}/patient_stratification.csv".format(
-        artifact_dir
-    )
-)
+plot_df.to_csv("{}/patient_stratification.csv".format(artifact_dir))
 
 # %%
-ad_immune.write_h5ad(
-    f"{artifact_dir}/adata_immune.h5ad"
-)
+ad_immune.write_h5ad(f"{artifact_dir}/adata_immune.h5ad")
 
 # %%
-ad_tumor_subtypes.write_h5ad(
-    f"{artifact_dir}/adata_tumor_subtypes.h5ad"
-)
+ad_tumor_subtypes.write_h5ad(f"{artifact_dir}/adata_tumor_subtypes.h5ad")
 
 # %%

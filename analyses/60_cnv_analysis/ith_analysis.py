@@ -165,7 +165,9 @@ diversity_per_patient = (
             pd.DataFrame.from_dict(ithcna_infercnvpy)
             .T.reset_index()
             .melt(
-                id_vars="index", var_name="cell_type_major", value_name="ithcna_infercnvpy"
+                id_vars="index",
+                var_name="cell_type_major",
+                value_name="ithcna_infercnvpy",
             ),
             on=["index", "cell_type_major"],
             how="outer",
@@ -185,12 +187,15 @@ patient_strat.set_index("patient_lc", inplace=True)
 
 # %%
 patient_strat2 = patient_strat.join(
-    diversity_per_patient.loc[lambda x: x["n_tumor_cells"] >= MIN_TUMOR_CELLS, :], how="inner"
+    diversity_per_patient.loc[lambda x: x["n_tumor_cells"] >= MIN_TUMOR_CELLS, :],
+    how="inner",
 )
 patient_strat2["dataset"] = patient_strat2["dataset"].astype(str)
 
 # %%
-ax = sns.scatterplot(x="ITHCNA", y="ithcna_infercnvpy", data=patient_strat2, hue="study")
+ax = sns.scatterplot(
+    x="ITHCNA", y="ithcna_infercnvpy", data=patient_strat2, hue="study"
+)
 ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
 
 # %%
@@ -202,11 +207,12 @@ res = mod.fit()
 res.summary()
 
 # %%
-# TODO use linear model to check for confounding effects: dataset and number of cells!
 for var in ["ITHCNA", "ithcna_infercnvpy", "ITHGEX"]:
     # for var in ["cnvsum"]:
     print(var)
-    fig, (ax3, ax4, ax5) = plt.subplots(1, 3, figsize=(15, 5), gridspec_kw={"wspace": 0.5})
+    fig, (ax3, ax4, ax5) = plt.subplots(
+        1, 3, figsize=(15, 5), gridspec_kw={"wspace": 0.5}
+    )
 
     sns.swarmplot(
         x="tumor_type_annotated", y=var, data=patient_strat2, ax=ax3, hue="study"
@@ -287,7 +293,8 @@ for x in ["ITHCNA", "ITHGEX", "ithcna_infercnvpy"]:
                     lambda x: (x["n_cells"] > 50) & (x["cell_type_major"] == ct),
                     "dataset",
                 ]
-            ), [x, "frac_cells", "dataset", "n_tumor_cells"]
+            ),
+            [x, "frac_cells", "dataset", "n_tumor_cells"],
         ].dropna(how="any")
         fig, ax = plt.subplots(1, 1)
         ax = sns.scatterplot(
@@ -309,21 +316,39 @@ for x in ["ITHCNA", "ITHGEX", "ithcna_infercnvpy"]:
                 res.params["Intercept"],
                 res.params["frac_cells"],
                 res.pvalues["frac_cells"],
-                *scipy.stats.pearsonr(tmp_data[x], tmp_data["frac_cells"])
+                *scipy.stats.pearsonr(tmp_data[x], tmp_data["frac_cells"]),
             ]
         )
 
 # %%
-res_df = pd.DataFrame.from_records(
-    results, columns=["metric", "cell_type", "intercept", "coef", "pvalue", "pearson", "pvalue_pearson"]
-).pipe(sh.util.fdr_correction).sort_values("fdr")
+res_df = (
+    pd.DataFrame.from_records(
+        results,
+        columns=[
+            "metric",
+            "cell_type",
+            "intercept",
+            "coef",
+            "pvalue",
+            "pearson",
+            "pvalue_pearson",
+        ],
+    )
+    .pipe(sh.util.fdr_correction)
+    .sort_values("fdr")
+)
 
 # %%
 res_df[:20]
 
 # %%
 res_df.pipe(
-    sh.compare_groups.pl.plot_lm_result_altair, x="cell_type", y="metric", color="pearson", p_cutoff=1, reverse=True
+    sh.compare_groups.pl.plot_lm_result_altair,
+    x="cell_type",
+    y="metric",
+    color="pearson",
+    p_cutoff=1,
+    reverse=True,
 )
 
 # %%

@@ -96,7 +96,7 @@ alt.Chart(df).mark_bar().encode(
     color=alt.Color("platform", scale=sh.colors.altair_scale("platform"), legend=None),
     x=alt.X("mean(fraction)", title="mean neutrophil fraction across all datasets"),
     y=alt.Y("platform", sort=order),
-) 
+)
 # + alt.Chart(df).mark_errorbar(extent="ci").encode(
 #     x=alt.X("fraction"),
 #     y=alt.Y("platform", sort=order),
@@ -276,6 +276,11 @@ for title, tmp_adata in {
             legend=None,
         ),
     ).display()
+
+# %%
+adata.obs.loc[:, ["platform_fine", "patient"]].drop_duplicates().groupby(
+    "platform_fine"
+).size()
 
 # %%
 for title, tmp_adata in {

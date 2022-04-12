@@ -26,6 +26,7 @@ from pathlib import Path
 from scanpy_helpers.annotation import AnnotationHelper
 import progeny
 import dorothea
+from json import JSONDecodeError
 import matplotlib.pyplot as plt
 from threadpoolctl import threadpool_limits
 import altair as alt
@@ -49,7 +50,7 @@ ah = AnnotationHelper()
 # %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+    "../../data/2022-04-12/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 
 # %%
@@ -57,6 +58,9 @@ scissor_clinical_data = pd.read_csv(
     nxfvars.get("scissor_clinical", "../../tables/tcga/clinical_data_for_scissor.tsv"),
     sep="\t",
 )
+
+# %%
+artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
 # %%
 adata = sc.read_h5ad(path_adata)
@@ -224,13 +228,15 @@ scissor_cols = adata_primary.obs.columns[
 # %%
 for var in scissor_cols:
     with plt.rc_context({"figure.figsize": (6, 6), "figure.dpi": 300}):
-        sc.pl.umap(
+        fig = sc.pl.umap(
             adata_primary,
             color=var,
             size=2,
             palette=["#ca0020", "#0571b0"][::-1],
             frameon=False,
+            return_fig=True,
         )
+        fig.savefig(f"{artifact_dir}/{var}.pdf", dpi=1200, bbox_inches="tight")
 
 
 # %%
@@ -275,10 +281,10 @@ def scissor_by_group(
     ]
     df_grouped = df_grouped.apply(lambda row: row / np.sum(row), axis=1)  # normalize
     # Add pseudocount relative to number of total cells of that type.
-    # As opposed to applying a general pseudocount of 
+    # As opposed to applying a general pseudocount of
     #     df_grouped += 1  # add pseudocount
-    # this approach is fairer towards rare cell-type like neutrophils or dendritic cells. 
-    df_grouped += 0.01 
+    # this approach is fairer towards rare cell-type like neutrophils or dendritic cells.
+    df_grouped += 0.01
 
     df_grouped = (
         df_grouped.groupby(groupby[0]).apply(_scissor_test).pipe(sh.util.fdr_correction)
@@ -353,4 +359,11 @@ scissor_dfs = {
 
 # %%
 for col, df in scissor_dfs.items():
-    plot_scissor_df_ratio(df, title=col).display()
+    ch = plot_scissor_df_ratio(df, title=col)
+    try:
+        ch.save(f"{artifact_dir}/{col}.svg")
+    except JSONDecodeError:
+        warnings.warn(f"Failed to save plot {col} to svg!")
+    ch.display()
+
+# %%

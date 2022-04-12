@@ -167,7 +167,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_core_atlas.pdf")
+    fig.savefig(f"{artifact_dir}/umap_core_atlas.pdf", dpi=1200, bbox_inches="tight")
 
 # %% [markdown]
 # ## Epithelial cells
@@ -192,7 +192,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_core_atlas_epithelial.pdf")
+    fig.savefig(f"{artifact_dir}/umap_core_atlas_epithelial.pdf", dpi=1200, bbox_inches="tight")
 
 # %%
 adata_epi.shape[0]
@@ -231,7 +231,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_core_atlas_tumor.pdf")
+    fig.savefig(f"{artifact_dir}/umap_core_atlas_tumor.pdf", dpi=1200, bbox_inches="tight")
 
 # %%
 adata_tumor.shape[0]
@@ -286,7 +286,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_core_atlas_immune.pdf")
+    fig.savefig(f"{artifact_dir}/umap_core_atlas_immune.pdf", dpi=1200, bbox_inches="tight")
 
 # %%
 adatas["immune"].shape[0]
@@ -308,7 +308,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_core_atlas_structural.pdf")
+    fig.savefig(f"{artifact_dir}/umap_core_atlas_structural.pdf", dpi=1200, bbox_inches="tight")
 
 # %%
 adatas["structural"].shape[0]

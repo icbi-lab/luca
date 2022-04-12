@@ -72,6 +72,7 @@ adata = sc.read_h5ad(main_adata_file)
 # %%
 cell_type_fracs = (
     adata.obs.loc[lambda x: x["origin"].isin(["tumor_primary", "normal_adjacent"])]
+    .loc[lambda x: ~x["cell_type"].isin(["other", "Tumor cells"])]
     .groupby(["patient", "origin", "study", "dataset", "condition"])
     .apply(
         lambda x: pd.DataFrame()
@@ -96,14 +97,10 @@ keep = (
 )
 
 # %%
-plot_cell_type_fracs = (
-    cell_type_fracs.merge(keep, how="inner")
-    .loc[lambda x: ~x["cell_type"].isin(["other", "Tumor cells"])]
-    .assign(
-        cell_type=lambda x: x["cell_type"]
-        .str.replace("Alveolar cell type ", "AT")
-        .str.replace("Macrophage", "Macro")
-    )
+plot_cell_type_fracs = cell_type_fracs.merge(keep, how="inner").assign(
+    cell_type=lambda x: x["cell_type"]
+    .str.replace("Alveolar cell type ", "AT")
+    .str.replace("Macrophage", "Macro")
 )
 for col in ["patient", "origin", "study", "dataset", "cell_type", "condition"]:
     plot_cell_type_fracs[col] = plot_cell_type_fracs[col].astype(str)
@@ -123,80 +120,48 @@ pvalue_df = (
 )
 
 # %%
-PROPS = {
-    "boxprops": {"facecolor": "none", "edgecolor": "black"},
-    "medianprops": {"color": "black"},
-    "whiskerprops": {"color": "black"},
-    "capprops": {"color": "black"},
-}
-g = sns.FacetGrid(
-    plot_cell_type_fracs,
-    col="cell_type",
-    aspect=0.6,
-    sharey=True,
-    legend_out=True,
-    col_order=pvalue_df["cell_type"],
-    gridspec_kws={"wspace": 0.1, "hspace": 0.2},
-)
-g.map_dataframe(
-    sns.stripplot,
-    x="origin",
-    y="frac",
-    size=5,
-    linewidth=1,
-    hue="study",
-    palette=sh.colors.COLORS.study,
-)
-g.map_dataframe(sns.boxplot, x="origin", y="frac", color="white", fliersize=0, **PROPS)
-g.map_dataframe(
-    sns.lineplot,
-    x="origin",
-    y="frac",
-    hue="study",
-    ci=None,
-    palette=sh.colors.COLORS.study,
-)
-g.set_xticklabels(rotation=90)
-for ax, ct, fdr in zip(g.axes.flatten(), pvalue_df["cell_type"], pvalue_df["fdr"]):
-    fdr_str = "FDR<0.01" if fdr < 0.01 else f"FDR={fdr:.2f}"
-    ax.set_title(f"{ct}\n{fdr_str}")
-g.add_legend()
-
-# %%
-plot_cell_type_fracs
-
-# %%
-PROPS = {
-    "boxprops": {"facecolor": "none", "edgecolor": "black"},
-    "medianprops": {"color": "black"},
-    "whiskerprops": {"color": "black"},
-    "capprops": {"color": "black"},
-}
-g = sns.FacetGrid(
-    plot_cell_type_fracs,
-    col="cell_type",
-    aspect=0.6,
-    sharey=True,
-    legend_out=True,
-    col_order=pvalue_df["cell_type"],
-    gridspec_kws={"wspace": 0.1, "hspace": 0.2},
-)
-g.map_dataframe(
-    sns.stripplot,
-    x="origin",
-    y="frac",
-    size=5,
-    linewidth=1,
-    hue="condition",
-    palette=sns.color_palette(),
-)
-g.map_dataframe(sns.boxplot, x="origin", y="frac", color="white", fliersize=0, **PROPS)
-g.map_dataframe(sns.lineplot, x="origin", y="frac", hue="condition", ci=None)
-g.set_xticklabels(rotation=90)
-for ax, ct, fdr in zip(g.axes.flatten(), pvalue_df["cell_type"], pvalue_df["fdr"]):
-    fdr_str = "FDR<0.01" if fdr < 0.01 else f"FDR={fdr:.2f}"
-    ax.set_title(f"{ct}\n{fdr_str}")
-g.add_legend()
+for hue in ["condition", "study"]:
+    PROPS = {
+        "boxprops": {"facecolor": "none", "edgecolor": "black"},
+        "medianprops": {"color": "black"},
+        "whiskerprops": {"color": "black"},
+        "capprops": {"color": "black"},
+    }
+    g = sns.FacetGrid(
+        plot_cell_type_fracs,
+        col="cell_type",
+        aspect=0.6,
+        sharey=True,
+        legend_out=True,
+        col_order=pvalue_df["cell_type"],
+        gridspec_kws={"wspace": 0.1, "hspace": 0.2},
+    )
+    g.map_dataframe(
+        sns.stripplot,
+        x="origin",
+        y="frac",
+        size=5,
+        linewidth=1,
+        hue=hue,
+        palette=getattr(sh.colors.COLORS, hue),
+    )
+    g.map_dataframe(
+        sns.boxplot, x="origin", y="frac", color="white", fliersize=0, **PROPS
+    )
+    g.map_dataframe(
+        sns.lineplot,
+        x="origin",
+        y="frac",
+        hue=hue,
+        ci=None,
+        palette=getattr(sh.colors.COLORS, hue),
+    )
+    g.set_xticklabels(rotation=90)
+    for ax, ct, fdr in zip(g.axes.flatten(), pvalue_df["cell_type"], pvalue_df["fdr"]):
+        fdr_str = "FDR<0.01" if fdr < 0.01 else f"FDR={fdr:.2f}"
+        ax.set_title(f"{ct}\n{fdr_str}")
+    g.add_legend()
+    g.savefig(f"{artifact_dir}/tumor_normal_pair_plot_{hue}.pdf")
 
 # %%
 PROPS = {
@@ -227,6 +192,39 @@ g.map_dataframe(sns.lineplot, x="origin", y="frac", hue="condition", ci=None)
 g.set_xticklabels(rotation=90)
 g.set_titles("Neutrophils")
 g.add_legend()
+g.savefig(f"{artifact_dir}/tumor_normal_pair_plot_neutrophils_by_condition.pdf")
+
+# %%
+plot_cell_type_fracs
+
+# %% [markdown]
+# ### bar chart
+
+# %%
+cell_type_fracs
+
+# %%
+mean_fractions = (
+    cell_type_fracs.groupby(["cell_type", "origin"], observed=True)
+    .agg(frac=("frac", np.mean))
+    .reset_index()
+    .groupby("origin")
+    .apply(lambda x: x.assign(frac=x["frac"] / np.sum(x["frac"])))
+    .reset_index(drop=True)
+    .loc[lambda x: x['frac'] > 0]
+)
+
+# %%
+alt.Chart(mean_fractions).mark_bar().encode(
+    x="frac",
+    y="origin",
+    color=alt.Color(
+        "cell_type",
+        scale=sh.colors.altair_scale(
+            "cell_type_major", data=mean_fractions, data_col="cell_type"
+        ),
+    ),
+)
 
 # %% [markdown]
 # # scCODA

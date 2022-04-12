@@ -275,7 +275,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas.pdf")
+    fig.savefig(f"{artifact_dir}/umap_extended_atlas.pdf", dpi=1200)
 
 # %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
@@ -291,7 +291,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_no_legend.pdf")
+    fig.savefig(f"{artifact_dir}/umap_extended_atlas_no_legend.pdf", dpi=1200, bbox_inches="tight")
 
 # %%
 sh.colors.set_scale_anndata(adata, "cell_type_major")
@@ -310,7 +310,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_cell_type_major.pdf")
+    fig.savefig(f"{artifact_dir}/umap_extended_atlas_cell_type_major.pdf", dpi=1200, bbox_inches="tight")
 
 # %%
 adata.obs["study_extended"] = adata.obs.loc[
@@ -331,7 +331,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         title="",
         alpha=0.5,
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_projected_data.pdf")
+    fig.savefig(f"{artifact_dir}/umap_extended_atlas_projected_data.pdf", dpi=1200, bbox_inches="tight")
 
 
 # %% [markdown]
@@ -416,7 +416,16 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_ukim-v.pdf")
+    fig.savefig(f"{artifact_dir}/umap_ukim-v.pdf", dpi=1200, bbox_inches="tight")
+
+# %%
+np.median(
+    adatas["UKIM-V"][
+        (adatas["UKIM-V"].obs["cell_type_coarse"] == "Epithelial cell")
+        & (adatas["UKIM-V"].obs["origin"] == "normal_adjacent"),
+        :,
+    ].obs["total_counts"]
+)
 
 # %%
 print(
@@ -431,7 +440,11 @@ print(
 
 # %%
 print(
-    adatas["UKIM-V"][(adatas["UKIM-V"].obs["cell_type_coarse"] == "Epithelial cell") & (adatas["UKIM-V"].obs["origin"] == "normal_adjacent"), :]
+    adatas["UKIM-V"][
+        (adatas["UKIM-V"].obs["cell_type_coarse"] == "Epithelial cell")
+        & (adatas["UKIM-V"].obs["origin"] == "normal_adjacent"),
+        :,
+    ]
     .obs.groupby("patient")
     .agg(
         median_n_counts=("total_counts", np.median),
@@ -441,7 +454,9 @@ print(
 )
 
 # %%
-adatas["UKIM-V"][adatas["UKIM-V"].obs["cell_type_coarse"] == "Neutrophils", :].obs.groupby(["patient", "origin"]).size()
+adatas["UKIM-V"][
+    adatas["UKIM-V"].obs["cell_type_coarse"] == "Neutrophils", :
+].obs.groupby(["patient", "origin"]).size()
 
 # %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
@@ -457,7 +472,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_structural.pdf")
+    fig.savefig(f"{artifact_dir}/umap_extended_atlas_structural.pdf", dpi=1200, bbox_inches="tight")
 
 # %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
@@ -473,7 +488,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_immune.pdf")
+    fig.savefig(f"{artifact_dir}/umap_extended_atlas_immune.pdf", dpi=1200, bbox_inches="tight")
 
 # %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
@@ -489,7 +504,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_epithelial.pdf")
+    fig.savefig(f"{artifact_dir}/umap_extended_atlas_epithelial.pdf", dpi=1200, bbox_inches="tight")
 
 # %%
 with plt.rc_context({"figure.figsize": (3, 3), "figure.dpi": 300}):
@@ -505,7 +520,7 @@ with plt.rc_context({"figure.figsize": (3, 3), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_tumor.pdf")
+    fig.savefig(f"{artifact_dir}/umap_extended_atlas_tumor.pdf", dpi=1200, bbox_inches="tight")
 
 # %%
 tumor_markers = {

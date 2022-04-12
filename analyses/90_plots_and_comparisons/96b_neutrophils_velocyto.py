@@ -169,7 +169,7 @@ scv.pl.velocity_embedding_stream(
     alpha=0,
     arrow_size=2,
 )
-ax.get_figure().savefig(f"{artifact_dir}/umap_scvelo.svg")
+ax.get_figure().savefig(f"{artifact_dir}/umap_scvelo.svg", bbox_inches="tight", dpi=1200)
 
 # %%
 scv.tl.paga(adata_scvelo, groups="cell_type", minimum_spanning_tree=False)
@@ -177,6 +177,15 @@ scv.tl.paga(adata_scvelo, groups="cell_type", minimum_spanning_tree=False)
 # %%
 fig, ax=plt.subplots(figsize=(3,3), dpi=150)
 scv.pl.paga(adata_scvelo, layout="fr", figsize=(3, 3), dpi=150, dashed_edges=None, init_pos="umap", ax=ax)
-fig.savefig(f"{artifact_dir}/velocyto_paga_graph.pdf")
+fig.savefig(f"{artifact_dir}/velocyto_paga_graph.pdf", bbox_inches="tight")
+
+# %%
+df = scv.get_df(adata_scvelo, 'paga/transitions_confidence', precision=2).T
+df.style.background_gradient(cmap='Blues').format('{:.2g}')
+
+# %%
+ad = scv.pl.paga(adata_scvelo, basis='umap', size=100, alpha=.2,
+            min_edge_width=2, node_size_scale=7, dashed_edges=None, show=False)
+ax.get_figure().savefig(f"{artifact_dir}/umap_paga_graph.pdf", bbox_inches="tight", dpi=1200)
 
 # %%

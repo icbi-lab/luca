@@ -81,7 +81,7 @@ adata.obs["cell_type_coarse"] = pd.Categorical(
 )
 
 # %%
-sc.pl.dotplot(
+fig = sc.pl.dotplot(
     adata,
     groupby="cell_type_coarse",
     var_names={
@@ -98,7 +98,9 @@ sc.pl.dotplot(
         "Stromal": ["COL1A1", "VCAN"],
         "T cell": ["CD3E"],
     },
+    return_fig=True
 )
+fig.savefig(f"{artifact_dir}/core_atlas_markers_cell_type_coarse.pdf")
 
 # %% [markdown]
 # # cell types fine
@@ -145,7 +147,8 @@ marker_dict = {
 }
 
 # %%
-sc.pl.dotplot(adata, groupby="cell_type", var_names=marker_dict)
+fig = sc.pl.dotplot(adata, groupby="cell_type", var_names=marker_dict, return_fig=True)
+fig.savefig(f"{artifact_dir}/core_atlas_markers_cell_type.pdf")
 
 # %% [markdown]
 # # Tumor cells
@@ -181,6 +184,7 @@ tumor_markers = {
 }
 
 # %%
-sc.pl.dotplot(adata_tumor, groupby="cell_type", var_names=tumor_markers)
+fig = sc.pl.dotplot(adata_tumor, groupby="cell_type", var_names=tumor_markers, return_fig=True)
+fig.savefig(f"{artifact_dir}/core_atlas_markers_tumor_cells.pdf")
 
 # %%
