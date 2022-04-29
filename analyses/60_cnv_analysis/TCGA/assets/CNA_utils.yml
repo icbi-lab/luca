@@ -1,0 +1,13 @@
+# py3 conda environment for CNA utils
+#
+name: CNAutils
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3
+  - pandas
+  - pybedtools
+  - numpy
+  - bedtools
