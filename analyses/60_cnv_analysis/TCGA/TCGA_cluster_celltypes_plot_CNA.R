@@ -96,7 +96,7 @@ cna_id_manifest = files() %>%
   GenomicDataCommons::filter(cases.submitter_id == immune_desert) %>%
   GenomicDataCommons::filter(cases.samples.sample_type == 'primary tumor') %>%
   GenomicDataCommons::filter(data_type == 'Masked Copy Number Segment') %>%
-  GenomicDataCommons::manifest()
+  manifest()
 
 cna_if_manifest = files() %>%
   GenomicDataCommons::filter(cases.submitter_id == immune_infiltrated) %>%
@@ -140,14 +140,14 @@ if(! file.exists(data_dir_if)) {
   dir.create(data_dir_if)
 }
 
-data_dir_id = file.path(data_dir, "immune_desert_genes")
-if(! file.exists(data_dir_id)) {
-  dir.create(data_dir_id)
+data_dir_id_genes = file.path(data_dir, "immune_desert_genes")
+if(! file.exists(data_dir_id_genes)) {
+  dir.create(data_dir_id_genes)
 }
 
-data_dir_if = file.path(data_dir, "immune_infiltrated_genes")
-if(! file.exists(data_dir_if)) {
-  dir.create(data_dir_if)
+data_dir_if_genes = file.path(data_dir, "immune_infiltrated_genes")
+if(! file.exists(data_dir_if_genes)) {
+  dir.create(data_dir_if_genes)
 }
 
 for (d in names(cna_id_fnames)) {
@@ -159,11 +159,11 @@ for (d in names(cna_if_fnames)) {
 }
 
 for (d in names(cna_genes_id_fnames)) {
-  file.copy(list.files(file.path("~/.cache/GenomicDataCommons/", d), full.names = TRUE), data_dir_id, recursive = TRUE) 
+  file.copy(list.files(file.path("~/.cache/GenomicDataCommons/", d), full.names = TRUE), data_dir_id_genes, recursive = TRUE) 
 }
 
 for (d in names(cna_genes_if_fnames)) {
-  file.copy(list.files(file.path("~/.cache/GenomicDataCommons/", d), full.names = TRUE), data_dir_if, recursive = TRUE) 
+  file.copy(list.files(file.path("~/.cache/GenomicDataCommons/", d), full.names = TRUE), data_dir_if_genes, recursive = TRUE) 
 }
 
 
@@ -233,7 +233,7 @@ write_tsv(cna_seg_genes_if_bc_fnames, file.path(data_dir, "cna_seg_genes_if_file
 
 ## make new bc fname map with new gene level cna from seg files
 # id
-cna_genes_new_id_bc_fnames <- data.frame(fname=character(), bc=character())
+cna_genes_id_bc_fnames <- data.frame(fname=character(), bc=character())
 sys_cmds <- data.frame(cmd=character())
 
 id_genes_seg_dir = file.path(data_dir, "immune_desert_genes_seg")
@@ -253,16 +253,16 @@ for (i in 1:nrow(cna_seg_genes_id_bc_fnames)) {
                  )
   sys_cmds[nrow(sys_cmds)+1,] <- sys_cmd
 
-  cna_genes_new_id_bc_fnames[nrow(cna_genes_new_id_bc_fnames)+1, ] <- c(outfile, cna_seg_genes_id_bc_fnames$bc[i])
+  cna_genes_id_bc_fnames[nrow(cna_genes_id_bc_fnames)+1, ] <- c(outfile, cna_seg_genes_id_bc_fnames$bc[i])
 }
 
 
 # secure this, will run for long time
-if (! exists(".cna_genes_new_id_done") | ! file.exists(file.path(data_dir, ".cna_genes_new_id_done"))) {
+if (! exists(".cna_genes_id_done") & ! file.exists(file.path(data_dir, ".cna_genes_id_done"))) {
   foreach(i=1:nrow(sys_cmds), .combine=rbind) %dopar% { system(sys_cmds[i, ])}
-  write_tsv(cna_genes_new_id_bc_fnames, file.path(data_dir, "cna_genes_new_id_files.txt"), col_names = FALSE)
-  .cna_genes_new_id_done <- 1
-  file.create(".cna_genes_new_id_done")
+  write_tsv(cna_genes_id_bc_fnames, file.path(data_dir, "cna_genes_id_files.txt"), col_names = FALSE)
+  .cna_genes_id_done <- 1
+  file.create(".cna_genes_id_done")
 }
 
 
@@ -270,16 +270,16 @@ if (! exists(".cna_genes_new_id_done") | ! file.exists(file.path(data_dir, ".cna
 sys_cmd <- paste(python_bin,
                  file.path(bin_dir, "paste_cn.py"),
                  "6",
-                 file.path(data_dir, "cna_genes_new_id_files.txt"),
+                 file.path(data_dir, "cna_genes_id_files.txt"),
                  "0.1",
                  ">",
-                 file.path(data_dir, "cna_genes_new_id.tsv"), sep = " ")
+                 file.path(data_dir, "cna_genes_id.tsv"), sep = " ")
 
 system(sys_cmd)
 
 
 # if
-cna_genes_new_if_bc_fnames <- data.frame(fname=character(), bc=character())
+cna_genes_if_bc_fnames <- data.frame(fname=character(), bc=character())
 sys_cmds <- data.frame(cmd=character())
 
 if_genes_seg_dir = file.path(data_dir, "immune_infiltrated_genes_seg")
@@ -299,98 +299,68 @@ for (i in 1:nrow(cna_seg_genes_if_bc_fnames)) {
   )
   sys_cmds[nrow(sys_cmds)+1,] <- sys_cmd
 
-  cna_genes_new_if_bc_fnames[nrow(cna_genes_new_if_bc_fnames)+1, ] <- c(outfile, cna_seg_genes_if_bc_fnames$bc[i])
+  cna_genes_if_bc_fnames[nrow(cna_genes_if_bc_fnames)+1, ] <- c(outfile, cna_seg_genes_if_bc_fnames$bc[i])
 }
 
 # secure this, will run for long time
-if (! exists(".cna_genes_new_if_done") | ! file.exists(file.path(data_dir, ".cna_genes_new_if_done"))) {
+if (! exists(".cna_genes_if_done") & ! file.exists(file.path(data_dir, ".cna_genes_if_done"))) {
   foreach(i=1:nrow(sys_cmds), .combine=rbind) %dopar% { system(sys_cmds[i, ])}
-  write_tsv(cna_genes_new_if_bc_fnames, file.path(data_dir, "cna_genes_new_if_files.txt"), col_names = FALSE)
-  .cna_genes_new_if_done <- 1
-  file.create(".cna_genes_new_if_done")
+  write_tsv(cna_genes_if_bc_fnames, file.path(data_dir, "cna_genes_if_files.txt"), col_names = FALSE)
+  .cna_genes_if_done <- 1
+  file.create(".cna_genes_if_done")
 }
 
 ## run python script that pastes all "copy_number" columns for if into a single table and calculates some stats
 sys_cmd <- paste(python_bin,
                  file.path(bin_dir, "paste_cn.py"),
                  "6",
-                 file.path(data_dir, "cna_genes_new_if_files.txt"),
+                 file.path(data_dir, "cna_genes_if_files.txt"),
                  "0.1",
                  ">",
-                 file.path(data_dir, "cna_genes_new_if.tsv"), sep = " ")
+                 file.path(data_dir, "cna_genes_if.tsv"), sep = " ")
 
 system(sys_cmd)
 
 
 #
-## t.test single genes to get significant diff ID vs IF
+## wilcox.test single genes to get significant diff ID vs IF
 #
-cna_genes_new_id_all <- read_tsv(file.path(data_dir, "cna_genes_new_id.tsv")) %>%
+cna_genes_id_all <- read_tsv(file.path(data_dir, "cna_genes_id.tsv")) %>%
   select(c(gene_name, gene_id, starts_with("TCGA")))
   
-cna_genes_new_if_all <- read_tsv(file.path(data_dir, "cna_genes_new_if.tsv")) %>%
+cna_genes_if_all <- read_tsv(file.path(data_dir, "cna_genes_if.tsv")) %>%
   select(c(gene_name, gene_id, starts_with("TCGA")))
 
 # make matrix: calculates faster
-cna_genes_new_id_all_m <- cna_genes_new_id_all[,3:ncol(cna_genes_new_id_all)] %>% as.matrix()
-cna_genes_new_if_all_m <- cna_genes_new_if_all[,3:ncol(cna_genes_new_if_all)] %>% as.matrix()
+cna_genes_id_all_m <- cna_genes_id_all[,3:ncol(cna_genes_id_all)] %>% as.matrix()
+cna_genes_if_all_m <- cna_genes_if_all[,3:ncol(cna_genes_if_all)] %>% as.matrix()
 
 # data frame for stat
-cna_genes_new_stat <- data.frame("gene_id" = character(), "gene_name" = character(), "p.val" = numeric(), "p.adj" = numeric())
+cna_genes_stat <- data.frame("gene_id" = character(), "gene_name" = character(), "p.val" = numeric(), "p.adj" = numeric())
 
 ## get nr of patients
 id_n <- length(rownames(cna_genes_id_fid_bc))
 if_n <- length(rownames(cna_genes_if_fid_bc))
 
-# run t.tests
-for (i in 1:nrow(cna_genes_new_id_all)) {
-  cna_id <- cna_genes_new_id_all_m[i,]
-  cna_if <- cna_genes_new_if_all_m[i,]
+# run wilcox.tests
+for (i in 1:nrow(cna_genes_id_all)) {
+  cna_id <- cna_genes_id_all_m[i,]
+  cna_if <- cna_genes_if_all_m[i,]
   
   if (sum(is.na(cna_id)) != id_n & sum(is.na(cna_if)) != if_n) {
-    cna_gene_stats <- t.test(cna_id, cna_if, na.action="na.exclude")
+    # we do not use t.test, data not always normal distributed
+    # cna_gene_stats <- t.test(cna_id, cna_if, na.action="na.exclude")
+    # use non-parametric test
+    cna_gene_stats <- wilcox.test(cna_id, cna_if, na.action="na.exclude")
     pval <- cna_gene_stats$p.value
     print(i)
   } else {
     pval <- NaN
   }
-  cna_genes_new_stat[i,] <- c(cna_genes_new_id_all$gene_id[i], cna_genes_new_id_all$gene_name[i], pval, NaN)
+  cna_genes_stat[i,] <- c(cna_genes_id_all$gene_id[i], cna_genes_id_all$gene_name[i], pval, NaN)
 }
 
-# adjust p.value
-cna_genes_new_stat$p.adj <- p.adjust(cna_genes_new_stat$p.val, "BH")
-
-
-#### Start circos t.test
-
-## genes, calculate means and filter
-# id
-cna_genes_id_filtered <- read_tsv(file.path(data_dir, "cna_genes_new_id.tsv")) %>%
-  select(gene_id, gene_name, chromosome, start, end, starts_with("TCGA")) %>%
-  gather(SampleID, mean_cn, starts_with("TCGA")) %>%
-  group_by(gene_id, gene_name, chromosome, start) %>%
-  select(-SampleID) %>%
-  summarise_each(funs(mean)) 
-
-# if
-cna_genes_if_filtered <- read_tsv(file.path(data_dir, "cna_genes_new_if.tsv")) %>%
-  select(gene_id, gene_name, chromosome, start, end, starts_with("TCGA")) %>%
-  gather(SampleID, mean_cn, starts_with("TCGA")) %>%
-  group_by(gene_id, gene_name, chromosome, start) %>%
-  select(-SampleID) %>%
-  summarise_each(funs(mean))
-
-# join id + if + and p-vals and filter
-cna_genes_filtered <- cna_genes_id_filtered %>% 
-  full_join(cna_genes_if_filtered, by = c("gene_id", "gene_name", "chromosome", "start", "end"), suffix = c(".id", ".if")) %>%
-  full_join(cna_genes_new_stat, by = c("gene_id", "gene_name")) %>%
-  filter(
-    ((abs(mean_cn.id) > 0.1 | abs(mean_cn.if > 0.1)))
-    & (p.adj < 1e-4)
-  )
-dim(cna_genes_filtered)[1]
-
-## get biotype of genes
+## get biotype of genes, to filter for protein coding ones
 
 # init ensembl
 ensembl <- useEnsembl(biomart = "genes", dataset = "hsapiens_gene_ensembl")
@@ -399,7 +369,7 @@ ensembl <- useEnsembl(biomart = "genes", dataset = "hsapiens_gene_ensembl")
 remove_ensg_version = function(x) gsub("\\.[0-9]*$", "", x)
 
 # genes to lookup in ensembl
-goi <- remove_ensg_version(cna_genes_filtered$gene_id)
+goi <- remove_ensg_version(cna_genes_stat$gene_id)
 
 # use biomart to get biotype
 goids = getBM(attributes = c('ensembl_gene_id', 'gene_biotype'), 
@@ -408,10 +378,50 @@ goids = getBM(attributes = c('ensembl_gene_id', 'gene_biotype'),
               mart = ensembl)
 
 ## filter for protein coding genes
-cna_genes_filtered_pc <- cna_genes_filtered %>%
+cna_genes_stat <- cna_genes_stat %>%
   mutate(gene_id = remove_ensg_version(gene_id)) %>%
   inner_join(goids, by = c("gene_id" = "ensembl_gene_id")) %>%
   filter(gene_biotype == "protein_coding")
+
+# adjust p.value
+cna_genes_stat$p.adj <- p.adjust(cna_genes_stat$p.val, "BH")
+
+
+#### Start circos wilcox.test
+
+## genes, calculate means and filter
+# id
+cna_genes_id_filtered_pc <- read_tsv(file.path(data_dir, "cna_genes_id.tsv")) %>%
+  select(gene_id, gene_name, chromosome, start, end, starts_with("TCGA")) %>%
+  mutate(gene_id = remove_ensg_version(gene_id)) %>%
+  gather(SampleID, mean_cn, starts_with("TCGA")) %>%
+  group_by(gene_id, gene_name, chromosome, start) %>%
+  select(-SampleID) %>%
+  summarise_each(funs(mean)) %>%
+  inner_join(goids, by = c("gene_id" = "ensembl_gene_id")) %>%
+  filter(gene_biotype == "protein_coding")
+
+
+# if
+cna_genes_if_filtered_pc <- read_tsv(file.path(data_dir, "cna_genes_if.tsv")) %>%
+  select(gene_id, gene_name, chromosome, start, end, starts_with("TCGA")) %>%
+  mutate(gene_id = remove_ensg_version(gene_id)) %>%
+  gather(SampleID, mean_cn, starts_with("TCGA")) %>%
+  group_by(gene_id, gene_name, chromosome, start) %>%
+  select(-SampleID) %>%
+  summarise_each(funs(mean)) %>%
+  inner_join(goids, by = c("gene_id" = "ensembl_gene_id")) %>%
+  filter(gene_biotype == "protein_coding")
+
+
+# join id + if + and p-vals and filter
+cna_genes_filtered_pc <- cna_genes_id_filtered_pc %>% 
+  full_join(cna_genes_if_filtered_pc, by = c("gene_id", "gene_name", "chromosome", "start", "end", "gene_biotype"), suffix = c(".id", ".if")) %>%
+  full_join(cna_genes_stat, by = c("gene_id", "gene_name", "gene_biotype")) %>%
+  filter(
+    ((abs(mean_cn.id) > 0.1 | abs(mean_cn.if > 0.1)))
+    & (p.adj < 1e-4)
+  )
 dim(cna_genes_filtered_pc)[1]
 
 
@@ -540,7 +550,7 @@ dim(cna_genes_filtered_pc_ora)[1]
 
 # create HGNC to ENTREZ id map
 hgnc_to_entrez = AnnotationDbi::select(
-  org.Hs.eg.db, cna_genes_new_stat %>% 
+  org.Hs.eg.db, cna_genes_stat %>% 
   pull("gene_name") %>%
   unique(), keytype="SYMBOL", columns=c("ENTREZID")
   )
