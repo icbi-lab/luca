@@ -13,6 +13,7 @@ library("biomaRt")
 library("BiocParallel")
 library("ggplot2")
 library("reticulate")
+library("svglite")
 
 library("conflicted")
 
@@ -29,6 +30,10 @@ register(MulticoreParam(workers=32))
 ## result data and python script dirs
 data_dir = "/data/scratch/rieder/TCGA/NSCLC/CNA/data"
 bin_dir = "/data/scratch/rieder/TCGA/NSCLC/CNA/bin"
+
+## circos plot output format
+circos_pdf = TRUE
+circos_svg = FALSE
 
 ## celltype fraction files
 TCGA_LUAD_ctf <- file.path(data_dir, "TCGA_LUAD_quanTIseq_lsei_TIL10_cellfractions.txt")
@@ -450,7 +455,13 @@ clean_circos_tt_if <- data.frame(
 )
 
 ## plot circos and save to png
-png(file.path(data_dir, "circos_TCGA_NSCLC_IDvsIF.png"), width = 2800, height = 1600, units = "px", bg = "white",  res = 300)
+if (circos_pdf == TRUE) {
+    pdf(file.path(data_dir, "circos_TCGA_NSCLC_IDvsIF_3.pdf"), width = 9.3, height = 5.3, bg = "white",  pointsize = 10)
+} else if (circos_svg == TRUE) {
+    svglite(file.path(data_dir, "circos_TCGA_NSCLC_IDvsIF_3.svg"), width = 9.3, height = 5.3, bg = "white",  pointsize = 10)
+} else {
+    png(file.path(data_dir, "circos_TCGA_NSCLC_IDvsIF.png"), width = 2800, height = 1600, units = "px", bg = "white",  res = 300)
+}
 circos.clear()
 
 # Increase gap size
@@ -491,9 +502,8 @@ circos.genomicTrack(clean_circos_tt_if, ylim = c(-0.4, 0.4), track.height = 0.09
 
 # Genes of interest to label in circos (may be changed)
 gene_list_to_mark <- as_tibble(
-  unique(c("TFRC", "BCL6", "FOXP1", "IFNA6", "IFNA8", "IFNA5", "IFNA16", "RNF168", "PTGER4", "IFNA10", "IFNA2", "IFNA1", "IFNA7", "IFNA14", "IFNA13", "IFNA17", "IFNA4",
-           "FGF10", "GHR", "PRLR", "FGF12", "GNB4", "IFNA6", "IFNA8", "PIK3CA", "PRKAA1", "MYC", "OSMR", "IFNA5", "IFNA16", "IL7R", "IFNA10", "IFNA2", "IFNA1", "IFNA7",
-           "IFNA14", "IFNA13", "IFNA17", "IFNA4", "TP63", "TNFSF10", "MYC", "CDKN2A"))
+  unique(c("TMEM42", "ZDHHC3", "EXOSC7", "SACM1L", "KLHL18", "ELP6", "TCTA", "MAPKAPK3", "DCP1A", "ESF1", "SNRPB2", "DSTN", "RRBP1", "SNX5", "MGME1", "SEC23B", "RIN2",
+           "IGF2BP2", "SPON2", "PDCD10", "TNFSF10", "IL1RAP"))
   ) %>%
   rename("gene_name" = value) %>%
   inner_join(cna_genes_filtered_pc, by = c("gene_name")) %>%
@@ -526,7 +536,8 @@ draw(lgd_points, x = unit(1.41, "snpc"), y= unit(45, "mm"), just = "left")
 
 circos.clear()
 dev.off()
-#### End circos t.test
+
+#### End circos wilcox.test
 
 # save ID/IF t.test sig genes
 write_tsv(cna_genes_filtered_pc, file.path(data_dir, "ID_IF_CNA_diff_signifcant_protein_coding.tsv"))
