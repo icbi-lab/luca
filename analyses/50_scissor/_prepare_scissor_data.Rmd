@@ -131,7 +131,10 @@ tpm_oak = data.table::fread("../../data/14_ici_treatment/Genentech/EGAF000057978
 ```{r}
 # make unified metadata table
 genentech_clinical = bind_rows(clinical_poplar, clinical_oak) |> mutate(subjectId = paste0("PAT-", str_sub(UNI_ID, 1, 12))) |> left_join(clinical2)
-genentech_tpm = full_join(tpm_poplar, tpm_oak, by="gene_symbol")
+# missing genes are all zeros in the respecitve dataset
+# original data is log2(TPM+1) transformed, we want to undo that
+genentech_tpm = full_join(tpm_poplar, tpm_oak, by="gene_symbol") |> mutate(across(-gene_symbol, ~replace_na(.x, 0))) |>
+  mutate(across(-gene_symbol, \(x) 2^x + 1))
 ```
 
 ```{r}
@@ -148,7 +151,7 @@ clinical_data_genentech = genentech_clinical |>
 
 
 ```{r}
-genentech_tpm_mat = genentech_tpm |> column_to_rownames("gene_symbol") 
+genentech_tpm_mat = genentech_tpm |> column_to_rownames("gene_symbol") |> as.matrix()
 
 write_rds(genentech_tpm_mat, "../../data/14_ici_treatment/Genentech_for_scissor/genentech_ici_treatment.rds")
 write_tsv(clinical_data_genentech, "../../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv")

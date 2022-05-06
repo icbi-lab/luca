@@ -46,14 +46,14 @@ surv_status <- arguments$surv_status
 tumor_type <- arguments$tumor_type
 
 # # For testing only
-# sce = readRDS("../../data/30_downstream_analyses/scissor/adata_by_patient/full_atlas_annotated_lambrechts_2018_luad_6149v1_2.rds")
-# bulk_tpm = readRDS("../../data/13_tcga/tcga-lung-primary.rds")
-# metadata = read_tsv("../../tables/tcga/clinical_data_for_scissor.tsv")
-# sample_col = "TCGA_patient_barcode"
-# # column = NULL
-# # surv_time = "time"
-# # surv_status = "status"
-# column = "egfr_mutation"
+# sce = readRDS("../data/30_downstream_analyses/scissor/adata_by_patient/full_atlas_merged_lambrechts_thienpont_2018_6149v1_2.rds")
+# bulk_tpm = readRDS("../data/14_ici_treatment/Genentech_for_scissor/genentech_ici_treatment.rds")
+# metadata = read_tsv("../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv")
+# sample_col = "sample_id"
+# column = NULL
+# surv_time = "time"
+# surv_status = "status"
+# column = "response_binary"
 # surv_time = NULL
 # surv_status = NULL
 
