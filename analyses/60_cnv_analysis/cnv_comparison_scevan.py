@@ -176,6 +176,15 @@ res_robust = sh.compare_groups.lm.test_lm(
 )
 
 # %%
+res_robust = sh.compare_groups.lm.test_lm(
+    cnv_ad[cnv_ad.obs["condition"].isin(["LUAD", "LUSC"]), :].copy(),
+    groupby="group",
+    formula="~ C(group, Sum) + dataset + condition + tumor_stage",
+    contrasts="Sum",
+    robust=True,
+)
+
+# %%
 res_robust
 
 # %%
@@ -216,5 +225,43 @@ res_co2.to_csv(
     "/home/sturm/Downloads/cnv_lm_res_filtered_abs_diff_gt_0.05_fdr_lt_0.1.csv"
 )
 res_co2
+
+# %% [markdown]
+# ## results from george
+
+# %%
+res_shared_tcga = pd.read_csv("/home/sturm/Downloads/lm_res_filtered_abs_diff_gt_0.01_fdr_lt_0.1_adjusted_Shared_TCGA_CNA.tsv", sep="\t")
+
+# %%
+res_shared_tcga
+
+# %%
+cpdb = pd.read_csv("../../tables/cellphonedb_2022-04-06.tsv", sep="\t")
+
+# %%
+res_shared_tcga.merge(cpdb, how="inner", left_on="gene_name", right_on="source_genesymbol")
+
+# %%
+res_shared_tcga.merge(cpdb, how="inner", left_on="gene_name", right_on="target_genesymbol")
+
+# %%
+de_res_tumor_cells_patient_strat = (
+    pd.concat(
+        [
+            pd.read_csv(
+                f"../../data/30_downstream_analyses/de_analysis/{k}_desert/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
+                sep="\t",
+            ).assign(group=k.upper())
+            for k in "tmb"
+        ]
+    )
+    .fillna(1)
+    .pipe(sh.util.fdr_correction)
+    .drop("gene_id", axis="columns")
+    .rename(columns={"gene_id.1": "gene_id"})
+)
+
+# %%
+de_res_tumor_cells_patient_strat.loc[lambda x: x["gene_id"].isin(["TNFSF10"]), :].sort_values("gene_id")
 
 # %%

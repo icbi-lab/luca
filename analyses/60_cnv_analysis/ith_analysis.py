@@ -236,14 +236,14 @@ for var in ["ITHCNA", "ithcna_infercnvpy", "ITHGEX"]:
 
 # %%
 mod = smf.ols(
-    "ITHCNA ~ C(immune_infiltration) + tumor_stage + dataset + n_tumor_cells",
+    "ITHCNA ~ C(immune_infiltration) + tumor_type_annotated + tumor_stage + dataset + n_tumor_cells",
     data=patient_strat2,
 )
 mod.fit().summary()
 
 # %%
 mod = smf.ols(
-    "ITHGEX ~ C(immune_infiltration) +  tumor_stage + dataset + n_tumor_cells",
+    "ITHGEX ~ C(immune_infiltration) + tumor_type_annotated + tumor_stage + dataset + n_tumor_cells",
     data=patient_strat2,
 )
 mod.fit().summary()
