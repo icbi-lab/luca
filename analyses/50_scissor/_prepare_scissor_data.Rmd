@@ -5,12 +5,15 @@ library(SingleCellExperiment)
 library(readxl)
 library(dplyr)
 conflict_prefer("filter", "dplyr")
+conflict_prefer("rename", "dplyr")
 library(readr)
 library(stringr)
 library(tidyr)
 library(tibble)
 # library(RhpcBLASctl)
 ```
+
+## TCGA
 
 ```{r}
 process_dataset = function(df) {
@@ -109,4 +112,45 @@ clinical_data = read_excel("../../tables/tcga/mmc1.xlsx", guess_max=1000000, na=
 
 ```{r}
 write_tsv(clinical_data, "../../tables/tcga/clinical_data_for_scissor.tsv")
+```
+
+
+## POPLAR/OAK
+
+```{r}
+clinical_poplar = read_csv("../../data/14_ici_treatment/Genentech/EGAF00005797821/go28573_anon_subsetted_BYN_n192.csv")
+clinical_oak = read_csv("../../data/14_ici_treatment/Genentech/EGAF00005797822/go28915_anon_subsetted_BYN_n699.csv")
+# additional clinical information
+clinical2 = read_csv("../../data/14_ici_treatment/Genentech/EGAF00006143195/ss.csv")
+
+# deal with weird csv that doesn't contain colname for first column
+tpm_poplar = data.table::fread("../../data/14_ici_treatment/Genentech/EGAF00005797825/anonymized_POPLAR-TPMs2_n192.csv") |> as_tibble() |> rename(gene_symbol=V1)
+tpm_oak = data.table::fread("../../data/14_ici_treatment/Genentech/EGAF00005797824/anonymized_OAK-TPMs2.csv")|> as_tibble() |> rename(gene_symbol=V1)
+```
+
+```{r}
+# make unified metadata table
+genentech_clinical = bind_rows(clinical_poplar, clinical_oak) |> mutate(subjectId = paste0("PAT-", str_sub(UNI_ID, 1, 12))) |> left_join(clinical2)
+genentech_tpm = full_join(tpm_poplar, tpm_oak, by="gene_symbol")
+```
+
+```{r}
+# bring metadata into the proper format for scissor
+clinical_data_genentech = genentech_clinical |>
+   select(sample_id = alias, study=STUDYNAME, type=HIST, time=OS_MONTHS, status=OS_CENSOR, gender, response=BCOR) |>
+   # months to days
+   mutate(time = round(30*time)) |>
+   mutate(type = recode(type, "NON-SQUAMOUS"="LUAD", "SQUAMOUS"="LUSC")) |> 
+   # PR=partial response, CR=complete response, PD = progressive disease, SD = stable disease, NE = not evaluable
+   # only compare response vs. progressive disease. Stable disease = NAN
+   mutate(response_binary = recode(response, PR=1, CR=1, PD=0))
+```
+
+
+```{r}
+genentech_tpm_mat = genentech_tpm |> column_to_rownames("gene_symbol") 
+
+write_rds(genentech_tpm_mat, "../../data/14_ici_treatment/Genentech_for_scissor/genentech_ici_treatment.rds")
+write_tsv(clinical_data_genentech, "../../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv")
+
 ```
