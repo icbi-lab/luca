@@ -140,20 +140,20 @@ genentech_tpm = full_join(tpm_poplar, tpm_oak, by="gene_symbol") |> mutate(acros
 ```{r}
 # bring metadata into the proper format for scissor
 clinical_data_genentech = genentech_clinical |>
-   select(sample_id = alias, study=STUDYNAME, type=HIST, time=OS_MONTHS, status=OS_CENSOR, gender, response=BCOR) |>
+   select(sample_id = alias, study=STUDYNAME, type=HIST, time=OS_MONTHS, status=OS_CENSOR, gender, response=BCOR, study_arm=ACTARM) |>
    # months to days
    mutate(time = round(30*time)) |>
    mutate(type = recode(type, "NON-SQUAMOUS"="LUAD", "SQUAMOUS"="LUSC")) |> 
    # PR=partial response, CR=complete response, PD = progressive disease, SD = stable disease, NE = not evaluable
    # only compare response vs. progressive disease. Stable disease = NAN
-   mutate(response_binary = recode(response, PR=1, CR=1, PD=0))
+   mutate(response_to_chemotherapy = ifelse(study_arm=="Docetaxel", recode(response, PR=1, CR=1, PD=0), NA)) |> 
+   mutate(response_to_ici = ifelse(study_arm=="MPDL3280A", recode(response, PR=1, CR=1, PD=0), NA))  
 ```
 
 
 ```{r}
 genentech_tpm_mat = genentech_tpm |> column_to_rownames("gene_symbol") |> as.matrix()
 
-write_rds(genentech_tpm_mat, "../../data/14_ici_treatment/Genentech_for_scissor/genentech_ici_treatment.rds")
+write_rds(genentech_tpm_mat, "../../data/14_ici_treatment/Genentech_for_scissor/genentech.rds")
 write_tsv(clinical_data_genentech, "../../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv")
-
 ```
