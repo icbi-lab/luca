@@ -101,9 +101,11 @@ with plt.rc_context({"figure.dpi": 150}):
         legend_fontoutline=2,
         frameon=False,
         size=20,
-        return_fig=True
+        return_fig=True,
     )
-    fig.savefig(f"{artifact_dir}/umap_neutro_tan_nan.pdf", dpi=1200, bbox_inches="tight")
+    fig.savefig(
+        f"{artifact_dir}/umap_neutro_tan_nan.pdf", dpi=1200, bbox_inches="tight"
+    )
 
 # %%
 with plt.rc_context({"figure.dpi": 150}):
@@ -116,7 +118,9 @@ with plt.rc_context({"figure.dpi": 150}):
         size=20,
         return_fig=True,
     )
-    fig.savefig(f"{artifact_dir}/umap_neutro_clusters.pdf", dpi=1200, bbox_inches="tight")
+    fig.savefig(
+        f"{artifact_dir}/umap_neutro_clusters.pdf", dpi=1200, bbox_inches="tight"
+    )
 
 # %%
 # sh.colors.set_scale_anndata(adata_n, "condition")
@@ -129,9 +133,11 @@ with plt.rc_context({"figure.dpi": 150}):
         size=20,
         add_outline=False,
         outline_width=[0.05, 0],
-        return_fig=True
+        return_fig=True,
     )
-    fig.savefig(f"{artifact_dir}/umap_neutro_condition.pdf", dpi=1200, bbox_inches="tight")
+    fig.savefig(
+        f"{artifact_dir}/umap_neutro_condition.pdf", dpi=1200, bbox_inches="tight"
+    )
 
 # %%
 with plt.rc_context({"figure.dpi": 150}):
@@ -142,9 +148,13 @@ with plt.rc_context({"figure.dpi": 150}):
         frameon=False,
         size=20,
         title="condition: only cells from primary tumor samples",
-        return_fig=True
+        return_fig=True,
     )
-    fig.savefig(f"{artifact_dir}/umap_neutro_condition_primary_tumor_only.pdf", dpi=1200, bbox_inches="tight")
+    fig.savefig(
+        f"{artifact_dir}/umap_neutro_condition_primary_tumor_only.pdf",
+        dpi=1200,
+        bbox_inches="tight",
+    )
 
 # %%
 # sh.colors.set_scale_anndata(adata_n, "origin")
@@ -155,7 +165,7 @@ with plt.rc_context({"figure.dpi": 150}):
         legend_fontoutline=2,
         frameon=False,
         size=20,
-        return_fig=True
+        return_fig=True,
     )
     fig.savefig(f"{artifact_dir}/umap_neutro_origin.pdf", dpi=1200, bbox_inches="tight")
 
@@ -205,13 +215,23 @@ dataset_fracs = (
 patient_fracs.loc[lambda x: x["fraction"] > 0, "patient"].nunique()
 
 # %%
-ch = alt.Chart(dataset_fracs).mark_bar().encode(x="fraction", y="cell_type", color="dataset")
+ch = (
+    alt.Chart(dataset_fracs)
+    .mark_bar()
+    .encode(x="fraction", y="cell_type", color=alt.Color("dataset", legend=alt.Legend(labelLimit=1e6)))
+)
 ch.save(f"{artifact_dir}/neutro_clusters_by_dataset.svg")
 ch.display()
 
 # %%
-ch = alt.Chart(patient_fracs).mark_bar().encode(
-    x=alt.X("fraction", scale=alt.Scale(domain=[0, 1])), y="cell_type", color="patient"
+ch = (
+    alt.Chart(patient_fracs)
+    .mark_bar()
+    .encode(
+        x=alt.X("fraction", scale=alt.Scale(domain=[0, 1])),
+        y="cell_type",
+        color=alt.Color("patient", legend=alt.Legend(labelLimit=1e6, symbolLimit=1000)),
+    )
 )
 ch.save(f"{artifact_dir}/neutro_clusters_by_patient.svg")
 ch.display()
@@ -241,19 +261,29 @@ frac_by_patient = (
 frac_by_patient
 
 # %%
-ch = alt.Chart(
-    frac_by_patient.loc[lambda x: ~x["origin_biopsy"].isin(["nan", "tumor_metastasis"])]
-).mark_boxplot().encode(x="cell_type", y="fraction", color="cell_type").facet(
-    column="origin_biopsy"
+ch = (
+    alt.Chart(
+        frac_by_patient.loc[
+            lambda x: ~x["origin_biopsy"].isin(["nan", "tumor_metastasis"])
+        ]
+    )
+    .mark_boxplot()
+    .encode(x="cell_type", y="fraction", color="cell_type")
+    .facet(column="origin_biopsy")
 )
 ch.save(f"{artifact_dir}/tan_nan_by_origin.svg")
 ch.display()
 
 # %%
-ch = alt.Chart(
-    frac_by_patient.loc[lambda x: ~x["origin_biopsy"].isin(["nan", "tumor_metastasis"])]
-).mark_boxplot().encode(x="cell_type", y="fraction", color="cell_type").facet(
-    column="condition"
+ch = (
+    alt.Chart(
+        frac_by_patient.loc[
+            lambda x: ~x["origin_biopsy"].isin(["nan", "tumor_metastasis"])
+        ]
+    )
+    .mark_boxplot()
+    .encode(x="cell_type", y="fraction", color="cell_type")
+    .facet(column="condition")
 )
 ch.save(f"{artifact_dir}/tan_nan_by_condition.svg")
 ch.display()
@@ -356,7 +386,7 @@ def plot_markers(pb, groupby, markers, *, top=10, **kwargs):
         groupby=groupby,
         var_names={k: v[:top] for k, v in markers.items()},
         cmap="bwr",
-        **kwargs
+        **kwargs,
     )
 
 
@@ -381,11 +411,15 @@ markers = {
 }
 
 # %%
-fig = plot_markers(pb_tan_nan, "cell_type_tan_nan_label", markers_tan_nan, top=10, return_fig=True)
+fig = plot_markers(
+    pb_tan_nan, "cell_type_tan_nan_label", markers_tan_nan, top=10, return_fig=True
+)
 fig.savefig(f"{artifact_dir}/matrixplot_tan_nan_top10.pdf", bbox_inches="tight")
 
 # %%
-fig = plot_markers(pb_tan_nan, "cell_type_tan_nan_label", markers_tan_nan, top=30, return_fig=True)
+fig = plot_markers(
+    pb_tan_nan, "cell_type_tan_nan_label", markers_tan_nan, top=30, return_fig=True
+)
 fig.savefig(f"{artifact_dir}/matrixplot_tan_nan_top30.pdf", bbox_inches="tight")
 
 # %%
@@ -395,14 +429,16 @@ ch = sh.pairwise.plot_paired_fc(
     var_names=markers_tan_nan["TAN"][:30] + markers_tan_nan["NAN"][:30],
     paired_by="patient",
     metric="diff",
-    metric_name="log2 fold-change"
+    metric_name="log2 fold-change",
 )
 ch.save(f"{artifact_dir}/barchar_tan_nan_top30.svg")
 ch.display()
 
 # %%
 fig = plot_markers(pb_n, "cell_type", markers_tan_nan, top=10, return_fig=True)
-fig.savefig(f"{artifact_dir}/matrixplot_tan_nan_top10_all_clusters.pdf", bbox_inches="tight")
+fig.savefig(
+    f"{artifact_dir}/matrixplot_tan_nan_top10_all_clusters.pdf", bbox_inches="tight"
+)
 
 # %%
 ch = metric_strip(pb_tan_nan, markers_tan_nan)
@@ -448,11 +484,20 @@ selected_top_markers = {
     "TAN-4": ["RPL27", "RPS12"],
 }
 selected_markers_of_interest = {
-    "NAN-1": ["S100A12", "PADI4", "PROK2", "MMP9"], 
+    "NAN-1": ["S100A12", "PADI4", "PROK2", "MMP9"],
     "TAN-1": ["CXCL8", "CXCL1", "CXCL2", "CD44"],
-    "TAN-2": ["HLA-DRA", "CD74", "HLA-DPB1", "IFIT1", "IFIT2", "IFIT3", "IFIT5", "IFITM1", "XAF1", "ISG15", "HERC5"],
+    "TAN-2": [
+        "HLA-DRA",
+        "CD74",
+        "HLA-DPB1",
+        "IFIT1",
+        "IFIT2",
+        "IFIT3",
+        "XAF1",
+        "ISG15",
+    ],
     "TAN-3": ["PLIN2", "PLPP3", "MAP1LC3B", "PLAU"],
-    "TAN-4": ["RPL10", "RPS2", "RPS18"]
+    "TAN-4": ["RPL10", "RPS2", "RPS18"],
 }
 
 # %%
@@ -461,9 +506,12 @@ fig = sc.pl.matrixplot(
     var_names=selected_top_markers,
     groupby="cell_type",
     cmap="bwr",
-    return_fig=True
+    return_fig=True,
 )
-fig.savefig(f"{artifact_dir}/matrixplot_neutro_clusters_selected_markers.pdf", bbox_inches="tight")
+fig.savefig(
+    f"{artifact_dir}/matrixplot_neutro_clusters_selected_markers.pdf",
+    bbox_inches="tight",
+)
 
 # %%
 fig = sc.pl.umap(
@@ -473,9 +521,13 @@ fig = sc.pl.umap(
     size=40,
     ncols=5,
     frameon=False,
-    return_fig=True
+    return_fig=True,
 )
-fig.savefig(f"{artifact_dir}/umap_neutro_clusters_selected_markers.pdf", bbox_inches="tight", dpi=1200)
+fig.savefig(
+    f"{artifact_dir}/umap_neutro_clusters_selected_markers.pdf",
+    bbox_inches="tight",
+    dpi=1200,
+)
 
 # %%
 fig = sc.pl.matrixplot(
@@ -483,9 +535,12 @@ fig = sc.pl.matrixplot(
     var_names=selected_markers_of_interest,
     groupby="cell_type",
     cmap="bwr",
-    return_fig=True
+    return_fig=True,
 )
-fig.savefig(f"{artifact_dir}/matrixplot_neutro_clusters_selected_markers_of_interest.pdf", bbox_inches="tight")
+fig.savefig(
+    f"{artifact_dir}/matrixplot_neutro_clusters_selected_markers_of_interest.pdf",
+    bbox_inches="tight",
+)
 
 # %%
 fig = sc.pl.umap(
@@ -495,9 +550,13 @@ fig = sc.pl.umap(
     size=40,
     ncols=5,
     frameon=False,
-    return_fig=True
+    return_fig=True,
 )
-fig.savefig(f"{artifact_dir}/umap_neutro_clusters_selected_markers_of_interest.pdf", bbox_inches="tight", dpi=300)
+fig.savefig(
+    f"{artifact_dir}/umap_neutro_clusters_selected_markers_of_interest.pdf",
+    bbox_inches="tight",
+    dpi=300,
+)
 
 # %%
 marker_res_tan_nan = (
@@ -630,7 +689,9 @@ tf_res_tan_nan = sh.compare_groups.lm.lm_test_all(
 )
 
 # %%
-ch = sh.compare_groups.pl.plot_lm_result_altair(tf_res_tan_nan, cluster=True, p_cutoff=0.01)
+ch = sh.compare_groups.pl.plot_lm_result_altair(
+    tf_res_tan_nan, cluster=True, p_cutoff=0.01
+)
 ch.save(f"{artifact_dir}/dorothea_tan_nan_heatmap_fdr_0.01.svg")
 ch.display()
 
@@ -639,7 +700,9 @@ ch = sh.pairwise.plot_paired_fc(
     sh.pseudobulk.pseudobulk(
         adata_n_dorothea, groupby=["patient", "cell_type_tan_nan"], aggr_fun=np.mean
     ),
-    var_names=tf_res_tan_nan.loc[lambda x: (x["fdr"] < 0.1) & (abs(x["coef"]) > 0.2), "variable"].tolist(),
+    var_names=tf_res_tan_nan.loc[
+        lambda x: (x["fdr"] < 0.1) & (abs(x["coef"]) > 0.2), "variable"
+    ].tolist(),
     metric="diff",
     groupby="cell_type_tan_nan",
     paired_by="patient",
@@ -938,7 +1001,11 @@ tmp_df
 
 # %%
 fig = sc.pl.matrixplot(
-    pb_n, var_names=neutro_sigs["neutro_sig2"], groupby="cell_type", cmap="bwr", return_fig=True
+    pb_n,
+    var_names=neutro_sigs["neutro_sig2"],
+    groupby="cell_type",
+    cmap="bwr",
+    return_fig=True,
 )
 fig.savefig(f"{artifact_dir}/neutro2_sig_genes_by_cluster.pdf", bbox_inches="tight")
 
@@ -958,8 +1025,12 @@ adata_n.obs["tan_nan_sig"] = (adata_n.obs["tan_sig"] + adata_n.obs["nan_sig"]) /
 pb_n.obs["tan_nan_sig"] = (pb_n.obs["tan_sig"] + pb_n.obs["nan_sig"]) / 2
 
 # %%
-fig = sc.pl.matrixplot(pb_n, var_names=sig_keys, cmap="bwr", groupby="cell_type", return_fig=True)
-fig.savefig(f"{artifact_dir}/matrixplot_signature_scores_by_cluster.pdf", bbox_inches="tight")
+fig = sc.pl.matrixplot(
+    pb_n, var_names=sig_keys, cmap="bwr", groupby="cell_type", return_fig=True
+)
+fig.savefig(
+    f"{artifact_dir}/matrixplot_signature_scores_by_cluster.pdf", bbox_inches="tight"
+)
 
 # %%
 fig = sc.pl.umap(
@@ -969,7 +1040,7 @@ fig = sc.pl.umap(
     size=20,
     ncols=3,
     frameon=False,
-    return_fig=True
+    return_fig=True,
 )
 fig.savefig(f"{artifact_dir}/umap_signature_scores.pdf", dpi=1200, bbox_inches="tight")
 
@@ -998,16 +1069,18 @@ sc.pl.matrixplot(
 )
 
 # %%
-fig =sc.pl.umap(
+fig = sc.pl.umap(
     adata,
     color=list(neutro_sigs.keys()) + ["tan_nan_sig"],
     cmap="inferno",
     size=1,
     ncols=3,
     frameon=False,
-    return_fig=True
+    return_fig=True,
 )
-fig.savefig(f"{artifact_dir}/umap_atlas_signature_scores.pdf", dpi=1200, bbox_inches="tight")
+fig.savefig(
+    f"{artifact_dir}/umap_atlas_signature_scores.pdf", dpi=1200, bbox_inches="tight"
+)
 
 # %% [markdown]
 # ## Export signatures
