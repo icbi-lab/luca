@@ -69,11 +69,16 @@ alt.Chart(df).mark_bar().encode(
 df
 
 # %% [markdown]
-# ## Neutrophil fractions per platform
+# ## Neutrophil fractions per platform (of total Leukocytes)
 
 # %%
 df = (
     adata.obs.loc[lambda x: ~x["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"])]
+    .loc[
+        lambda x: ~x["cell_type_coarse"].isin(
+            ["Epithelial cell", "Endothelial cell", "Stromal"]
+        )
+    ]
     .groupby(
         [
             "platform",

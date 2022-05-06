@@ -422,6 +422,15 @@ ch.save(f"{artifact_dir}/matrixplot_neutro_clusters_top5_auroc.svg")
 ch.display()
 
 # %%
+fig = plot_markers(pb_n, "cell_type", markers, top=10, return_fig=True)
+fig.savefig(f"{artifact_dir}/matrixplot_neutro_clusters_top10.pdf", bbox_inches="tight")
+
+# %%
+ch = metric_strip(pb_n, markers, top=10)
+ch.save(f"{artifact_dir}/matrixplot_neutro_clusters_top10_auroc.svg")
+ch.display()
+
+# %%
 np.max(pb_n.var.loc[:, pb_n.var.columns.str.contains("auroc")])
 
 # %% [markdown]
@@ -437,6 +446,13 @@ selected_top_markers = {
     "TAN-2": ["CD74", "IFIT1"],
     "TAN-3": ["PLIN2", "PLPP3"],
     "TAN-4": ["RPL27", "RPS12"],
+}
+selected_markers_of_interest = {
+    "NAN-1": ["S100A12", "PADI4", "PROK2", "MMP9"], 
+    "TAN-1": ["CXCL8", "CXCL1", "CXCL2", "CD44"],
+    "TAN-2": ["HLA-DRA", "CD74", "HLA-DPB1", "IFIT1", "IFIT2", "IFIT3", "IFIT5", "IFITM1", "XAF1", "ISG15", "HERC5"],
+    "TAN-3": ["PLIN2", "PLPP3", "MAP1LC3B", "PLAU"],
+    "TAN-4": ["RPL10", "RPS2", "RPS18"]
 }
 
 # %%
@@ -460,6 +476,28 @@ fig = sc.pl.umap(
     return_fig=True
 )
 fig.savefig(f"{artifact_dir}/umap_neutro_clusters_selected_markers.pdf", bbox_inches="tight", dpi=1200)
+
+# %%
+fig = sc.pl.matrixplot(
+    pb_n,
+    var_names=selected_markers_of_interest,
+    groupby="cell_type",
+    cmap="bwr",
+    return_fig=True
+)
+fig.savefig(f"{artifact_dir}/matrixplot_neutro_clusters_selected_markers_of_interest.pdf", bbox_inches="tight")
+
+# %%
+fig = sc.pl.umap(
+    adata_n,
+    color=itertools.chain.from_iterable(selected_markers_of_interest.values()),
+    cmap="inferno",
+    size=40,
+    ncols=5,
+    frameon=False,
+    return_fig=True
+)
+fig.savefig(f"{artifact_dir}/umap_neutro_clusters_selected_markers_of_interest.pdf", bbox_inches="tight", dpi=300)
 
 # %%
 marker_res_tan_nan = (

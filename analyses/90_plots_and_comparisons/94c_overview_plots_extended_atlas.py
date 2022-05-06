@@ -454,6 +454,21 @@ print(
 )
 
 # %%
+print(
+    adatas["UKIM-V"][
+        (adatas["UKIM-V"].obs["cell_type_coarse"] == "Neutrophils"),
+        # & (adatas["UKIM-V"].obs["origin"] == "normal_adjacent"),
+        :,
+    ]
+    .obs.groupby("patient")
+    .agg(
+        median_n_counts=("total_counts", np.median),
+        mean_n_counts=("total_counts", np.mean),
+    )
+    .to_string()
+)
+
+# %%
 adatas["UKIM-V"][
     adatas["UKIM-V"].obs["cell_type_coarse"] == "Neutrophils", :
 ].obs.groupby(["patient", "origin"]).size()
