@@ -231,6 +231,8 @@ for var in ["ITHCNA", "ithcna_infercnvpy", "ITHGEX"]:
     ax5.legend(loc="center left", bbox_to_anchor=(1, 0.5))
     # ax5.get_legend().remove()
     plt.show()
+    
+    fig.savefig(f"{artifact_dir}/ith_analysis_{var}.pdf", bbox_inches="tight")
 
 # %%
 mod = smf.ols(
