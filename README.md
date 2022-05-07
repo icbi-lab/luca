@@ -61,7 +61,7 @@ curl TODO | tar xvf
 
  ### 3. Configure nextflow
 
-Depending on your HPC/cloud setup you likely will need to adjust the nextflow profile in `nextflow.config`, to tell 
+Depending on your HPC/cloud setup you will need to adjust the nextflow profile in `nextflow.config`, to tell 
 nextflow how to submit the jobs. There is a `withLabel:gpu` directive, that can be used to assign special 
 resources to gpu jobs. You can get an idea by checking out the `icbi_lung` profile - which we used to run the 
 workflow on our on-premise cluster. Note that only the `build_atlas` workflow makes use of GPU processes. 
