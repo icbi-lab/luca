@@ -127,13 +127,22 @@ For reproducibility issues or any other requests regarding single-cell data anal
 
 ## Notes on reproducibility
 
-For the workflow to be reproducible (consistent neighborhood graph -> consistent leiden clusters -> consistent annotation), you need specific hardware: 
-   * Nvidia Quadro RTX 8000 GPU (any Nvidia GPU of the same generation *should* work)
-   * Intel(R) Xeon(R) CPU E5-2699A v4 @ 2.40GHz (any Intel CPU of the same generation *should* work)
+We aimed at making this workflow reproducible by providing all input data, containerizing all software 
+dependencies and integrating all analysis steps into a nextflow workflow.
+In theory, this allows to execute the workflow on any system that can run nextflow and singularity. 
+Unfortunately, some single cell analysis algorithms (in particular scVI/scANVI and UMAP) will yield
+slightly different results on different hardware, trading off computational reproducibility for a 
+significantly faster runtime. In particular, results will differ when changing the number of cores, or 
+when running on a CPU/GPU of a different architecture. See also https://github.com/scverse/scanpy/issues/2014 for a discussion. 
 
-Note that changing the number of cores per process will break reproducibility. Therefore, you'll need a CPU with at least 44 cores. 
+Since the cell-type annotation depends on clustering, and the clustering depends on the neighborhood graph,
+which again depends on the scANVI embedding, running the `build_atlas` workflow on a different machine
+will likely break the cell-type labels. 
 
-TODO link github issues
+Below is the hardware we used to execute the `build_atlas` workflow. Theoretically, 
+any CPU/CPU of the same generation shoud produce identical results, but we did not have the chance to test this yet. 
 
-
+ * Compute node CPU: `Intel(R) Xeon(R) CPU E5-2699A v4 @ 2.40GHz` (2x)
+ * GPU node CPU: `EPYC 7352 24-Core` (2x)
+ * GPU node GPU: `Nvidia Quadro RTX 8000 GPU`
 
