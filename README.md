@@ -55,7 +55,7 @@ curl TODO | tar xvf
 curl TODO | tar xvf
  ```
 
- Note, that some steps of the downstream analysis depend on an additional [cohort of checkpoint-inhibitor-treated patients](https://ega-archive.org/studies/EGAS00001005013), which is only available under protected access agreement. For obvious reasons, these data 
+ Note that some steps of the downstream analysis depend on an additional [cohort of checkpoint-inhibitor-treated patients](https://ega-archive.org/studies/EGAS00001005013), which is only available under protected access agreement. For obvious reasons, these data 
  are not included in our data archive. You'll need to obtain the dataset yourself and place it in the `data/14_ici_treatment/Genentech` folder. 
  The corresponding analysis steps are skipped by default. 
 
