@@ -42,10 +42,33 @@
 
             <main>
                 <h1>Single-cell <b>Lu</b>ng <b>C</b>ancer <b>A</b>tlas</h1>
-                <p class="fs-5 col-md-8">
-                    High-resolution single-cell atlas reveals diversity and
-                    plasticity of tissue-resident neutrophils in non-small cell
-                    lung cancer
+                <p class="fs-5 col-md-12"></p>
+                <figure>
+                    <blockquote class="blockquote">
+                        High-resolution single-cell atlas reveals diversity and
+                        plasticity of tissue-resident neutrophils in non-small
+                        cell lung cancer
+                    </blockquote>
+                    <figcaption class="blockquote-footer">
+                        Salcher, Sturm, Horvath et al.
+                        <cite>Manuscript in preparation.</cite>
+                    </figcaption>
+                </figure>
+
+                <p>
+                    The core atlas was compiled from 21 datasets comprising 505
+                    samples from 298 patients. 38 different cell-types were
+                    annotated at different levels of granularity.
+                </p>
+
+                <p>
+                    By using the transfer learning method
+                    <a href="https://scarches.readthedocs.io/en/latest/"
+                        >scArches</a
+                    >
+                    another 8 datasets were projected onto the core atlas,
+                    resulting in an extended atlas with
+                    <b>1.2 million cells, 538 samples and 309 patients.</b>
                 </p>
 
                 <div class="d-flex justify-content-center">
@@ -56,7 +79,6 @@
                     />
                 </div>
 
-                <hr />
                 <h2>Cell-x-gene</h2>
                 <p>Browse the atlas interactively in cell-x-gene.</p>
 
@@ -65,7 +87,7 @@
                         <div class="float-end">
                             <a
                                 href="https://apps-01.i-med.ac.at/cellxgene-pircher/view/core_atlas_annotations/core.csv/"
-                                class="btn btn-primary btn-lg px-4"
+                                class="btn btn-outline-primary btn-lg px-4"
                                 ><svg
                                     xmlns="http://www.w3.org/2000/svg"
                                     width="16"
@@ -83,7 +105,7 @@
 
                             <a
                                 href="https://apps-01.i-med.ac.at/cellxgene-pircher/view/extended_atlas_annotations/extended.csv/"
-                                class="btn btn-primary btn-lg px-4"
+                                class="btn btn-outline-primary btn-lg px-4"
                                 ><svg
                                     xmlns="http://www.w3.org/2000/svg"
                                     width="16"
@@ -102,25 +124,102 @@
                     </div>
                 </div>
 
-                <hr />
-                <h2>Get data</h2>
-                <p>The following data is available from zenodo:</p>
-                <ul>
-                    <li>Processed input data</li>
-                    <li>
-                        Intermediate results required to reproduce the results
-                    </li>
-                    <li>Core and extended atlas as h5ad files</li>
-                    <li>
-                        Pretrained scArches model to project new data onto the
-                        core atlas
-                    </li>
-                </ul>
+                <h2>Download datasets in <code>h5ad</code> format</h2>
+                <p>
+                    Both the core and the extended atlas are available in
+                    <code>h5ad</code> format, ready for any custom analysis
+                    using <a href="https://scverse.org">scverse</a> tools. For
+                    the core atlas, we also provide a
+                    <a href="https://scarches.readthedocs.io/en/latest/"
+                        >scArches</a
+                    >
+                    model that allows to project new datasets onto the atlas and
+                    automatically annotate cell-types.
+                </p>
+
+                <div class="row g-5">
+                    <div class="col-md-12">
+                        <div class="float-end">
+                            <a
+                                href="TODO"
+                                class="btn btn-outline-primary btn-lg px-4"
+                                ><svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="16"
+                                    height="16"
+                                    fill="currentColor"
+                                    class="bi bi-cloud-download"
+                                    viewBox="0 0 16 16"
+                                >
+                                    <path
+                                        d="M4.406 1.342A5.53 5.53 0 0 1 8 0c2.69 0 4.923 2 5.166 4.579C14.758 4.804 16 6.137 16 7.773 16 9.569 14.502 11 12.687 11H10a.5.5 0 0 1 0-1h2.688C13.979 10 15 8.988 15 7.773c0-1.216-1.02-2.228-2.313-2.228h-.5v-.5C12.188 2.825 10.328 1 8 1a4.53 4.53 0 0 0-2.941 1.1c-.757.652-1.153 1.438-1.153 2.055v.448l-.445.049C2.064 4.805 1 5.952 1 7.318 1 8.785 2.23 10 3.781 10H6a.5.5 0 0 1 0 1H3.781C1.708 11 0 9.366 0 7.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383z"
+                                    />
+                                    <path
+                                        d="M7.646 15.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 14.293V5.5a.5.5 0 0 0-1 0v8.793l-2.146-2.147a.5.5 0 0 0-.708.708l3 3z"
+                                    />
+                                </svg>
+                                core atlas (<code>h5ad</code>)</a
+                            >
+
+                            <a
+                                href="TODO"
+                                class="btn btn-outline-primary btn-lg px-4"
+                                ><svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="16"
+                                    height="16"
+                                    fill="currentColor"
+                                    class="bi bi-cloud-download"
+                                    viewBox="0 0 16 16"
+                                >
+                                    <path
+                                        d="M4.406 1.342A5.53 5.53 0 0 1 8 0c2.69 0 4.923 2 5.166 4.579C14.758 4.804 16 6.137 16 7.773 16 9.569 14.502 11 12.687 11H10a.5.5 0 0 1 0-1h2.688C13.979 10 15 8.988 15 7.773c0-1.216-1.02-2.228-2.313-2.228h-.5v-.5C12.188 2.825 10.328 1 8 1a4.53 4.53 0 0 0-2.941 1.1c-.757.652-1.153 1.438-1.153 2.055v.448l-.445.049C2.064 4.805 1 5.952 1 7.318 1 8.785 2.23 10 3.781 10H6a.5.5 0 0 1 0 1H3.781C1.708 11 0 9.366 0 7.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383z"
+                                    />
+                                    <path
+                                        d="M7.646 15.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 14.293V5.5a.5.5 0 0 0-1 0v8.793l-2.146-2.147a.5.5 0 0 0-.708.708l3 3z"
+                                    />
+                                </svg>
+                                core atlas (scArches)</a
+                            >
+
+                            <a
+                                href="TODO"
+                                class="btn btn-outline-primary btn-lg px-4"
+                                ><svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="16"
+                                    height="16"
+                                    fill="currentColor"
+                                    class="bi bi-cloud-download"
+                                    viewBox="0 0 16 16"
+                                >
+                                    <path
+                                        d="M4.406 1.342A5.53 5.53 0 0 1 8 0c2.69 0 4.923 2 5.166 4.579C14.758 4.804 16 6.137 16 7.773 16 9.569 14.502 11 12.687 11H10a.5.5 0 0 1 0-1h2.688C13.979 10 15 8.988 15 7.773c0-1.216-1.02-2.228-2.313-2.228h-.5v-.5C12.188 2.825 10.328 1 8 1a4.53 4.53 0 0 0-2.941 1.1c-.757.652-1.153 1.438-1.153 2.055v.448l-.445.049C2.064 4.805 1 5.952 1 7.318 1 8.785 2.23 10 3.781 10H6a.5.5 0 0 1 0 1H3.781C1.708 11 0 9.366 0 7.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383z"
+                                    />
+                                    <path
+                                        d="M7.646 15.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 14.293V5.5a.5.5 0 0 0-1 0v8.793l-2.146-2.147a.5.5 0 0 0-.708.708l3 3z"
+                                    />
+                                </svg>
+                                extended atlas (<code>h5ad</code>)</a
+                            >
+                        </div>
+                    </div>
+                </div>
+
+                <h2>Get input data and intermediate results</h2>
+                <p>
+                    In addition to the <code>h5ad</code> objects mentioned
+                    above, we provide preprocessed input data, intermediate
+                    results and final results on zenodo. The results were
+                    derived using the source code provided on GitHub and contain
+                    a rendered version of the Jupyter/Rmarkdown notebooks that
+                    were used to generate the figures in the manuscript.
+                </p>
                 <div class="row g-5">
                     <div class="col-md-12">
                         <a
                             href="https://doi.org/10.5281/zenodo.6411868"
-                            class="btn btn-primary btn-lg px-4 float-end"
+                            class="btn btn-outline-primary btn-lg px-4 float-end"
                             ><svg
                                 xmlns="http://www.w3.org/2000/svg"
                                 width="16"
@@ -141,7 +240,6 @@
                     </div>
                 </div>
 
-                <hr />
                 <h2>Browse code</h2>
                 <p>
                     All code needed to reproduce the study is wrapped into a
@@ -152,7 +250,7 @@
                     <div class="col-md-12">
                         <a
                             href="https://github.com/icbi-lab/luca"
-                            class="btn btn-primary btn-lg px-4 float-end"
+                            class="btn btn-outline-primary btn-lg px-4 float-end"
                             ><svg
                                 xmlns="http://www.w3.org/2000/svg"
                                 width="16"
@@ -169,6 +267,16 @@
                         >
                     </div>
                 </div>
+
+                <h2>Contact</h2>
+                <p>
+                    For reproducibility issues or any other requests regarding
+                    single-cell data analysis, please use the
+                    <a href="https://github.com/icbi-lab/luca/issues"
+                        >issue tracker</a
+                    >. For anything else, you can reach out to the corresponding
+                    author(s) as indicated in the manuscript.
+                </p>
             </main>
 
             <footer class="pt-5 my-5 text-muted border-top">
