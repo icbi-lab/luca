@@ -5,7 +5,6 @@
 mkdir -p .build_atlas && cd .build_atlas && \
 nextflow run .. --workflow build_atlas \
     --outdir ../data/20_build_atlas \
-    --publish_dir_mode link \
     -resume \
-    -profile icbi \
+    -profile icbi_lung \
     -w /data/scratch/sturm/projects/2020/pircher-scrnaseq-lung/atlas
