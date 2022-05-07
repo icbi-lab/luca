@@ -1,6 +1,6 @@
 # LuCA - The single-cell **Lu**ng **C**ancer **A**tlas
 
-The single cell lung cancer atlas is a resource integrating more than 1.2 million cells from 309 patients across 29 datasets. 
+The single cell lung cancer atlas is a resource integrating more than 1.2 million cells from 309 patients across 29 datasets (https://luca.icbi.at). 
 
 The atlas is publicly available for interactive exploration through a *cell-x-gene* instance. We also provide 
 `h5ad` objects and a [scArches](https://scarches.readthedocs.io/en/latest/) model which allows to project custom datasets
