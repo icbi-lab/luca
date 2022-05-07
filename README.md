@@ -108,11 +108,22 @@ The `build_atlas` workflow comprises the following steps:
   * Integration of datasets with scANVI
   * Doublet removal with [SOLO](https://docs.scvi-tools.org/en/stable/api/reference/scvi.external.SOLO.html)
   * Annotation of cell-types based on marker genes and unsupervised [leiden](https://scanpy.readthedocs.io/en/stable/generated/scanpy.tl.leiden.html) clustering.
-TODO update
+  * Integration of additional datasets with transfer learning using [scArches](scarches.readthedocs.io/). 
 
 ## Downstream analysis workflow
 
-TODO 
+ * Patient stratification into immune phenotypes
+ * Subclustering and analysis of the neutrophil cluster
+ * Differential gene expression analysis using [pseudobulk + DESeq2](https://www.nature.com/articles/s41467-021-25960-2)
+ * Differential analysis of transcription factors, cancer pathways and cytokine signalling using [Dorothea](https://github.com/saezlab/dorothea-py), [progeny](https://github.com/saezlab/progeny-py), and [CytoSig](https://github.com/data2intelligence/CytoSig).
+ * Copy number variation analysis using [SCEVAN](https://github.com/AntonioDeFalco/SCEVAN)
+ * Cell-type composition analysis using [scCODA](https://github.com/theislab/scCODA)
+ * Association of single cells with phenotypes from bulk RNA-seq datasets with [Scissor](https://github.com/sunduanchen/Scissor)
+ * Cell2cell communication based on differential gene expression and the [CellphoneDB database](https://github.com/ventolab/CellphoneDB). 
+
+## Contact
+
+For reproducibility issues or any other requests regarding single-cell data analysis, please use the [issue tracker](https://github.com/icbi-lab/luca/issues). For anything else, you can reach out to the corresponding author(s) as indicated in the manuscript. 
 
 ## Notes on reproducibility
 
