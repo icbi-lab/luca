@@ -1,13 +1,15 @@
 # LuCA - The single-cell **Lu**ng **C**ancer **A**tlas
 
-The single cell lung cancer atlas is a resource integrating more than 1.2 million cells from 309 patients across 29 datasets (https://luca.icbi.at). 
+The single cell lung cancer atlas is a resource integrating more than 1.2 million cells from 309 patients across 29 datasets. 
 
 The atlas is publicly available for interactive exploration through a *cell-x-gene* instance. We also provide 
 `h5ad` objects and a [scArches](https://scarches.readthedocs.io/en/latest/) model which allows to project custom datasets
-into the atlas. For more information, check out the [project website](https://luca.icbi.at) and our [preprint](TODO). 
+into the atlas. For more information, check out the 
+
+ * [project website](https://luca.icbi.at) and 
+ * our [preprint](TODO). 
 
 > Salcher, Sturm, Horvath et al., Manuscript in preparation
-
 
 This repository contains the source-code to reproduce the single-cell data analysis for the paper. 
 The analyses are wrapped into [nextflow](https://github.com/nextflow-io/nextflow/) pipelines, all dependencies are 
