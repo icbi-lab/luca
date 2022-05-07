@@ -37,22 +37,25 @@ tcga_treatment = read_tsv("../../tables/tcga/tcga_treatment.tsv")
 ```
 
 ```{r}
-# `folder_cho`
-load("../../data/14_ici_treatment/all_cho.RData")
-# `folder_jung`
-load("../../data/14_ici_treatment/all_jung.RData")
+# # `folder_cho`
+# load("../../data/14_ici_treatment/all_cho.RData")
+# # `folder_jung`
+# load("../../data/14_ici_treatment/all_jung.RData")
+# 
+# ici_meta = bind_rows(
+#   folder_cho$clinical_response |> 
+#     mutate(type=if_else(str_trim(Histology)=="Adenocarcinoma", "LUAD", "LUSC"), response=str_trim(Responsiveness)) |>
+#     select(type, age=Age, sex=Sex, response) |>
+#     mutate(dataset="cho"),
+#   folder_jung$clinical_response |>
+#     mutate(response=if_else(str_trim(Clinical.benefit) == "NDB", "Non-responder", "Responder")) |>
+#     select(response) |> 
+#     mutate(dataset="jung")
+# )
+# ici_tpm = bind_cols(folder_cho$tpm, folder_jung$tpm)[, rownames(ici_meta)]
 
-ici_meta = bind_rows(
-  folder_cho$clinical_response |> 
-    mutate(type=if_else(str_trim(Histology)=="Adenocarcinoma", "LUAD", "LUSC"), response=str_trim(Responsiveness)) |>
-    select(type, age=Age, sex=Sex, response) |>
-    mutate(dataset="cho"),
-  folder_jung$clinical_response |>
-    mutate(response=if_else(str_trim(Clinical.benefit) == "NDB", "Non-responder", "Responder")) |>
-    select(response) |> 
-    mutate(dataset="jung")
-)
-ici_tpm = bind_cols(folder_cho$tpm, folder_jung$tpm)[, rownames(ici_meta)]
+ici_tpm = read_rds("../../data/14_ici_treatment/Genentech_for_scissor/genentech.rds")
+ici_meta = read_tsv("../../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv") |> rename(dataset=study) |> rename(response_category=response, response=response_to_ici) |> mutate(response=factor(response))
 
 clinical_data = clinical_data |>
   mutate(ajcc_stage = as.factor(recode(ajcc_pathologic_tumor_stage, `Stage IV` = 4, `Stage IIIA` = 3, `Stage IB` = 1, `Stage IA` = 1, `Stage I` = 1, `Stage II` = 2, `Stage IIA` = 2, `Stage IIB` = 2, `Stage III`= 3, `Stage IIIB` = 3, .default=NA_real_)))
@@ -287,7 +290,7 @@ p
 
 ```
 
-In response data:
+# ICI treatment data
 
 ```{r, fig.width=9, fig.height=6}
 
@@ -315,7 +318,8 @@ ici_scores = data.frame(
   as_tibble(rownames="sample")
 
 ici_clin_and_scores = ici_meta |> 
-  as_tibble(rownames="sample") |>
+  rename(sample=sample_id) |>
+  # as_tibble(rownames="sample") |>
   inner_join(ici_scores) |>
   inner_join(ici_deconv) 
 
@@ -323,8 +327,8 @@ ici_clin_and_scores |> select(type, starts_with("sig_")) |>
   filter(!is.na(type)) |> 
   pivot_longer(-type, names_to="signature", values_to="score") |>
   ggplot(aes(x=type, y=score)) + 
-  geom_boxplot(outlier.alpha=0, width=.2) + 
   geom_quasirandom(aes(color=type)) + 
+  geom_boxplot(outlier.alpha=0, width=.2) + 
   stat_compare_means(method="wilcox.test") +
   theme_cowplot() + 
   background_grid() + 
@@ -335,6 +339,7 @@ ici_clin_and_scores |> select(type, starts_with("sig_")) |>
 
 ## Survival analysis
 
+### In TCGA data
 ```{r, fig.width=6, fig.height=6}
 coxph_results = lapply(c("all", "LUSC", "LUAD"), function(type) {
   filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
@@ -349,6 +354,24 @@ coxph_results = lapply(c("all", "LUSC", "LUAD"), function(type) {
 }) |> bind_rows()
 ```
 
+### In Genentech data
+```{r, fig.width=6, fig.height=6}
+coxph_results = lapply(c("all", "LUSC", "LUAD"), function(type) {
+  filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
+  type_covar = ifelse(type == "all", "+ type ", "")
+  coxph_res = lapply(colnames(select(chemo_data, starts_with("sig_"), starts_with("ct_"))), function(col) {
+     res = summary(coxph(as.formula(sprintf("Surv(time, status) ~ `%s` %s", col, type_covar)), data=ici_clin_and_scores |> filter(type %in% filter_type)))
+     res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col, type=type)
+  }) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> arrange(-coef) |> mutate(var=factor(var, levels=unique(var)))
+  
+  print(coxph_res |> ggplot(aes(x=var, y=coef)) + geom_bar(aes(fill=sig_code), stat="identity") + scale_fill_brewer(palette= "Blues", direction=-1)  + theme_cowplot()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_hline(yintercept = 0, color="black") + facet_wrap(~type, ncol=1))
+  coxph_res |> mutate(type=type)
+}) |> bind_rows()
+```
+
+
+## Kaplay Meyer plots
+### In TCGA data
 ```{r, fig.width=4, fig.height=4}
 plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75), pvalue=TRUE) {
   tmp_col = clinical_data[[column]]
@@ -375,33 +398,68 @@ lapply(c("LUAD", "LUSC", "all"), function(type) {
     p
   })
 })
-
-
 ```
+
+### In Genentech data
+
+```{r, fig.width=4, fig.height=4}
+plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75), pvalue=TRUE) {
+  tmp_col = clinical_data[[column]]
+  cutoffs = quantile(tmp_col, q)
+  group = rep(NA, length(tmp_col))
+  group[tmp_col < cutoffs[1]] = "bottom 25%"
+  group[tmp_col > cutoffs[2]] = "top 25%"
+  clinical_data$group = group
+  clinical_data = clinical_data |> filter(time < 365 * 5)
+  fit = survfit(Surv(time, status) ~ group, data=clinical_data)
+  ggsurvplot(fit, data=clinical_data, pval=pvalue, risk.table = FALSE, xlab="time in days")
+}
+
+lapply(c("LUAD", "LUSC", "all"), function(type) {
+  filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
+  lapply(c("sig_neutro", "sig_nan", "sig_tan", "sig_b_cell_follicular", "sig_neutro2", "sig_neutro3"), function(sig) {
+    p = plot_kaplan_meyer(
+      ici_clin_and_scores |> filter(type == filter_type),
+      sig,
+      pvalue=sprintf("p=%*.3f, CoxPH reg.", 3, coxph_results |> filter(var == sig, type == !!type) |> pull(`Pr(>|z|)`)),
+    ) + 
+      ggtitle(sprintf("%s (%s)", sig, type))
+    ggsave(file.path(params$artifact_dir, sprintf("KM_%s_%s.pdf", sig, type)), width=4.5, height=4)
+    p
+  })
+})
+```
+
 
 ## Responder vs. Non-responder
 
 ```{r, fig.width=6, fig.height=6}
-glm_res = lapply(colnames(select(ici_clin_and_scores, starts_with("sig_"), starts_with("ct_"))), function(col) {
-  print(col)
-  res = summary(glm(as.formula(sprintf("response ~ `%s` + dataset", col)), family="binomial", data=ici_clin_and_scores |> mutate(response = factor(response))))
-  res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
-}) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> arrange(-Estimate) |> mutate(var=factor(var, levels=unique(var)))
-
-glm_res |> ggplot(aes(x=var, y=Estimate)) + geom_bar(aes(fill=sig_code), stat="identity") + scale_fill_brewer(palette= "Blues", direction=-1)  + theme_cowplot()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_hline(yintercept = 0, color="black")
+glm_res = lapply(c("all", "LUSC", "LUAD"), function(type) {
+  filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
+  type_covar = ifelse(type == "all", "+ type ", "")
+  tmp_res = lapply(colnames(select(ici_clin_and_scores, starts_with("sig_"), starts_with("ct_"))), function(col) {
+    res = summary(glm(as.formula(sprintf("response ~ `%s` %s + dataset", col, type_covar)), family="binomial", data=ici_clin_and_scores |> filter(type %in% filter_type) |> mutate(response = factor(response))))
+    res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
+  }) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> arrange(-Estimate) |> mutate(var=factor(var, levels=unique(var)))
+  
+  print(tmp_res |> ggplot(aes(x=var, y=Estimate)) + geom_bar(aes(fill=sig_code), stat="identity") + scale_fill_brewer(palette= "Blues", direction=-1)  + theme_cowplot()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_hline(yintercept = 0, color="black") + ggtitle(type))
+  
+  tmp_res |> mutate(type=type)
+}) |> bind_rows()
 ```
 
 ```{r, fig.width=18, fig.height=7}
-pvalue_df = glm_res |> filter(`Pr(>|z|)` < 0.05) |> 
+pvalue_df = glm_res |> filter(`Pr(>|z|)` < 0.1) |> 
   select(signature=var, pvalue=`Pr(>|z|)`) |> 
   mutate(pvalue = sprintf("p=%*.3f", 3, pvalue)) |>
   distinct()
 p = ici_clin_and_scores |> select(type, response, dataset, starts_with("sig_"), starts_with("ct_")) |>
     pivot_longer(-c(type, response, dataset), names_to="signature", values_to="score") |>
+    filter(!is.na(response)) |> 
     inner_join(pvalue_df) |> 
     ggplot(aes(x=response, y=score)) + 
-    geom_boxplot(outlier.alpha=0, width=.2) + 
     geom_quasirandom(aes(color=type, shape=dataset)) +
+    geom_boxplot(outlier.alpha=0, width=.2) + 
     geom_text(aes(label = pvalue), x=-Inf, y=Inf, data=pvalue_df, hjust = -0.2, vjust=1) +
     theme_cowplot() + 
     background_grid() + 

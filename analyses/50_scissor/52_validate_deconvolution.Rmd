@@ -24,6 +24,8 @@ conflict_prefer("deconvolute", "immunedeconv")
 clinical_data = read_tsv("../../tables/tcga/clinical_data_for_scissor.tsv")
 tcga_tpm = read_rds("../../data/13_tcga/for_scissor/nsclc_primary_tumor.rds")
 age = read_excel("../../tables/tcga/mmc1.xlsx") %>% select(TCGA_patient_barcode=bcr_patient_barcode, age=age_at_initial_pathologic_diagnosis)
+
+
 ```
 
 
@@ -62,9 +64,44 @@ plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75)) {
 
 plot_kaplan_meyer(tcga_clin_and_scores |> filter(type == "LUAD"), "B cell") + ggtitle("LUAD")
 ggsave(file.path(params$artifact_dir, "KM_B_cell_epic_LUAD.pdf"))
-plot_kaplan_meyer(tcga_clin_and_scores |> filter(type == "LUSC"), "B cell") + ggtitle("LUAD")
+plot_kaplan_meyer(tcga_clin_and_scores |> filter(type == "LUSC"), "B cell") + ggtitle("LUSC")
 ggsave(file.path(params$artifact_dir, "KM_B_cell_epic_LUSC.pdf"))
 plot_kaplan_meyer(tcga_clin_and_scores, "B cell") + ggtitle("any")
 ggsave(file.path(params$artifact_dir, "KM_B_cell_epic_any.pdf"))
 
+```
+
+# Genentech cohort
+```{r}
+ici_tpm = read_rds("../../data/14_ici_treatment/Genentech_for_scissor/genentech.rds")
+ici_meta = read_tsv("../../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv")
+```
+
+```{r}
+ici_deconv = deconvolute(ici_tpm, method="epic") |> column_to_rownames("cell_type") |> as.matrix() |> t() |> as_tibble(rownames="sample_id")
+
+ici_clin_and_scores = ici_meta %>% 
+  left_join(ici_deconv, by="sample_id")
+```
+
+```{r}
+plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75)) {
+  tmp_col = clinical_data[[column]]
+  cutoffs = quantile(tmp_col, q, na.rm=TRUE)
+  group = rep(NA, length(tmp_col))
+  group[tmp_col < cutoffs[1]] = sprintf("low %s", column)
+  group[tmp_col > cutoffs[2]] = sprintf("high %s", column)
+  clinical_data$group = group
+  coxph_fit = summary(coxph(as.formula(sprintf("Surv(time, status) ~ `%s`", column)), data=clinical_data))$coefficients
+  pvalue = coxph_fit[1, 5]
+  fit = survfit(Surv(time, status) ~ group, data=clinical_data)
+  ggsurvplot(fit, data=clinical_data, pval=sprintf("p=%*.3f, CoxPH reg.", 3, pvalue), risk.table = FALSE, xlab="time in days")
+}
+
+plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUAD"), "B cell") + ggtitle("LUAD")
+# ggsave(file.path(params$artifact_dir, "KM_B_cell_epic_LUAD.pdf"))
+plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUSC"), "B cell") + ggtitle("LUSC")
+# ggsave(file.path(params$artifact_dir, "KM_B_cell_epic_LUSC.pdf"))
+plot_kaplan_meyer(ici_clin_and_scores, "B cell") + ggtitle("any")
+# ggsave(file.path(params$artifact_dir, "KM_B_cell_epic_any.pdf"))
 ```

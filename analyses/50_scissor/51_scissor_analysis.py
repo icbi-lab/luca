@@ -48,14 +48,21 @@ threadpool_limits(32)
 ah = AnnotationHelper()
 
 # %%
+dataset = nxfvars.get("dataset", "genentech")
+
+# %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/2022-04-12/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+    "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 
 # %%
 scissor_clinical_data = pd.read_csv(
-    nxfvars.get("scissor_clinical", "../../tables/tcga/clinical_data_for_scissor.tsv"),
+    # nxfvars.get("scissor_clinical", "../../tables/tcga/clinical_data_for_scissor.tsv"),
+    nxfvars.get(
+        "scissor_clinical",
+        "../../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv",
+    ),
     sep="\t",
 )
 
@@ -84,46 +91,78 @@ scissor_clinical_data.loc[
         "tp53_mutation",
         "stk11_mutation",
         "stk11_kras_mutation",
-    ],
+    ]
+    if dataset == "tcga"
+    else ["type", "response_to_ici", "response_to_chemotherapy"],
 ].assign(total=1).groupby("type").agg(sum).astype(int)
+
+# %%
+scissor_clinical_data.loc[
+    :,
+    [
+        "type",
+        "response_to_chemotherapy",
+        "tumor_stage",
+        "kras_mutation",
+        "braf_mutation",
+        "egfr_mutation",
+        "tp53_mutation",
+        "stk11_mutation",
+        "stk11_kras_mutation",
+    ]
+    if dataset == "tcga"
+    else ["type", "response_to_ici", "response_to_chemotherapy"],
+].assign(total=0).assign(response_to_ici = lambda x: 1-x["response_to_ici"]).groupby("type").agg(sum).astype(int)
 
 # %% [markdown]
 # # Load Scissor results
 
 # %%
 scissor_res_files = {
-    id: Path("../../data/30_downstream_analyses/scissor/scissor_by_sample/").glob(
-        f"**/scissor_{id}.tsv"
+    id: Path(
+        f"../../data/30_downstream_analyses/scissor_{dataset}/scissor_by_sample/"
+    ).glob(f"**/scissor_{id}.tsv")
+    for id in (
+        [
+            "any_tumor_stage",
+            "any_response_to_chemotherapy",
+            # "any_kras_mutation",
+            # "any_braf_mutation",
+            # "any_egfr_mutation",
+            "any_tumor_type",
+            "any_status_time",
+            #
+            "LUAD_response_to_chemotherapy",
+            "LUAD_braf_mutation",
+            "LUAD_kras_mutation",
+            "LUAD_egfr_mutation",
+            "LUAD_tp53_mutation",
+            "LUAD_stk11_mutation",
+            "LUAD_stk11_kras_mutation",
+            "LUAD_tumor_stage",
+            "LUAD_random",
+            "LUAD_status_time",
+            #
+            "LUSC_response_to_chemotherapy",
+            "LUSC_braf_mutation",
+            "LUSC_egfr_mutation",
+            "LUSC_tp53_mutation",
+            "LUSC_stk11_mutation",
+            "LUSC_tumor_stage",
+            "LUSC_random",
+            "LUSC_status_time",
+        ]
+        if dataset == "tcga"
+        else [
+            "any_response_to_ici",
+            "any_response_to_chemotherapy",
+            "any_status_time",
+            "LUAD_response_to_ici",
+            "LUAD_status_time",
+            "LUSC_response_to_ici",
+            "LUSC_status_time",
+        ]
     )
-    for id in [
-        "any_tumor_stage",
-        "any_response_to_chemotherapy",
-        # "any_kras_mutation",
-        # "any_braf_mutation",
-        # "any_egfr_mutation",
-        "any_tumor_type",
-        "any_status_time",
-        #
-        "LUAD_response_to_chemotherapy",
-        "LUAD_braf_mutation",
-        "LUAD_kras_mutation",
-        "LUAD_egfr_mutation",
-        "LUAD_tp53_mutation",
-        "LUAD_stk11_mutation",
-        "LUAD_stk11_kras_mutation",
-        "LUAD_tumor_stage",
-        "LUAD_random",
-        "LUAD_status_time",
-        #
-        "LUSC_response_to_chemotherapy",
-        "LUSC_braf_mutation",
-        "LUSC_egfr_mutation",
-        "LUSC_tp53_mutation",
-        "LUSC_stk11_mutation",
-        "LUSC_tumor_stage",
-        "LUSC_random",
-        "LUSC_status_time",
-    ]
 }
 
 # %%
@@ -166,8 +205,8 @@ for colname, series in scissor_obs.items():
 # )
 
 # %%
-colname, series = "scissor_lusc_tumor_stage", scissor_obs["scissor_lusc_tumor_stage"]
-adata.obs[colname].value_counts().tolist(), series.value_counts().tolist()
+# colname, series = "scissor_lusc_tumor_stage", scissor_obs["scissor_lusc_tumor_stage"]
+# adata.obs[colname].value_counts().tolist(), series.value_counts().tolist()
 
 # %%
 sc.settings.set_figure_params(figsize=(8, 8))
@@ -176,10 +215,9 @@ sc.settings.set_figure_params(figsize=(8, 8))
 sc.pl.umap(
     adata,
     color=[
-        # "scissor_any_status_time",
+        "scissor_any_status_time",
         "scissor_luad_status_time",
         "scissor_lusc_status_time",
-        "scissor_lusc_tumor_stage",
         "cell_type",
     ],
     size=1,
