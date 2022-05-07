@@ -1,11 +1,10 @@
 # LuCA - The single-cell **Lu**ng **C**ancer **A**tlas
 
 The single cell lung cancer atlas is a resource integrating more than 1.2 million cells from 309 patients across 29 datasets. 
+
 The atlas is publicly available for interactive exploration through a *cell-x-gene* instance. We also provide 
 `h5ad` objects and a [scArches](https://scarches.readthedocs.io/en/latest/) model which allows to project custom datasets
-onto the atlas. 
-
-For more information, check out the project website (https://luca.icbi.at) and our preprint: 
+into the atlas. For more information, check out the [project website](https://luca.icbi.at) and our [preprint](TODO). 
 
 > Salcher, Sturm, Horvath et al., Manuscript in preparation
 
@@ -22,10 +21,10 @@ For clarity, the project is split up into two separate workflows:
 
 The `build_atlas` step requires specific hardware (CPU + GPU) for exact reproducibility 
 (see [notes on reproducibility](#notes-on-reproducibility)) and is relatively computationally 
-expensive. Therefore the `downstream_analysis` step can also operate pre-computed results of the `build_atlas` step, 
+expensive. Therefore, the `downstream_analysis` step can also operate on pre-computed results of the `build_atlas` step, 
 which are available from zenodo. 
 
- ## Launching the workflows
+## Launching the workflows
 
 ### 1. Prerequisites
 
