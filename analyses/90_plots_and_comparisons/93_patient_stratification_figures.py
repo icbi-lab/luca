@@ -44,11 +44,24 @@ from functools import reduce
 import scanpy_helpers as sh
 
 # %%
-plot_df = pd.read_csv(
-    "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv"
+patient_stratification_path = nxfvars.get(
+    "patient_stratification_path",
+    "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv",
 )
-ad_immune = sc.read_h5ad("../../data/30_downstream_analyses/stratify_patients/artifacts/adata_immune.h5ad")
-ad_tumor_subtypes = sc.read_h5ad("../../data/30_downstream_analyses/stratify_patients/artifacts/adata_tumor_subtypes.h5ad")
+ad_immune_path = nxfvars.get(
+    "ad_immune_path",
+    "../../data/30_downstream_analyses/stratify_patients/artifacts/adata_immune.h5ad",
+)
+ad_tumor_subtypes_path = nxfvars.get(
+    "ad_tumor_subtypes_path",
+    "../../data/30_downstream_analyses/stratify_patients/artifacts/adata_tumor_subtypes.h5ad",
+)
+artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
+
+# %%
+plot_df = pd.read_csv(patient_stratification_path)
+ad_immune = sc.read_h5ad(ad_immune_path)
+ad_tumor_subtypes = sc.read_h5ad(ad_tumor_subtypes_path)
 
 # %%
 plot_df["immune_infiltration"].value_counts()

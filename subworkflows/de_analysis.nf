@@ -13,16 +13,17 @@ include { deseq2_analysis as de_analysis_tumor_normal;
     patient_stratification
 
     main:
+    ch_prepare_de_input = final_atlas.concat(patient_stratification).collect()
     PREPARE_FOR_DE(
         Channel.value([
             [id: "prepare_for_de"],
             file("${baseDir}/analyses/40_de_analysis/41_prepare_de_analysis.py")
         ]),
-        final_atlas.map{it -> [
-            "input_adata": it.name,
-            "patient_stratification": "patient_stratification.csv"
+        ch_prepare_de_input.map{final_atlas, patient_table -> [
+            "input_adata": final_atlas.name,
+            "patient_stratification": patient_table.name
         ]},
-        final_atlas.mix(patient_stratification).collect()
+        ch_prepare_de_input
     )
     ch_prepare_adata = PREPARE_FOR_DE.out.artifacts.flatten().map { it -> [it.baseName, it] }
 

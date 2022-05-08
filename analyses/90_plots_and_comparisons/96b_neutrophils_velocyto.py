@@ -28,14 +28,18 @@ from tqdm.contrib.concurrent import process_map
 rcParams["axes.grid"] = False
 
 # %%
-adata_n = sc.read_h5ad(
-    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad"
+adata_n_path = nxfvars.get(
+    "adata_n_path",
+    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad",
 )
 velocyto_dir = nxfvars.get("velocyto_dir", "../../data/11_own_datasets/velocyto/")
-artifact_dir = "../../data/30_downstream_analyses/neutrophils"
+artifact_dir = nxfvars.get(
+    "artifact_dir", "../../data/30_downstream_analyses/neutrophils"
+)
+cpus = nxfvars.get("cpus", 8)
 
 # %%
-# !ls ../../data/11_own_datasets/velocyto/
+adata_n = sc.read_h5ad(adata_n_path)
 
 # %%
 filename_map = {
@@ -61,7 +65,7 @@ def _read_scvelo(patient, filename):
     return adata
 
 
-adatas = process_map(_read_scvelo, filename_map.keys(), filename_map.values())
+adatas = process_map(_read_scvelo, filename_map.keys(), filename_map.values(), max_workers=cpus)
 
 # %%
 adata_ukim = adata_n[adata_n.obs["dataset"].str.contains("UKIM"), :].copy()
@@ -111,7 +115,7 @@ scv.pp.moments(adata_scvelo, n_pcs=30, n_neighbors=30)
 scv.tl.velocity(adata_scvelo)
 
 # %%
-scv.tl.velocity_graph(adata_scvelo)
+scv.tl.velocity_graph(adata_scvelo, n_jobs=cpus)
 
 # %% [markdown]
 # ## Plots

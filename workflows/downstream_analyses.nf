@@ -22,7 +22,6 @@ workflow downstream_analyses {
         final_atlas.map{ it -> ["adata_in": it.name, "neutro_clustering": "neutrophil_clustering.csv"]},
         final_atlas.mix(Channel.fromPath("${baseDir}/tables/neutrophil_clustering.csv")).collect()
     )
-
     atlas_neutro_clusters = NEUTROPHIL_SUBCLUSTERING.out.artifacts.flatten().filter{ it -> it.baseName.equals("full_atlas_neutrophil_clusters") }
     neutro_clusters = NEUTROPHIL_SUBCLUSTERING.out.artifacts.flatten().filter{ it -> it.baseName.equals("adata_neutrophil_clusters") }
 
@@ -34,12 +33,13 @@ workflow downstream_analyses {
         final_atlas.map{ it -> ["adata_in": it.name]},
         final_atlas
     )
+    patient_stratification_table = STRATIFY_PATIENTS.out.artifacts.flatten().filter{ it -> it.name.equals("patient_stratification.csv") }
 
-    de_analysis(final_atlas, STRATIFY_PATIENTS.out.artifacts)
+    de_analysis(final_atlas, patient_stratification_table)
 
-    scissor(final_atlas)
+    // scissor(final_atlas)
     infercnv(final_atlas)
-    plots_and_comparisons(final_atlas, STRATIFY_PATIENTS.out.artifacts)
+    plots_and_comparisons(final_atlas, neutro_clusters, patient_stratification_table)
 }
 
 

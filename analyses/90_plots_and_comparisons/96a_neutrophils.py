@@ -32,6 +32,7 @@ import warnings
 from tqdm.auto import tqdm
 from IPython.display import display_html
 import itertools
+from nxfvars import nxfvars
 
 # %%
 alt.data_transformers.disable_max_rows()
@@ -40,33 +41,41 @@ alt.data_transformers.disable_max_rows()
 sc.settings.set_figure_params(figsize=(5, 5))
 
 # %%
-artifact_dir = "../../data/30_downstream_analyses/neutrophils"
-cpus = 16
-
-# %%
-ah = AnnotationHelper()
-
-# %%
-adata_n = sc.read_h5ad(
-    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad"
-    # "/home/sturm/Downloads/adata_neutrophil_clusters.h5ad"
+artifact_dir = nxfvars.get(
+    "artifact_dir", "../../data/30_downstream_analyses/neutrophils"
+)
+adata_n_path = nxfvars.get(
+    "adata_n_path",
+    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad",
+)
+adata_path = nxfvars.get(
+    "adata_path",
+    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
+)
+patient_stratification_path = nxfvars.get(
+    "patient_stratification_path",
+    "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv",
+)
+neutro_geneset_path = nxfvars.get(
+    "neutro_geneset_path",
+    "../../tables/gene_annotations/neutro_phenotype_genesets.xlsx",
+)
+neutro_recruitment_geneset_path = nxfvars.get(
+    "neutro_recruitment_geneset_path",
+    "../../tables/gene_annotations/neutro_recruitment_chemokines.xlsx",
 )
 
 # %%
-adata = sc.read_h5ad(
-    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad"
-    # "/home/sturm/Downloads//full_atlas_neutrophil_clusters.h5ad"
-)
+adata_n = sc.read_h5ad(adata_n_path)
 
 # %%
-patient_stratification = pd.read_csv(
-    "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv"
-)
+adata = sc.read_h5ad(adata_path)
 
 # %%
-neutro_genesets = pd.read_excel(
-    "../../tables/gene_annotations/neutro_phenotype_genesets.xlsx"
-)
+patient_stratification = pd.read_csv(patient_stratification_path)
+
+# %%
+neutro_genesets = pd.read_excel(neutro_geneset_path)
 mask_valid_genes = neutro_genesets["gene_symbol"].isin(adata_n.var_names)
 print(
     f"filtered out {np.sum(~mask_valid_genes)} genes because they are not in adata.var_names"
@@ -78,9 +87,10 @@ neutro_genesets = {
 }
 
 # %%
-neutro_recruitment_genes = pd.read_excel(
-    "../../tables/gene_annotations/neutro_recruitment_chemokines.xlsx"
-)
+neutro_recruitment_genes = pd.read_excel(neutro_recruitment_geneset_path)
+
+# %%
+ah = AnnotationHelper()
 
 # %%
 # statsmodels interprets "NAN" as np.nan, therefore let's keep "NAN-" and relabel later...
@@ -218,7 +228,11 @@ patient_fracs.loc[lambda x: x["fraction"] > 0, "patient"].nunique()
 ch = (
     alt.Chart(dataset_fracs)
     .mark_bar()
-    .encode(x="fraction", y="cell_type", color=alt.Color("dataset", legend=alt.Legend(labelLimit=1e6)))
+    .encode(
+        x="fraction",
+        y="cell_type",
+        color=alt.Color("dataset", legend=alt.Legend(labelLimit=1e6)),
+    )
 )
 ch.save(f"{artifact_dir}/neutro_clusters_by_dataset.svg")
 ch.display()

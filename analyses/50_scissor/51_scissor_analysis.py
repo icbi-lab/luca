@@ -50,7 +50,7 @@ ah = AnnotationHelper()
 # %%
 dataset = nxfvars.get("dataset", "genentech")
 
-# %%
+# %% jupyter={"source_hidden": true} tags=[]
 path_adata = nxfvars.get(
     "adata_in",
     "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
