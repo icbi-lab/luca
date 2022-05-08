@@ -73,6 +73,28 @@ artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 adata = sc.read_h5ad(path_adata)
 
 # %%
+adata_neutro = sc.read_h5ad(
+    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad"
+)
+
+# %%
+adata.obs["cell_type_neutro"] = adata_neutro.obs["cell_type_neutro"]
+
+# %%
+adata.obs["cell_type_tan_nan"] = adata_neutro.obs["cell_type_neutro"].str.replace(
+    "-\d?", "", regex=True
+)
+
+# %%
+sc.pl.umap(
+    adata,
+    color=["cell_type_tan_nan", "PI3", "KATNBL1"],
+    groups=["TAN", "NAN"],
+    cmap="inferno",
+    size=1,
+)
+
+# %%
 sc.pl.umap(adata, color=["cell_type_coarse", "origin"], wspace=0.8)
 
 # %% [markdown]
@@ -96,32 +118,16 @@ scissor_clinical_data.loc[
     else ["type", "response_to_ici", "response_to_chemotherapy"],
 ].assign(total=1).groupby("type").agg(sum).astype(int)
 
-# %%
-scissor_clinical_data.loc[
-    :,
-    [
-        "type",
-        "response_to_chemotherapy",
-        "tumor_stage",
-        "kras_mutation",
-        "braf_mutation",
-        "egfr_mutation",
-        "tp53_mutation",
-        "stk11_mutation",
-        "stk11_kras_mutation",
-    ]
-    if dataset == "tcga"
-    else ["type", "response_to_ici", "response_to_chemotherapy"],
-].assign(total=0).assign(response_to_ici = lambda x: 1-x["response_to_ici"]).groupby("type").agg(sum).astype(int)
-
 # %% [markdown]
 # # Load Scissor results
 
 # %%
 scissor_res_files = {
-    id: Path(
-        f"../../data/30_downstream_analyses/scissor_{dataset}/scissor_by_sample/"
-    ).glob(f"**/scissor_{id}.tsv")
+    id: list(
+        Path(
+            f"../../data/30_downstream_analyses/scissor_{dataset}/scissor_by_sample/"
+        ).glob(f"**/scissor_{id}.tsv")
+    )
     for id in (
         [
             "any_tumor_stage",
@@ -157,13 +163,24 @@ scissor_res_files = {
             "any_response_to_ici",
             "any_response_to_chemotherapy",
             "any_status_time",
+            "any_status_ici_time_ici",
+            "any_status_chemo_time_chemo",
             "LUAD_response_to_ici",
+            "LUAD_response_to_chemotherapy",
             "LUAD_status_time",
+            "LUAD_status_ici_time_ici",
+            "LUAD_status_chemo_time_chemo",
             "LUSC_response_to_ici",
+            "LUSC_response_to_chemotherapy",
             "LUSC_status_time",
+            "LUSC_status_ici_time_ici",
+            "LUSC_status_chemo_time_chemo",
         ]
     )
 }
+
+# %%
+{k: len(v) for k, v in scissor_res_files.items()}
 
 # %%
 scissor_ids = {
@@ -274,7 +291,7 @@ for var in scissor_cols:
             frameon=False,
             return_fig=True,
         )
-        fig.savefig(f"{artifact_dir}/{var}.pdf", dpi=1200, bbox_inches="tight")
+        # fig.savefig(f"{artifact_dir}/{var}.pdf", dpi=1200, bbox_inches="tight")
 
 
 # %%
@@ -398,6 +415,26 @@ scissor_dfs = {
 # %%
 for col, df in scissor_dfs.items():
     ch = plot_scissor_df_ratio(df, title=col)
+    try:
+        ch.save(f"{artifact_dir}/{col}.svg")
+    except JSONDecodeError:
+        warnings.warn(f"Failed to save plot {col} to svg!")
+    ch.display()
+
+# %%
+scissor_dfs = {
+    k: scissor_by_group(
+        adata_primary,
+        scissor_col=k,
+        cell_cutoff=1,
+        groupby=["cell_type_tan_nan", "patient"],
+    )
+    for k in scissor_cols
+}
+
+# %%
+for col, df in scissor_dfs.items():
+    ch = plot_scissor_df_ratio(df, title=col, groupby="cell_type_tan_nan")
     try:
         ch.save(f"{artifact_dir}/{col}.svg")
     except JSONDecodeError:

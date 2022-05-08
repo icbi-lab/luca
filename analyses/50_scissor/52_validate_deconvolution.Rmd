@@ -98,6 +98,15 @@ plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75)) {
   ggsurvplot(fit, data=clinical_data, pval=sprintf("p=%*.3f, CoxPH reg.", 3, pvalue), risk.table = FALSE, xlab="time in days")
 }
 
+plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUAD", study_arm == "Docetaxel"), "B cell") + ggtitle("LUAD (chemo)")
+plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUAD", study_arm == "MPDL3280A"), "B cell") + ggtitle("LUAD (ICI)")
+plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUSC", study_arm == "Docetaxel"), "B cell") + ggtitle("LUSC (chemo)")
+plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUSC", study_arm == "MPDL3280A"), "B cell") + ggtitle("LUSC (ICI)")
+
+plot_kaplan_meyer(ici_clin_and_scores |> filter(study_arm == "MPDL3280A"), "B cell") + ggtitle("any (ICI)")
+plot_kaplan_meyer(ici_clin_and_scores |> filter(study_arm == "Docetaxel"), "B cell") + ggtitle("any (chemo)")
+
+plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUAD"), "B cell") + ggtitle("LUAD")
 plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUAD"), "B cell") + ggtitle("LUAD")
 # ggsave(file.path(params$artifact_dir, "KM_B_cell_epic_LUAD.pdf"))
 plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUSC"), "B cell") + ggtitle("LUSC")

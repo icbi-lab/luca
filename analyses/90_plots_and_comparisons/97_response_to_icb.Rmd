@@ -354,24 +354,6 @@ coxph_results = lapply(c("all", "LUSC", "LUAD"), function(type) {
 }) |> bind_rows()
 ```
 
-### In Genentech data
-```{r, fig.width=6, fig.height=6}
-coxph_results = lapply(c("all", "LUSC", "LUAD"), function(type) {
-  filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
-  type_covar = ifelse(type == "all", "+ type ", "")
-  coxph_res = lapply(colnames(select(chemo_data, starts_with("sig_"), starts_with("ct_"))), function(col) {
-     res = summary(coxph(as.formula(sprintf("Surv(time, status) ~ `%s` %s", col, type_covar)), data=ici_clin_and_scores |> filter(type %in% filter_type)))
-     res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col, type=type)
-  }) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> arrange(-coef) |> mutate(var=factor(var, levels=unique(var)))
-  
-  print(coxph_res |> ggplot(aes(x=var, y=coef)) + geom_bar(aes(fill=sig_code), stat="identity") + scale_fill_brewer(palette= "Blues", direction=-1)  + theme_cowplot()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_hline(yintercept = 0, color="black") + facet_wrap(~type, ncol=1))
-  coxph_res |> mutate(type=type)
-}) |> bind_rows()
-```
-
-
-## Kaplay Meyer plots
-### In TCGA data
 ```{r, fig.width=4, fig.height=4}
 plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75), pvalue=TRUE) {
   tmp_col = clinical_data[[column]]
@@ -389,7 +371,7 @@ lapply(c("LUAD", "LUSC", "all"), function(type) {
   filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
   lapply(c("sig_neutro", "sig_nan", "sig_tan", "sig_b_cell_follicular", "sig_neutro2", "sig_neutro3"), function(sig) {
     p = plot_kaplan_meyer(
-      tcga_clin_and_scores |> filter(type == filter_type),
+      tcga_clin_and_scores |> filter(type %in% filter_type),
       sig,
       pvalue=sprintf("p=%*.3f, CoxPH reg.", 3, coxph_results |> filter(var == sig, type == !!type) |> pull(`Pr(>|z|)`)),
     ) + 
@@ -401,6 +383,36 @@ lapply(c("LUAD", "LUSC", "all"), function(type) {
 ```
 
 ### In Genentech data
+```{r, fig.width=6, fig.height=6}
+coxph_results = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
+    lapply(c("all", "LUSC", "LUAD"), function(type) {
+        filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
+        filter_arm = if(arm == "any") {c("Docetaxel", "MPDL3280A")} else {arm}
+        type_covar = ifelse(type == "all", "+ type ", "")
+        coxph_res = lapply(colnames(select(chemo_data, starts_with("sig_"), starts_with("ct_"))), function(col) {
+           res = summary(coxph(as.formula(sprintf("Surv(time, status) ~ `%s` %s", col, type_covar)), data=ici_clin_and_scores |> 
+                                 filter(type %in% filter_type, study_arm %in% filter_arm)))
+           res$coefficients |> 
+             as_tibble(rownames="var") |> 
+             filter(grepl( col, var)) |> 
+             mutate(var=col, type=type)
+           
+        }) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> arrange(-coef) |> mutate(var=factor(var, levels=unique(var)))
+        
+        print(coxph_res |> ggplot(aes(x=var, y=coef)) +
+                geom_bar(aes(fill=sig_code), stat="identity") + 
+                scale_fill_brewer(palette= "Blues", direction=-1) + 
+                theme_cowplot()+ 
+                theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+                geom_hline(yintercept = 0, color="black") +
+                facet_wrap(~type, ncol=1)+ 
+                ggtitle(sprintf("Study arm: %s", arm)))
+        
+        coxph_res |> mutate(type=type)
+    }) |> bind_rows() |> mutate(study_arm=arm)
+}) |> bind_rows()
+```
+
 
 ```{r, fig.width=4, fig.height=4}
 plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75), pvalue=TRUE) {
@@ -415,36 +427,79 @@ plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75), pvalue=TRUE)
   ggsurvplot(fit, data=clinical_data, pval=pvalue, risk.table = FALSE, xlab="time in days")
 }
 
-lapply(c("LUAD", "LUSC", "all"), function(type) {
-  filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
-  lapply(c("sig_neutro", "sig_nan", "sig_tan", "sig_b_cell_follicular", "sig_neutro2", "sig_neutro3"), function(sig) {
-    p = plot_kaplan_meyer(
-      ici_clin_and_scores |> filter(type == filter_type),
-      sig,
-      pvalue=sprintf("p=%*.3f, CoxPH reg.", 3, coxph_results |> filter(var == sig, type == !!type) |> pull(`Pr(>|z|)`)),
-    ) + 
-      ggtitle(sprintf("%s (%s)", sig, type))
-    ggsave(file.path(params$artifact_dir, sprintf("KM_%s_%s.pdf", sig, type)), width=4.5, height=4)
-    p
-  })
+lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
+    lapply(c("LUAD", "LUSC", "all"), function(type) {
+        filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
+        filter_arm = if(arm == "any") {c("Docetaxel", "MPDL3280A")} else {arm}
+        lapply(c("sig_neutro", "sig_nan", "sig_tan", "sig_b_cell_follicular", "sig_neutro2", "sig_neutro3"), function(sig) {
+          p = plot_kaplan_meyer(
+            ici_clin_and_scores |> filter(type %in% filter_type, study_arm %in% filter_arm),
+            sig,
+            pvalue=sprintf("p=%*.3f, CoxPH reg.", 3, coxph_results |> filter(var == sig, type == !!type, study_arm == arm) |> pull(`Pr(>|z|)`)),
+          ) + 
+            ggtitle(sprintf("%s (%s, %s)", sig, type, arm))
+          ggsave(file.path(params$artifact_dir, sprintf("KM_%s_%s_%s.pdf", sig, type, arm)), width=4.5, height=4)
+          p
+        })
+    })
 })
 ```
 
 
 ## Responder vs. Non-responder
 
+### Response to ICI
 ```{r, fig.width=6, fig.height=6}
 glm_res = lapply(c("all", "LUSC", "LUAD"), function(type) {
-  filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
-  type_covar = ifelse(type == "all", "+ type ", "")
-  tmp_res = lapply(colnames(select(ici_clin_and_scores, starts_with("sig_"), starts_with("ct_"))), function(col) {
-    res = summary(glm(as.formula(sprintf("response ~ `%s` %s + dataset", col, type_covar)), family="binomial", data=ici_clin_and_scores |> filter(type %in% filter_type) |> mutate(response = factor(response))))
-    res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
-  }) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> arrange(-Estimate) |> mutate(var=factor(var, levels=unique(var)))
-  
-  print(tmp_res |> ggplot(aes(x=var, y=Estimate)) + geom_bar(aes(fill=sig_code), stat="identity") + scale_fill_brewer(palette= "Blues", direction=-1)  + theme_cowplot()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_hline(yintercept = 0, color="black") + ggtitle(type))
-  
-  tmp_res |> mutate(type=type)
+    filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
+    type_covar = ifelse(type == "all", "+ type ", "")
+    tmp_res = lapply(colnames(select(ici_clin_and_scores, starts_with("sig_"), starts_with("ct_"))), function(col) {
+      res = summary(glm(as.formula(sprintf("response ~ `%s` %s + dataset", col, type_covar)), family="binomial", data=ici_clin_and_scores |>
+                          filter(type %in% filter_type) |>
+                          mutate(response = factor(response))))
+      res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
+    }) |> 
+      bind_rows() |> 
+      mutate(sig_code = sig_codes(`Pr(>|z|)`)) |>
+      arrange(-Estimate) |> 
+      mutate(var=factor(var, levels=unique(var)))
+    
+    print(tmp_res |> ggplot(aes(x=var, y=Estimate)) + 
+            geom_bar(aes(fill=sig_code), stat="identity") +
+            scale_fill_brewer(palette= "Blues", direction=-1)  + 
+            theme_cowplot()+
+            theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+            geom_hline(yintercept = 0, color="black") + 
+            ggtitle(type))
+    
+    tmp_res |> mutate(type=type)
+}) |> bind_rows()
+```
+### Response to Chemotherapy
+```{r, fig.width=6, fig.height=6}
+glm_res = lapply(c("all", "LUSC", "LUAD"), function(type) {
+    filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
+    type_covar = ifelse(type == "all", "+ type ", "")
+    tmp_res = lapply(colnames(select(ici_clin_and_scores, starts_with("sig_"), starts_with("ct_"))), function(col) {
+      res = summary(glm(as.formula(sprintf("response_to_chemotherapy ~ `%s` %s + dataset", col, type_covar)), family="binomial", data=ici_clin_and_scores |>
+                          filter(type %in% filter_type) |>
+                          mutate(response_to_chemotherapy = factor(response_to_chemotherapy))))
+      res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
+    }) |> 
+      bind_rows() |> 
+      mutate(sig_code = sig_codes(`Pr(>|z|)`)) |>
+      arrange(-Estimate) |> 
+      mutate(var=factor(var, levels=unique(var)))
+    
+    print(tmp_res |> ggplot(aes(x=var, y=Estimate)) + 
+            geom_bar(aes(fill=sig_code), stat="identity") +
+            scale_fill_brewer(palette= "Blues", direction=-1)  + 
+            theme_cowplot()+
+            theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+            geom_hline(yintercept = 0, color="black") + 
+            ggtitle(type))
+    
+    tmp_res |> mutate(type=type)
 }) |> bind_rows()
 ```
 

@@ -52,19 +52,28 @@ workflow scissor {
 
     SCISSOR_GENENTECH(
         ch_sce,
-        file("$baseDir/data/14_ici_treatment/Genentech_for_scissor/genentech_ici_treatment.rds", checkIfExists: true),
+        file("$baseDir/data/14_ici_treatment/Genentech_for_scissor/genentech.rds", checkIfExists: true),
         file("$baseDir/data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv", checkIfExists: true),
         "sample_id",
         Channel.from(
             [
-                "--column response_binary",
+                "--column response_to_chemotherapy",
+                "--column response_to_ici",
                 "--surv_time time --surv_status status",
+                "--surv_time time_ici --surv_status status_ici",
+                "--surv_time time_chemo --surv_status status_chemo",
 
-                "--tumor_type LUAD --column response_binary",
+                "--tumor_type LUAD --column response_to_ici",
+                "--tumor_type LUAD --column response_to_chemotherapy",
                 "--tumor_type LUAD --surv_time time --surv_status status",
+                "--tumor_type LUAD --surv_time time_ici --surv_status status_ici",
+                "--tumor_type LUAD --surv_time time_chemo --surv_status status_chemo",
 
-                "--tumor_type LUSC --column response_binary",
-                "--tumor_type LUSC --surv_time time --surv_status status"
+                "--tumor_type LUSC --column response_to_ici",
+                "--tumor_type LUSC --column response_to_chemotherapy",
+                "--tumor_type LUSC --surv_time time --surv_status status",
+                "--tumor_type LUSC --surv_time time_ici --surv_status status_ici",
+                "--tumor_type LUSC --surv_time time_chemo --surv_status status_chemo"
             ]
         )
     )

@@ -147,7 +147,11 @@ clinical_data_genentech = genentech_clinical |>
    # PR=partial response, CR=complete response, PD = progressive disease, SD = stable disease, NE = not evaluable
    # only compare response vs. progressive disease. Stable disease = NAN
    mutate(response_to_chemotherapy = ifelse(study_arm=="Docetaxel", recode(response, PR=1, CR=1, PD=0), NA)) |> 
-   mutate(response_to_ici = ifelse(study_arm=="MPDL3280A", recode(response, PR=1, CR=1, PD=0), NA))  
+   mutate(response_to_ici = ifelse(study_arm=="MPDL3280A", recode(response, PR=1, CR=1, PD=0), NA)) |>
+   mutate(time_ici = ifelse(study_arm == "MPDL3280A", time, NA)) |> 
+   mutate(time_chemo = ifelse(study_arm == "Docetaxel", time, NA)) |> 
+   mutate(status_ici = ifelse(study_arm == "MPDL3280A", status, NA)) |> 
+   mutate(status_chemo = ifelse(study_arm == "Docetaxel", status, NA)) 
 ```
 
 
