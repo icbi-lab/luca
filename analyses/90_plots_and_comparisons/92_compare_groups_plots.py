@@ -31,7 +31,7 @@ path_prefix = nxfvars.get(
 )
 deseq2_path_prefix = nxfvars.get(
     "deseq2_path_prefix",
-    "../../data/30_downstream_analyses/de_analysis/{k}_desert/de_deseq2",
+    "../../data/30_downstream_analyses/de_analysis/{comparison}/de_deseq2",
 )
 
 # %%
@@ -138,11 +138,11 @@ de_res_tumor_cells = (
             pd.read_csv(
                 (
                     deseq2_path_prefix
-                    + "/{k}_desert_primary_tumor_adata_primary_tumor_tumor_cells_DESeq2_result.tsv"
-                ).format(k=k),
+                    + "/{comparison}_primary_tumor_adata_primary_tumor_tumor_cells_DESeq2_result.tsv"
+                ).format(comparison=k),
                 sep="\t",
             ).assign(group=k.upper())
-            for k in "tmb"
+            for k in ["t_desert", "m_desert", "b_desert"]
         ]
     )
     .fillna(1)

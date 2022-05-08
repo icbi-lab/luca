@@ -8,6 +8,7 @@ include {
     JUPYTERNOTEBOOK as OVERVIEW_PLOTS_CORE_ATLAS;
     JUPYTERNOTEBOOK as OVERVIEW_PLOTS_EXTENDED_ATLAS;
     JUPYTERNOTEBOOK as COMPARE_PLATFORMS;
+    JUPYTERNOTEBOOK as CPDB_ANALYSIS;
     JUPYTERNOTEBOOK as SCCODA_CONDITION;
 } from "../modules/local/jupyternotebook/main.nf"
 
@@ -161,6 +162,24 @@ workflow plots_and_comparisons {
             "main_adata": f.name
         ]},
         extended_atlas
+    )
+
+    ch_cpdb_analysis_input_files = extended_atlas.concat(
+        adata_neutrophil_clusters,
+        Channel.fromPath("${baseDir}/tables/cellphonedb_2022-04-06.tsv"),
+        deseq2_results,
+    ).collect().view()
+    CPDB_ANALYSIS(
+        Channel.value(
+            [[id: 'cell2cell'], file("${baseDir}/analyses/90_plots_and_comparisons/99_cpdb_analysis.py")]
+        ),
+        ch_cpdb_analysis_input_files.map{ it -> [
+            "main_adata": it[0].name,
+            "adata_n": it[1].name,
+            "path_cpdb": it[2].name,
+            "deseq2_path_prefix": "./"
+        ]},
+        ch_cpdb_analysis_input_files
     )
 
 

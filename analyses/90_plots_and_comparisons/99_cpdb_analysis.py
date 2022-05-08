@@ -38,21 +38,31 @@ import warnings
 
 # %%
 path_adata = nxfvars.get(
-    "adata_in",
+    "main_adata",
     "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+)
+path_adata_n = nxfvars.get(
+    "adata_n",
+    "../../data/30_downstream_analyses/neutrophils/subclustering//artifacts/adata_neutrophil_clusters.h5ad",
+)
+artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
+path_cpdb = nxfvars.get("path_cpdb", "../../tables/cellphonedb_2022-04-06.tsv")
+deseq2_path_prefix = nxfvars.get(
+    "deseq2_path_prefix",
+    "../../data/30_downstream_analyses/de_analysis/{comparison}/de_deseq2",
 )
 
 # %%
 adata = sc.read_h5ad(path_adata)
 
 # %%
-adata_primary_tumor = adata[(adata.obs["origin"] == "tumor_primary")].copy()
+adata_n = sc.read_h5ad(path_adata_n)
 
 # %%
-adata_n = sc.read_h5ad(
-    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad"
-    # "/home/sturm/Downloads/adata_neutrophil_clusters.h5ad"
-)
+cpdb = pd.read_csv(path_cpdb, sep="\t")
+
+# %%
+adata_primary_tumor = adata[(adata.obs["origin"] == "tumor_primary")].copy()
 
 # %%
 immune_cells = [
@@ -72,12 +82,6 @@ immune_cells = [
     "T cell CD8",
     "T cell regulatory",
 ]
-
-# %%
-artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
-
-# %%
-cpdb = pd.read_csv("../../tables/cellphonedb_2022-04-06.tsv", sep="\t")
 
 # %%
 cpdb
@@ -120,7 +124,10 @@ cpdba_coarse = sh.cell2cell.CpdbAnalysis(
 # %%
 de_res_tumor_cells_luad_lusc = (
     pd.read_csv(
-        "../../data/30_downstream_analyses/de_analysis/luad_lusc/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
+        (
+            deseq2_path_prefix
+            + "/{comparison}_primary_tumor_adata_primary_tumor_tumor_cells_DESeq2_result.tsv"
+        ).format(comparison="luad_lusc"),
         sep="\t",
     )
     .fillna(1)
@@ -131,17 +138,25 @@ de_res_tumor_cells_luad_lusc = (
 )
 
 # %%
-cpdb_res = cpdba_coarse.significant_interactions(de_res_tumor_cells_luad_lusc, max_pvalue=0.1)
+cpdb_res = cpdba_coarse.significant_interactions(
+    de_res_tumor_cells_luad_lusc, max_pvalue=0.1
+)
 cpdb_res.to_csv(f"{artifact_dir}/cpdb_luad_lusc_coarse.csv")
 
 # %% [markdown]
 # ### LUSC
 
 # %%
-sc.pl.dotplot(adata_primary_tumor[adata_primary_tumor.obs["cell_type_major"] == "Tumor cells", :], var_names=["PGF"], groupby="condition")
+sc.pl.dotplot(
+    adata_primary_tumor[adata_primary_tumor.obs["cell_type_major"] == "Tumor cells", :],
+    var_names=["PGF"],
+    groupby="condition",
+)
 
 # %%
-cpdb_res = cpdba_lusc.significant_interactions(de_res_tumor_cells_luad_lusc, max_pvalue=0.1)
+cpdb_res = cpdba_lusc.significant_interactions(
+    de_res_tumor_cells_luad_lusc, max_pvalue=0.1
+)
 top_genes = (
     cpdb_res.loc[:, ["source_genesymbol", "fdr"]]
     .drop_duplicates()
@@ -157,7 +172,7 @@ cpdba_lusc.plot_result(
     title="LUAD vs LUSC: tumor cells, top 30 DE ligands",
     aggregate=False,
     cluster="heatmap",
-    label_limit=80
+    label_limit=80,
 )
 
 # %% [markdown]
@@ -168,7 +183,10 @@ de_res_tumor_cells_patient_strat = (
     pd.concat(
         [
             pd.read_csv(
-                f"../../data/30_downstream_analyses/de_analysis/{k}_desert/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
+                (
+                    deseq2_path_prefix
+                    + "/{k}_desert_primary_tumor_adata_primary_tumor_tumor_cells_DESeq2_result.tsv"
+                ).format(k=k),
                 sep="\t",
             ).assign(group=k.upper())
             for k in "tmb"
@@ -247,7 +265,7 @@ cpdba.plot_result(
     cluster="heatmap",
     de_genes_mode="receptor",
     clip_fc_at=(-3, 3),
-    label_limit=100
+    label_limit=100,
 ).configure_concat(spacing=-80)
 
 # %%

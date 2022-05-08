@@ -44,27 +44,29 @@ sc.set_figure_params(figsize=(5, 5))
 ah = AnnotationHelper()
 
 # %%
-artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
-
-# %%
 main_adata = nxfvars.get(
     "main_adata",
     "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
-threadpool_limits(nxfvars.get("cpus", 16))
-
-# %%
-adata_core_tumor = sc.read_h5ad(
-    "../../data/20_build_atlas/annotate_datasets/33_cell_types_epi/artifacts/adata_tumor.h5ad",
-)
-
-# %%
-adata_core_epi = sc.read_h5ad(
+epithelial_adata = nxfvars.get(
+    "epithelial_adata",
     "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/epithelial_cells_annotated.h5ad",
 )
+tumor_adata = nxfvars.get(
+    "tumor_adata",
+    "../../data/20_build_atlas/annotate_datasets/33_cell_types_epi/artifacts/adata_tumor.h5ad",
+)
+threadpool_limits(nxfvars.get("cpus", 16))
+artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 
 # %%
 adata = sc.read_h5ad(main_adata)
+
+# %%
+adata_core_tumor = sc.read_h5ad(epithelial_adata)
+
+# %%
+adata_core_epi = sc.read_h5ad(tumor_adata)
 
 # %% [markdown]
 # # Stats and metadata
@@ -291,7 +293,11 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_no_legend.pdf", dpi=1200, bbox_inches="tight")
+    fig.savefig(
+        f"{artifact_dir}/umap_extended_atlas_no_legend.pdf",
+        dpi=1200,
+        bbox_inches="tight",
+    )
 
 # %%
 sh.colors.set_scale_anndata(adata, "cell_type_major")
@@ -310,7 +316,11 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_cell_type_major.pdf", dpi=1200, bbox_inches="tight")
+    fig.savefig(
+        f"{artifact_dir}/umap_extended_atlas_cell_type_major.pdf",
+        dpi=1200,
+        bbox_inches="tight",
+    )
 
 # %%
 adata.obs["study_extended"] = adata.obs.loc[
@@ -331,7 +341,11 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         title="",
         alpha=0.5,
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_projected_data.pdf", dpi=1200, bbox_inches="tight")
+    fig.savefig(
+        f"{artifact_dir}/umap_extended_atlas_projected_data.pdf",
+        dpi=1200,
+        bbox_inches="tight",
+    )
 
 
 # %% [markdown]
@@ -487,7 +501,11 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_structural.pdf", dpi=1200, bbox_inches="tight")
+    fig.savefig(
+        f"{artifact_dir}/umap_extended_atlas_structural.pdf",
+        dpi=1200,
+        bbox_inches="tight",
+    )
 
 # %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
@@ -503,7 +521,9 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_immune.pdf", dpi=1200, bbox_inches="tight")
+    fig.savefig(
+        f"{artifact_dir}/umap_extended_atlas_immune.pdf", dpi=1200, bbox_inches="tight"
+    )
 
 # %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
@@ -519,7 +539,11 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_epithelial.pdf", dpi=1200, bbox_inches="tight")
+    fig.savefig(
+        f"{artifact_dir}/umap_extended_atlas_epithelial.pdf",
+        dpi=1200,
+        bbox_inches="tight",
+    )
 
 # %%
 with plt.rc_context({"figure.figsize": (3, 3), "figure.dpi": 300}):
@@ -535,7 +559,9 @@ with plt.rc_context({"figure.figsize": (3, 3), "figure.dpi": 300}):
         return_fig=True,
         title="",
     )
-    fig.savefig(f"{artifact_dir}/umap_extended_atlas_tumor.pdf", dpi=1200, bbox_inches="tight")
+    fig.savefig(
+        f"{artifact_dir}/umap_extended_atlas_tumor.pdf", dpi=1200, bbox_inches="tight"
+    )
 
 # %%
 tumor_markers = {

@@ -95,6 +95,7 @@ include { deseq2_analysis as de_analysis_tumor_normal;
     )
 
     emit:
+    luad_lusc = de_analysis_luad_lusc.out.deseq2_result
     b_desert = de_analysis_b_desert.out.deseq2_result
     t_desert = de_analysis_t_desert.out.deseq2_result
     m_desert = de_analysis_m_desert.out.deseq2_result

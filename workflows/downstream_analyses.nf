@@ -57,10 +57,11 @@ workflow downstream_analyses {
     de_analysis(extended_atlas, patient_stratification_table)
     de_result_tumor_cells = de_analysis.out.t_desert.mix(
         de_analysis.out.m_desert,
-        de_analysis.out.b_desert
+        de_analysis.out.b_desert,
+        de_analysis.out.luad_lusc
     ).flatten().filter{ it -> it.baseName.contains("tumor_cells") }
 
-    // scissor(extended_atlas)
+    scissor(extended_atlas)
     infercnv(extended_atlas)
     plots_and_comparisons(
         extended_atlas,
