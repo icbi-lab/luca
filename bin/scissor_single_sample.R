@@ -47,13 +47,14 @@ tumor_type <- arguments$tumor_type
 
 # # For testing only
 # sce = readRDS("../data/30_downstream_analyses/scissor/adata_by_patient/full_atlas_merged_lambrechts_thienpont_2018_6149v1_2.rds")
-# bulk_tpm = readRDS("../data/14_ici_treatment/Genentech_for_scissor/genentech_ici_treatment.rds")
+# bulk_tpm = readRDS("../data/14_ici_treatment/Genentech_for_scissor/genentech.rds")
 # metadata = read_tsv("../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv")
 # sample_col = "sample_id"
 # column = NULL
-# surv_time = "time"
-# surv_status = "status"
+# surv_time = "time_chemo"
+# surv_status = "status_chemo"
 # column = "response_binary"
+# tumor_type = "any"
 # surv_time = NULL
 # surv_status = NULL
 
@@ -88,37 +89,42 @@ if (!is.null(column)) {
 
     infos1 <- Scissor(bulk_tpm_subset, sc_dataset, metadata_subset[[column]],
         tag = c(0, 1),
-        alpha = sqrt(2) ^ -(24:2),
+        alpha = sqrt(2)^-(24:2),
         cutoff = 0.3,
         family = "binomial", Save_file = "scissor.RData"
     )
 
     Scissor_select <- rep(NA, ncol(sc_dataset))
     names(Scissor_select) <- colnames(sc_dataset)
-    
+
     # sanity check due to some weirdness we observed
     stopifnot("too many scissor cells" = length(infos1$Scissor_neg) <= dim(sce)[2])
     stopifnot("too many scissor cells" = length(infos1$Scissor_pos) <= dim(sce)[2])
-    
+
     Scissor_select[infos1$Scissor_pos] <- "scissor+"
     Scissor_select[infos1$Scissor_neg] <- "scissor-"
 } else if (!is.null(surv_time) && !is.null(surv_status)) {
     message("running coxph regression")
-    phenotype <- metadata %>% select(!!as.name(surv_time), !!as.name(surv_status))
+    metadata_subset <- metadata %>% filter(!is.na(!!as.name(surv_time)), !is.na(!!as.name(surv_status)))
+    bulk_tpm_subset <- bulk_tpm[, metadata_subset[[sample_col]]]
+    stopifnot(all(colnames(bulk_tpm_subset) == metadata_subset[[sample_col]]))
+    message(paste(dim(bulk_tpm_subset), collapse = " "))
+
+    phenotype <- metadata_subset %>% select(time=!!as.name(surv_time), status=!!as.name(surv_status))
     sample_prefix <- paste0(surv_status, "_", surv_time)
-    infos1 <- Scissor(bulk_tpm, sc_dataset, phenotype,
-        alpha = sqrt(2) ^ -(24:2),
+    infos1 <- Scissor(bulk_tpm_subset, sc_dataset, phenotype,
+        alpha = sqrt(2)^-(24:2),
         cutoff = 0.3,
         family = "cox", Save_file = "scissor.RData"
     )
 
     Scissor_select <- rep(NA, ncol(sc_dataset))
     names(Scissor_select) <- colnames(sc_dataset)
-    
+
     # sanity check due to some weirdness we observed
     stopifnot("too many scissor cells" = length(infos1$Scissor_neg) <= dim(sce)[2])
     stopifnot("too many scissor cells" = length(infos1$Scissor_pos) <= dim(sce)[2])
-    
+
     # it is a bit counterintuitive, but scissor+ -> worse survival, scissor- -> better survival
     Scissor_select[infos1$Scissor_pos] <- "worse survival"
     Scissor_select[infos1$Scissor_neg] <- "better survival"
