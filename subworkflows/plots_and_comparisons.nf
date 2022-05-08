@@ -110,42 +110,58 @@ workflow plots_and_comparisons {
         COMPARE_GROUPS.out.artifacts.mix(deseq2_results).collect()
     )
 
-    ch_cell_type_markers_core_atlas_input_files = core_atlas.concat(
+    ch_core_atlas_input_files = core_atlas.concat(
         core_atlas_epithelial_cells, core_atlas_tumor_cells
     ).collect()
     CELL_TYPE_MARKERS_CORE_ATLAS(
         Channel.value(
             [[id: '94a_cell_type_markers_core_atlas'], file("${baseDir}/analyses/90_plots_and_comparisons/94a_cell_type_markers_core_atlas.py")]
         ),
-        ch_cell_type_markers_core_atlas_input_files.map{ core, core_epi, core_tumor -> [
+        ch_core_atlas_input_files.map{ core, core_epi, core_tumor -> [
             "main_adata": core.name,
             "epithelial_adata": core_epi.name,
             "tumor_adata": core_tumor.name
         ]},
-        ch_cell_type_markers_core_atlas_input_files
+        ch_core_atlas_input_files
+    )
+    OVERVIEW_PLOTS_CORE_ATLAS(
+        Channel.value(
+            [[id: '94b_overview_plots_core_atlas'], file("${baseDir}/analyses/90_plots_and_comparisons/94b_overview_plots_core_atlas.py")]
+        ),
+        ch_core_atlas_input_files.map{ core, core_epi, core_tumor -> [
+            "main_adata": core.name,
+            "epithelial_adata": core_epi.name,
+            "tumor_adata": core_tumor.name
+        ]},
+        ch_core_atlas_input_files
     )
 
-    // OVERVIEW_PLOTS_CORE_ATLAS(
+    ch_extended_atlas_input_files = extended_atlas.concat(
+        // yes, this does need these two files from the *core* atlas. Check notebook for more details.
+        core_atlas_epithelial_cells, core_atlas_tumor_cells
+    ).collect()
+    OVERVIEW_PLOTS_EXTENDED_ATLAS(
+        Channel.value(
+            [[id: '94c_overview_plots_extended_atlas'], file("${baseDir}/analyses/90_plots_and_comparisons/94c_overview_plots_extended_atlas.py")]
+        ),
+        ch_extended_atlas_input_files.map{ extended, core_epi, core_tumor -> [
+            "main_adata": extended.name,
+            "epithelial_adata": core_epi.name,
+            "tumor_adata": core_tumor.name
+        ]},
+        ch_extended_atlas_input_files
+    )
 
-    //     Channel.value(
-    //         [[id: 'compare_groups_plots'], file("${baseDir}/analyses/94b_overview_plots_core_atlas/94b_overview_plots_core_atlas.py")]
-    //     ),
-    // )
 
-    // OVERVIEW_PLOTS_EXTENDED_ATLAS(
-    //     Channel.value(
-    //         [[id: '94c_overview_plots_extended_atlas'], file("${baseDir}/analyses/90_plots_and_comparisons/94c_overview_plots_extended_atlas.py")]
-    //     ),
-
-    // )
-
-
-    // COMPARE_PLATFORMS(
-    //     Channel.value(
-    //         [[id: 'compare_platforms'], file("${baseDir}/analyses/90_plots_and_comparisons/95_compare_platforms.py")]
-    //     ),
-
-    // )
+    COMPARE_PLATFORMS(
+        Channel.value(
+            [[id: 'compare_platforms'], file("${baseDir}/analyses/90_plots_and_comparisons/95_compare_platforms.py")]
+        ),
+        extended_atlas.map{ f -> [
+            "main_adata": f.name
+        ]},
+        extended_atlas
+    )
 
 
     SCCODA_CONDITION(
