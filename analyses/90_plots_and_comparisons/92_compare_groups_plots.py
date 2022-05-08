@@ -22,9 +22,20 @@ import scanpy_helpers as sh
 from scanpy_helpers.compare_groups.pl import plot_lm_result_altair
 import scanpy as sc
 import numpy as np
+from nxfvars import nxfvars
 
 # %%
-tools = ["dorothea", "progeny", "cytosig", "cpdb"]
+path_prefix = nxfvars.get(
+    "path_prefix",
+    "../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/{comparison}/artifacts",
+)
+deseq2_path_prefix = nxfvars.get(
+    "deseq2_path_prefix",
+    "../../data/30_downstream_analyses/de_analysis/{k}_desert/de_deseq2",
+)
+
+# %%
+tools = ["dorothea", "progeny", "cytosig"]
 comparisons = [
     "patient_infiltration_status",
     "patient_immune_infiltration",
@@ -41,11 +52,13 @@ for comparison in comparisons:
     for tool in tools:
         try:
             results[comparison][tool] = pd.read_csv(
-                f"../../data/30_downstream_analyses/plots_and_comparisons/91_compare_groups/artifacts/{comparison}_{tool}.tsv",
+                (path_prefix + "/{comparison}_{tool}.tsv").format(
+                    comparison=comparison, tool=tool
+                ),
                 sep="\t",
             )
         except IOError:
-            print(f"{comparison}_{tool} not found")
+            raise
 
 # %% [markdown]
 # # LUAD vs LUSC
@@ -111,11 +124,9 @@ results["early_advanced"]["cytosig"].loc[
 )
 
 # %%
-results["early_advanced"]["cytosig"].loc[
-    lambda x: x["cell_type"] == "Stromal", :
-].pipe(sh.util.fdr_correction).pipe(
-    plot_lm_result_altair, title="Cytosig (Neutrophils cells)"
-)
+results["early_advanced"]["cytosig"].loc[lambda x: x["cell_type"] == "Stromal", :].pipe(
+    sh.util.fdr_correction
+).pipe(plot_lm_result_altair, title="Cytosig (Neutrophils cells)")
 
 # %% [markdown] tags=[]
 # # Infiltration groups
@@ -125,7 +136,10 @@ de_res_tumor_cells = (
     pd.concat(
         [
             pd.read_csv(
-                f"../../data/30_downstream_analyses/de_analysis/{k}_desert/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
+                (
+                    deseq2_path_prefix
+                    + "/{k}_desert_primary_tumor_adata_primary_tumor_tumor_cells_DESeq2_result.tsv"
+                ).format(k=k),
                 sep="\t",
             ).assign(group=k.upper())
             for k in "tmb"
@@ -254,9 +268,9 @@ for ct in tmp_cytosig["cell_type"].unique():
 # ## Dorothea
 
 # %%
-results["patient_immune_infiltration_treatment_coding_random"][
-    "dorothea"
-].loc[lambda x: x["cell_type"] == "Tumor cells", :].pipe(sh.util.fdr_correction).pipe(
+results["patient_immune_infiltration_treatment_coding_random"]["dorothea"].loc[
+    lambda x: x["cell_type"] == "Tumor cells", :
+].pipe(sh.util.fdr_correction).pipe(
     plot_lm_result_altair,
     title="Differential TFs (tumor cells)",
 )

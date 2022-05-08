@@ -10,17 +10,34 @@ include { JUPYTERNOTEBOOK as STRATIFY_PATIENTS } from "../modules/local/jupytern
 include { JUPYTERNOTEBOOK as NEUTROPHIL_SUBCLUSTERING } from "../modules/local/jupyternotebook/main.nf"
 
 workflow downstream_analyses {
-    assert params.atlas: "Atlas h5ad file not specified!"
+    assert params.build_atlas_dir: "Atlas h5ad file not specified!"
 
-    final_atlas = Channel.fromPath(params.atlas)
+    // Get input data from upstream `build_atlas` workflow
+    core_atlas = Channel.fromPath(
+        "${params.build_atlas_dir}/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
+         checkIfExists: true
+    )
+    core_atlas_epithelial_cells = Channel.fromPath(
+        "${params.build_atlas_dir}/annotate_datasets/35_final_atlas/artifacts/epithelial_cells_annotated.h5ad",
+         checkIfExists: true
+    )
+    core_atlas_tumor_cells = Channel.fromPath(
+        "${params.build_atlas_dir}/annotate_datasets/33_cell_types_epi/artifacts/adata_tumor.h5ad",
+         checkIfExists: true
+    )
+    extended_atlas = Channel.fromPath(
+        "${params.build_atlas_dir}/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+         checkIfExists: true
+    )
+
 
     NEUTROPHIL_SUBCLUSTERING(
         Channel.value([
             [id: 'neutrophil_subclustering'],
             file("${baseDir}/analyses/37_subclustering/37_neutrophil_subclustering.py")
         ]),
-        final_atlas.map{ it -> ["adata_in": it.name, "neutro_clustering": "neutrophil_clustering.csv"]},
-        final_atlas.mix(Channel.fromPath("${baseDir}/tables/neutrophil_clustering.csv")).collect()
+        extended_atlas.map{ it -> ["adata_in": it.name, "neutro_clustering": "neutrophil_clustering.csv"]},
+        extended_atlas.mix(Channel.fromPath("${baseDir}/tables/neutrophil_clustering.csv")).collect()
     )
     atlas_neutro_clusters = NEUTROPHIL_SUBCLUSTERING.out.artifacts.flatten().filter{ it -> it.baseName.equals("full_atlas_neutrophil_clusters") }
     neutro_clusters = NEUTROPHIL_SUBCLUSTERING.out.artifacts.flatten().filter{ it -> it.baseName.equals("adata_neutrophil_clusters") }
@@ -30,16 +47,32 @@ workflow downstream_analyses {
             [id: 'stratify_patients'],
             file("${baseDir}/analyses/38_patient_stratification/38_patient_stratification.py")
         ]),
-        final_atlas.map{ it -> ["adata_in": it.name]},
-        final_atlas
+        extended_atlas.map{ it -> ["adata_in": it.name]},
+        extended_atlas
     )
     patient_stratification_table = STRATIFY_PATIENTS.out.artifacts.flatten().filter{ it -> it.name.equals("patient_stratification.csv") }
+    patient_stratification_adata_immune = STRATIFY_PATIENTS.out.artifacts.flatten().filter{ it -> it.name.equals("adata_immune.h5ad") }
+    patient_stratification_adata_tumor_subtypes = STRATIFY_PATIENTS.out.artifacts.flatten().filter{ it -> it.name.equals("adata_tumor_subtypes.h5ad") }
 
-    de_analysis(final_atlas, patient_stratification_table)
+    de_analysis(extended_atlas, patient_stratification_table)
+    de_result_tumor_cells = de_analysis.out.t_desert.mix(
+        de_analysis.out.m_desert,
+        de_analysis.out.b_desert
+    ).flatten().filter{ it -> it.baseName.contains("tumor_cells") }
 
-    // scissor(final_atlas)
-    infercnv(final_atlas)
-    plots_and_comparisons(final_atlas, neutro_clusters, patient_stratification_table)
+    // scissor(extended_atlas)
+    infercnv(extended_atlas)
+    plots_and_comparisons(
+        extended_atlas,
+        neutro_clusters,
+        core_atlas,
+        core_atlas_epithelial_cells,
+        core_atlas_tumor_cells,
+        patient_stratification_table,
+        patient_stratification_adata_immune,
+        patient_stratification_adata_tumor_subtypes,
+        de_result_tumor_cells
+    )
 }
 
 

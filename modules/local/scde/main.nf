@@ -194,6 +194,7 @@ process DE_DESEQ2 {
 
 workflow deseq2_analysis {
     take:
+        id                  // manually specified, unique identifier for the comparison
         adata
         column_to_test      // column to test, e.g. "tumor_stage"
         comparison          // Tuple [["treatment"], ["reference"]] or [["treatment"], "rest"]
@@ -224,6 +225,9 @@ workflow deseq2_analysis {
         // only consider cell-types with at least three case/control samples
         MAKE_PSEUDOBULK.out.pseudobulk.filter{
             id, counts, samplesheet -> samplesheet.text.count("\n") >= min_samples
+        }.map{
+            //override ID
+            it -> ["${id}_${it[0]}", it[1], it[2]]
         },
         column_to_test,
         covariate_formula

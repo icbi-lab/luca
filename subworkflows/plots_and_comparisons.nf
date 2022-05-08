@@ -4,19 +4,28 @@ include {
     JUPYTERNOTEBOOK as STRATIFY_PATIENTS_FIGURES;
     JUPYTERNOTEBOOK as COMPARE_GROUPS;
     JUPYTERNOTEBOOK as COMPARE_GROUPS_PLOTS;
+    JUPYTERNOTEBOOK as CELL_TYPE_MARKERS_CORE_ATLAS;
+    JUPYTERNOTEBOOK as OVERVIEW_PLOTS_CORE_ATLAS;
+    JUPYTERNOTEBOOK as OVERVIEW_PLOTS_EXTENDED_ATLAS;
+    JUPYTERNOTEBOOK as COMPARE_PLATFORMS;
     JUPYTERNOTEBOOK as SCCODA_CONDITION;
-    JUPYTERNOTEBOOK as SCCODA_ORIGIN
 } from "../modules/local/jupyternotebook/main.nf"
 
 workflow plots_and_comparisons {
     take:
-    adata_annotated
+    extended_atlas
     adata_neutrophil_clusters
+    core_atlas
+    core_atlas_epithelial_cells
+    core_atlas_tumor_cells
     patient_stratification
+    patient_stratification_adata_immune
+    patient_stratification_adata_tumor_subtypes
+    deseq2_results
 
     main:
 
-    ch_neutrophil_analysis_input_files = adata_annotated.concat(
+    ch_neutrophil_analysis_input_files = extended_atlas.concat(
         adata_neutrophil_clusters,
         patient_stratification,
         Channel.fromPath("${baseDir}/tables/gene_annotations/neutro_phenotype_genesets.xlsx"),
@@ -38,7 +47,7 @@ workflow plots_and_comparisons {
 
     ch_velocyto_input_files = adata_neutrophil_clusters.concat(
         Channel.fromPath("${baseDir}/data/11_own_datasets/velocyto/")
-    ).view().collect()
+    ).collect()
     NEUTROPHIL_ANALYSIS_VELOCYTO(
         Channel.value(
             [[id: 'neutrophil_analysis_velocyto'], file("${baseDir}/analyses/90_plots_and_comparisons/96b_neutrophils_velocyto.py")]
@@ -48,6 +57,23 @@ workflow plots_and_comparisons {
             "velocyto_dir": velocyto_dir.name
         ]},
         ch_velocyto_input_files
+    )
+
+
+    ch_patient_stratification_figures_input_files = patient_stratification.concat(
+        patient_stratification_adata_immune,
+        patient_stratification_adata_tumor_subtypes
+    ).collect()
+    STRATIFY_PATIENTS_FIGURES(
+        Channel.value(
+            [[id: 'patient_stratification_figures'], file("${baseDir}/analyses/90_plots_and_comparisons/93_patient_stratification_figures.py")]
+        ),
+        ch_patient_stratification_figures_input_files.map { pat_table, ad_immune, ad_tumor_subtypes -> [
+            "patient_stratification_path": pat_table.name,
+            "ad_immune_path": ad_immune.name,
+            "ad_tumor_subtypes_path": ad_tumor_subtypes.name
+        ]},
+        ch_patient_stratification_figures_input_files
     )
 
 
@@ -70,8 +96,57 @@ workflow plots_and_comparisons {
                 "stratification_csv": "patient_stratification.csv"
             ]
         },
-        adata_annotated.mix(patient_stratification).collect()
+        extended_atlas.mix(patient_stratification).collect()
     )
+
+    COMPARE_GROUPS_PLOTS(
+        Channel.value(
+            [[id: 'compare_groups_plots'], file("${baseDir}/analyses/90_plots_and_comparisons/92_compare_groups_plots.py")]
+        ),
+        [
+            "path_prefix": "./",
+            "deseq2_path_prefix": "./"
+        ],
+        COMPARE_GROUPS.out.artifacts.mix(deseq2_results).collect()
+    )
+
+    ch_cell_type_markers_core_atlas_input_files = core_atlas.concat(
+        core_atlas_epithelial_cells, core_atlas_tumor_cells
+    ).collect()
+    CELL_TYPE_MARKERS_CORE_ATLAS(
+        Channel.value(
+            [[id: '94a_cell_type_markers_core_atlas'], file("${baseDir}/analyses/90_plots_and_comparisons/94a_cell_type_markers_core_atlas.py")]
+        ),
+        ch_cell_type_markers_core_atlas_input_files.map{ core, core_epi, core_tumor -> [
+            "main_adata": core.name,
+            "epithelial_adata": core_epi.name,
+            "tumor_adata": core_tumor.name
+        ]},
+        ch_cell_type_markers_core_atlas_input_files
+    )
+
+    // OVERVIEW_PLOTS_CORE_ATLAS(
+
+    //     Channel.value(
+    //         [[id: 'compare_groups_plots'], file("${baseDir}/analyses/94b_overview_plots_core_atlas/94b_overview_plots_core_atlas.py")]
+    //     ),
+    // )
+
+    // OVERVIEW_PLOTS_EXTENDED_ATLAS(
+    //     Channel.value(
+    //         [[id: '94c_overview_plots_extended_atlas'], file("${baseDir}/analyses/90_plots_and_comparisons/94c_overview_plots_extended_atlas.py")]
+    //     ),
+
+    // )
+
+
+    // COMPARE_PLATFORMS(
+    //     Channel.value(
+    //         [[id: 'compare_platforms'], file("${baseDir}/analyses/90_plots_and_comparisons/95_compare_platforms.py")]
+    //     ),
+
+    // )
+
 
     SCCODA_CONDITION(
         Channel.value([
@@ -84,7 +159,7 @@ workflow plots_and_comparisons {
             "mcmc_iterations": 500000,
             "main_adata": "full_atlas_merged.h5ad"
         ],
-        adata_annotated.collect()
+        extended_atlas.collect()
     )
 
 

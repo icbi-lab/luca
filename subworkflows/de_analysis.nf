@@ -28,6 +28,7 @@ include { deseq2_analysis as de_analysis_tumor_normal;
     ch_prepare_adata = PREPARE_FOR_DE.out.artifacts.flatten().map { it -> [it.baseName, it] }
 
     de_analysis_tumor_normal(
+        "tumor_normal",
         ch_prepare_adata.filter{ id, adata -> id == "adata_tumor_normal"},
         "origin",
         [["tumor_primary"], "rest"],
@@ -38,6 +39,7 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         "+ patient"
     )
     de_analysis_luad_lusc(
+        "luad_lusc_primary_tumor",
         ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
         "condition",
         [["LUAD"], ["LUSC"]],
@@ -48,6 +50,7 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         "+ dataset"
     )
     de_analysis_early_advanced(
+        "early_advanced_primary_tumor",
         ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
         "tumor_stage",
         [["early"], ["advanced"]],
@@ -58,6 +61,7 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         "+ dataset"
     )
     de_analysis_b_desert(
+        "b_desert_primary_tumor",
         ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
         "immune_infiltration",
         [["B"], ["desert"]],
@@ -68,6 +72,7 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         "+ dataset"
     )
     de_analysis_t_desert(
+        "t_desert_primary_tumor",
         ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
         "immune_infiltration",
         [["T"], ["desert"]],
@@ -78,6 +83,7 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         "+ dataset"
     )
     de_analysis_m_desert(
+        "m_desert_primary_tumor",
         ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
         "immune_infiltration",
         [["M"], ["desert"]],
@@ -87,5 +93,10 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         10, // keep only cell-types with at least 10 samples
         "+ dataset"
     )
+
+    emit:
+    b_desert = de_analysis_b_desert.out.deseq2_result
+    t_desert = de_analysis_t_desert.out.deseq2_result
+    m_desert = de_analysis_m_desert.out.deseq2_result
 
  }
