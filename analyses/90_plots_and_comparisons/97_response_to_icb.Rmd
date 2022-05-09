@@ -4,7 +4,10 @@ params:
   cpus: 1
   artifact_dir: "/data/scratch/sturm/tmp"
   meta: NULL
-  scoring_function: "mean_z"
+  ici_tpm: "../../data/14_ici_treatment/Genentech_for_scissor/genentech.rds"
+  ici_meta: "../../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv"
+  neutro_sigs: "../../data/30_downstream_analyses/neutrophils/neutrophil_analysis/artifacts/neutro_sigs.csv"
+  input_dir: NULL
 ---
 
 ```{r}
@@ -12,114 +15,38 @@ library(conflicted)
 library(dplyr)
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
-library(readxl)
 library(survminer)
 library(survival)
 library(tidyr)
 library(readr)
 library(stringr)
-library(immunedeconv)
-conflict_prefer("deconvolute", "immunedeconv")
 library(tibble)
 library(ggbeeswarm)
 library(cowplot)
-library(corrplot)
 ```
 
 # Load data
 
-```{r, include=FALSE}
-clinical_data = read_tsv("../../tables/tcga/clinical_data_for_scissor.tsv")
-tcga_tpm = read_rds("../../data/13_tcga/for_scissor/nsclc_primary_tumor.rds")
-age = read_excel("../../tables/tcga/mmc1.xlsx") %>% select(TCGA_patient_barcode=bcr_patient_barcode, age=age_at_initial_pathologic_diagnosis)
-tan_deseq2 = read_tsv("../../data/30_downstream_analyses/de_analysis/tumor_normal/de_deseq2/adata_tumor_normal_neutrophils_DESeq2_result.tsv")
-tcga_treatment = read_tsv("../../tables/tcga/tcga_treatment.tsv")
-```
-
 ```{r}
-# # `folder_cho`
-# load("../../data/14_ici_treatment/all_cho.RData")
-# # `folder_jung`
-# load("../../data/14_ici_treatment/all_jung.RData")
-# 
-# ici_meta = bind_rows(
-#   folder_cho$clinical_response |> 
-#     mutate(type=if_else(str_trim(Histology)=="Adenocarcinoma", "LUAD", "LUSC"), response=str_trim(Responsiveness)) |>
-#     select(type, age=Age, sex=Sex, response) |>
-#     mutate(dataset="cho"),
-#   folder_jung$clinical_response |>
-#     mutate(response=if_else(str_trim(Clinical.benefit) == "NDB", "Non-responder", "Responder")) |>
-#     select(response) |> 
-#     mutate(dataset="jung")
-# )
-# ici_tpm = bind_cols(folder_cho$tpm, folder_jung$tpm)[, rownames(ici_meta)]
-
-ici_tpm = read_rds("../../data/14_ici_treatment/Genentech_for_scissor/genentech.rds")
-ici_meta = read_tsv("../../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv") |> rename(dataset=study) |> rename(response_category=response, response=response_to_ici) |> mutate(response=factor(response))
-
-clinical_data = clinical_data |>
-  mutate(ajcc_stage = as.factor(recode(ajcc_pathologic_tumor_stage, `Stage IV` = 4, `Stage IIIA` = 3, `Stage IB` = 1, `Stage IA` = 1, `Stage I` = 1, `Stage II` = 2, `Stage IIA` = 2, `Stage IIB` = 2, `Stage III`= 3, `Stage IIIB` = 3, .default=NA_real_)))
-
-selected_treatments = tcga_treatment |> 
-  filter(tumor %in% c("LUAD", "LUSC"), !is.na(bcr_drug_barcode)) |>
-  select(drug_name, measure_of_response, type=tumor, patient_barcode, therapy_type, treatment_n) |>
-  filter(treatment_n == 1) |> # only 1st line 
-  mutate(TCGA_patient_barcode = str_to_upper(patient_barcode)) |> 
-  filter(therapy_type == "chemotherapy", !is.na(measure_of_response))
+ici_tpm = read_rds(params$ici_tpm)
+ici_meta = read_tsv(params$ici_meta) |> rename(dataset=study) |> mutate(response_to_ici=factor(response_to_ici), response_to_chemotherapy=factor(response_to_chemotherapy))
 ```
 
 # Signature scoring
 
 ```{r}
-sig_pd1 = c("PDCD1")
-
-neutro_sig_tab = read_csv("../../data/30_downstream_analyses/neutrophils/neutrophil_analysis/artifacts/neutro_sigs.csv")
+neutro_sig_tab = read_csv(params$neutro_sigs)
 neutro_sig = sapply(unique(neutro_sig_tab$signature), function(sig) { neutro_sig_tab |> filter(signature == !!sig) |> pull(gene_symbol)}, USE.NAMES = TRUE, simplify = FALSE)
-
-# LCAM signature from the Merad paper
-lcam_tab = read_excel("../../tables/gene_annotations/merad_lcam.xlsx", sheet="LCAM axis", col_names = c("signature", "genes"))
-lcam = str_split(lcam_tab$genes, ",")
-names(lcam) = lcam_tab$signature
-
-pmn_mdsc = read_csv("../../tables/gene_annotations/pmn_mdsc.csv", comment = "#", col_names="gene_symbol")$gene_symbol
-b_cell_tab = read_csv("../../tables/gene_annotations/b_cell_signatures.csv", comment="#")
-b_cell = sapply(unique(b_cell_tab$signature), function(sig) { b_cell_tab |> filter(signature == !!sig) |> pull(gene_symbol)}, USE.NAMES = TRUE, simplify = FALSE)
 ```
 
-```{r}
-norm01 = function(x)  (x-min(x))/(max(x)-min(x))
-
-#' Score signature genes as defined in the MCP counter paper
-#'
-#' This is a simple mean of the log transformed gene expression (aka geometric mean)
-get_mcp_scores = function(mixture, genes) {
-  exclude_genes = setdiff(genes, rownames(mixture))
-  if(length(exclude_genes)) {
-    warning(sprintf("Excluded the following genes which are not in the mixture matrix: %s", paste(exclude_genes, collapse=", ")))
-    genes = setdiff(genes, exclude_genes)
-  }
-  signature_expression = log1p(mixture[genes, ])
-  apply(signature_expression, MARGIN = 2, mean, na.rm=TRUE)
-}
-
-#' Score signature genes as described in the Merad paper
-#' 
-#' This is a simple mean of the z-scored gene expression
-get_lcam_scores = function(mixture, genes) {
-  exclude_genes = setdiff(genes, rownames(mixture))
-  if(length(exclude_genes)) {
-    warning(sprintf("Excluded the following genes which are not in the mixture matrix: %s", paste(exclude_genes, collapse=", ")))
-    genes = setdiff(genes, exclude_genes)
-  }
-  signature_expression = t(scale(t(log1p(mixture[genes, ,drop=FALSE]))))
-  apply(signature_expression, MARGIN = 2, mean, na.rm=TRUE)
-}
-
-SCORING_FUNCTIONS = list("mean"=get_mcp_scores, "mean_z"=get_lcam_scores)
-scoring_function = SCORING_FUNCTIONS[[params$scoring_function]]
-```
 
 ## Original LCAM scores
+This essentially computes a mean z score of marker gene expression. 
+However, scores for each cell-type are computed separately, and then averaged. 
+
+There's a LCAMhi and LCAMlo signature. Finally, a "LCAM consensus" signature 
+is created, but subtracting one from the other. That way, the authors claim,
+they generate a score that's independent of overall immune infiltration. 
 ```{r}
 # From https://github.com/effiken/Leader_et_al/blob/3eb043acdea7b3dea45a2325ee1035060d9964af/scripts/get_LCAM_scores.R
 library(matrixStats)
@@ -129,8 +56,6 @@ LCAMlo_subtypes <- c("B","AM","cDC2","AZU1_mac","cDC1")
 genes <- strsplit("IGHG3,IGHG4,IGHG1,MZB1,FAM92B,SPAG4,DERL3,JSRP1,TBCEL,LINC01485,SLC2A5,SPP1,CCL7,HAMP,CXCL13,ZBED2,GNG4,KRT86,TNFRSF9,LAYN,GZMB,KIR2DL4,GAPT,CTB-133G6.1,AKR1C3,RSPO3,MCEMP1,RND3,HP,FOLR3,GPD1,GS1-600G8.5,PCOLCE2,CAMP,CCL17,CD1B,CD1C,CD1E,PLD4,TRPC6,CLEC10A,FCER1A,PLA1A,CFP,CEACAM8,AZU1,PKP2,RETN,LYZ,ELANE,ATP6AP1L,RP6-159A1.4,THBS1,CFD,P2RY14,DNASE1L3,PTGER3,CST3,BATF3,CPVL,RGS18,SERPINF2,LGALS2",",")[[1]]
 subtypes <- rep(c(LCAMhi_subtypes,LCAMlo_subtypes),times=c(10,4,8,2,10,10,10,9))
 names(subtypes) <- genes
-
-
 
 
 get_LCAM_scores <- function(expr_mat){
@@ -168,160 +93,44 @@ get_LCAM_scores <- function(expr_mat){
 }
 ```
 
+## "Mean z score" scoring function
+This is similar to the LCAM score, just there is no differentiation between markers for different cell-types. 
+```{r}
+norm01 = function(x)  (x-min(x))/(max(x)-min(x))
 
-## LUAD vs LUSC
-
-In TCGA: 
-
-```{r, fig.width=13, fig.height=8}
-tcga_deconv = deconvolute(tcga_tpm, method="mcp_counter") |> column_to_rownames("cell_type") |> as.matrix() |> t() |> scale() |> as_tibble(rownames="TCGA_patient_barcode") |> rename_at(vars(-TCGA_patient_barcode), function(x) paste0("ct_", x))
-
-tcga_lcam_scores = get_LCAM_scores(tcga_tpm)
-
-tcga_scores = data.frame(
-  sig_neutro=scoring_function(tcga_tpm, neutro_sig$neutro_sig), 
-  sig_neutro2=scoring_function(tcga_tpm, neutro_sig$neutro_sig2),
-  sig_neutro3=scoring_function(tcga_tpm, neutro_sig$neutro_sig3),
-  sig_tan=scoring_function(tcga_tpm, neutro_sig$tan_sig),
-  sig_nan=scoring_function(tcga_tpm, neutro_sig$nan_sig),
-  sig_pd1=scoring_function(tcga_tpm, sig_pd1),
-  sig_pmn_mdsc=scoring_function(tcga_tpm, pmn_mdsc),
-  sig_b_cell_follicular=scoring_function(tcga_tpm, b_cell$`Follicular B cells`),
-  sig_b_cell_gc=scoring_function(tcga_tpm, b_cell$`Germinal center B cells`),
-  sig_plasma=scoring_function(tcga_tpm, b_cell$`Plasma cells`),
-  sig_lcam_hi=tcga_lcam_scores[, 1],
-  sig_lcam_lo=tcga_lcam_scores[, 2],
-  sig_lcam_consensus=tcga_lcam_scores[, 3]
-) |> 
-  mutate(sig_tan_nan=(sig_tan + sig_nan) / 2) |>
-  as_tibble(rownames="TCGA_patient_barcode")
-
-tcga_clin_and_scores = clinical_data %>% 
-  left_join(age) %>%
-  inner_join(tcga_scores) %>%
-  left_join(tcga_deconv) %>%
-  left_join(selected_treatments)
-
-tcga_clin_and_scores |> select(type, starts_with("sig_")) |>
-  pivot_longer(-type, names_to="signature", values_to="score") |>
-  ggplot(aes(x=type, y=score)) + 
-  geom_quasirandom(aes(color=type)) + 
-  geom_boxplot(outlier.alpha=0, width=.2) + 
-  stat_compare_means(method="wilcox.test") +
-  theme_cowplot() + 
-  background_grid() + 
-  facet_wrap(~signature, ncol = 5) + 
-  ggtitle(sprintf("Scoring function: %s", params$scoring_function))
-```
-```{r, fig.width=13, fig.height=8}
-tcga_clin_and_scores |> select(tumor_stage, starts_with("sig_")) |>
-  mutate(tumor_stage = as.factor(tumor_stage)) |> 
-  filter(!is.na(tumor_stage)) |> 
-  pivot_longer(-tumor_stage, names_to="signature", values_to="score") |>
-  ggplot(aes(x=tumor_stage, y=score)) + 
-  geom_quasirandom(aes(color=tumor_stage)) + 
-  geom_boxplot(outlier.alpha=0, width=.2) + 
-  stat_compare_means(method="wilcox.test") +
-  theme_cowplot() + 
-  background_grid() + 
-  facet_wrap(~signature, ncol = 5) + 
-  ggtitle(sprintf("Scoring function: %s", params$scoring_function))
-
-```
-
-```{r, fig.width=10, fig.height=6}
-tcga_clin_and_scores |> select(type, ajcc_stage, starts_with("sig_"), starts_with("ct_")) |>
-  filter(!is.na(ajcc_stage)) |> 
-  pivot_longer(-c(type, ajcc_stage), names_to="signature", values_to="score") |>
-  filter(signature == "sig_neutro") |> 
-  ggplot(aes(x=ajcc_stage, y=score)) + 
-  geom_quasirandom(aes(color=ajcc_stage)) + 
-  geom_boxplot(outlier.alpha=0, width=.2, alpha=.7) + 
-  theme_cowplot() + 
-  background_grid() + 
-  ggtitle(sprintf("Scoring function: %s", params$scoring_function)) + 
-  facet_wrap(~type) + 
-  stat_compare_means(method="anova")
-```
-
-```{r, fig.width=6, fig.height=6}
-sig_codes = Vectorize(function(p) {
-  if(p < 0.001) {
-    "p < 0.001"
-  } else if(p < 0.01) {
-    "p < 0.01"
-  } else if (p < 0.05) {
-    "p < 0.05"
-  } else if (p < 0.1) {
-    "p < 0.1"
-  } else {
-    "p >= 0.1"
+#' Score signature genes as described in the Merad paper
+#' 
+#' This is a simple mean of the z-scored gene expression
+get_lcam_scores = function(mixture, genes) {
+  exclude_genes = setdiff(genes, rownames(mixture))
+  if(length(exclude_genes)) {
+    warning(sprintf("Excluded the following genes which are not in the mixture matrix: %s", paste(exclude_genes, collapse=", ")))
+    genes = setdiff(genes, exclude_genes)
   }
-})
+  signature_expression = t(scale(t(log1p(mixture[genes, ,drop=FALSE]))))
+  apply(signature_expression, MARGIN = 2, mean, na.rm=TRUE)
+}
 
-chemo_data = tcga_clin_and_scores |> 
-  filter(measure_of_response %in% c("clinical progressive disease", "complete response"))  |>
-  mutate(measure_of_response = as.factor(measure_of_response))
-
-glm_res = lapply(colnames(select(chemo_data, starts_with("sig_"), starts_with("ct_"))), function(col) {
-  res = summary(glm(as.formula(sprintf("measure_of_response ~ `%s` + type + ajcc_stage", col)), family="binomial", data=chemo_data))
-  res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
-}) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> arrange(-Estimate) |> mutate(var=factor(var, levels=unique(var)))
-
-glm_res |> ggplot(aes(x=var, y=Estimate)) + geom_bar(aes(fill=sig_code), stat="identity") + scale_fill_brewer(palette= "Blues", direction=-1)  + theme_cowplot()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_hline(yintercept = 0, color="black")
+scoring_function = get_lcam_scores 
 ```
 
-```{r, fig.width=3, fig.height=5}
-pvalue_df = glm_res |> filter(var %in% c("sig_neutro2")) |> 
-  select(signature=var, pvalue=`Pr(>|z|)`) |> 
-  mutate(pvalue = sprintf("p=%*.3f", 3, pvalue)) |>
-  distinct()
-p = chemo_data |> select(measure_of_response, type, sig_neutro2) |> pivot_longer(-c(type, measure_of_response), names_to="signature", values_to="value") |> 
-  ggplot(aes(x=measure_of_response, y=value)) + geom_boxplot(outlier.alpha=0, width=.2) + 
-    geom_quasirandom(aes(color=type), size=0.5) + 
-    theme_cowplot() + 
-    geom_text(aes(label = pvalue), x=-Inf, y=Inf, data=pvalue_df, hjust = -0.2, vjust=1) +
-    background_grid() + 
-    facet_wrap(~signature, ncol = 5) + 
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-ggsave(file.path(params$artifact_dir, "tcga_response_to_chemotherapy.pdf"), width = 3, height = 5)
-p
-
-```
 
 # ICI treatment data
 
-```{r, fig.width=9, fig.height=6}
-
-ici_deconv = deconvolute(ici_tpm, method="mcp_counter") |> column_to_rownames("cell_type") |> as.matrix() |> t() |> scale() |> as_tibble(rownames="sample") |> rename_at(vars(-sample), function(x) paste0("ct_", x))
+```{r, fig.width=9, fig.height=4}
 
 ici_lcam_scores = get_LCAM_scores(ici_tpm)
-
 ici_scores = data.frame(
-    sig_neutro=scoring_function(ici_tpm, neutro_sig$neutro_sig), 
     sig_neutro2=scoring_function(ici_tpm, neutro_sig$neutro_sig2),
-    sig_neutro3=scoring_function(ici_tpm, neutro_sig$neutro_sig3),
-    sig_tan=scoring_function(ici_tpm, neutro_sig$tan_sig),
-    sig_nan=scoring_function(ici_tpm, neutro_sig$nan_sig),
-    sig_pd1=scoring_function(ici_tpm, sig_pd1),
-    sig_pmn_mdsc=scoring_function(ici_tpm, pmn_mdsc),
-    sig_b_cell_follicular=scoring_function(ici_tpm, b_cell$`Follicular B cells`),
-    sig_b_cell_gc=scoring_function(ici_tpm, b_cell$`Germinal center B cells`),
-    sig_plasma=scoring_function(ici_tpm, b_cell$`Plasma cells`),
     sig_lcam_hi=ici_lcam_scores[, 1],
     sig_lcam_lo=ici_lcam_scores[, 2],
     sig_lcam_consensus=ici_lcam_scores[, 3]
 ) |> 
-  mutate(sig_combined = sig_lcam_hi + sig_neutro) |>
-  mutate(sig_tan_nan=(sig_tan + sig_nan) / 2) |>
   as_tibble(rownames="sample")
 
 ici_clin_and_scores = ici_meta |> 
   rename(sample=sample_id) |>
-  # as_tibble(rownames="sample") |>
-  inner_join(ici_scores) |>
-  inner_join(ici_deconv) 
+  inner_join(ici_scores) 
 
 ici_clin_and_scores |> select(type, starts_with("sig_")) |>
   filter(!is.na(type)) |> 
@@ -339,58 +148,29 @@ ici_clin_and_scores |> select(type, starts_with("sig_")) |>
 
 ## Survival analysis
 
-### In TCGA data
 ```{r, fig.width=6, fig.height=6}
-coxph_results = lapply(c("all", "LUSC", "LUAD"), function(type) {
-  filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
-  type_covar = ifelse(type == "all", "+ type ", "")
-  coxph_res = lapply(colnames(select(chemo_data, starts_with("sig_"), starts_with("ct_"))), function(col) {
-     res = summary(coxph(as.formula(sprintf("Surv(time, status) ~ `%s` %s + ajcc_stage + age", col, type_covar)), data=tcga_clin_and_scores |> filter(type %in% filter_type)))
-     res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col, type=type)
-  }) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> arrange(-coef) |> mutate(var=factor(var, levels=unique(var)))
-  
-  print(coxph_res |> ggplot(aes(x=var, y=coef)) + geom_bar(aes(fill=sig_code), stat="identity") + scale_fill_brewer(palette= "Blues", direction=-1)  + theme_cowplot()+ theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + geom_hline(yintercept = 0, color="black") + facet_wrap(~type, ncol=1))
-  coxph_res |> mutate(type=type)
-}) |> bind_rows()
-```
-
-```{r, fig.width=4, fig.height=4}
-plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75), pvalue=TRUE) {
-  tmp_col = clinical_data[[column]]
-  cutoffs = quantile(tmp_col, q)
-  group = rep(NA, length(tmp_col))
-  group[tmp_col < cutoffs[1]] = "bottom 25%"
-  group[tmp_col > cutoffs[2]] = "top 25%"
-  clinical_data$group = group
-  clinical_data = clinical_data |> filter(time < 365 * 5)
-  fit = survfit(Surv(time, status) ~ group, data=clinical_data)
-  ggsurvplot(fit, data=clinical_data, pval=pvalue, risk.table = FALSE, xlab="time in days")
-}
-
-lapply(c("LUAD", "LUSC", "all"), function(type) {
-  filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
-  lapply(c("sig_neutro", "sig_nan", "sig_tan", "sig_b_cell_follicular", "sig_neutro2", "sig_neutro3", "sig_lcam_hi", "sig_lcam_consensus"), function(sig) {
-    p = plot_kaplan_meyer(
-      tcga_clin_and_scores |> filter(type %in% filter_type),
-      sig,
-      pvalue=sprintf("p=%*.3f, CoxPH reg.", 3, coxph_results |> filter(var == sig, type == !!type) |> pull(`Pr(>|z|)`)),
-    ) + 
-      ggtitle(sprintf("%s (%s)", sig, type))
-    ggsave(file.path(params$artifact_dir, sprintf("KM_%s_%s.pdf", sig, type)), width=4.5, height=4)
-    p
-  })
+sig_codes = Vectorize(function(p) {
+  if(p < 0.001) {
+    "p < 0.001"
+  } else if(p < 0.01) {
+    "p < 0.01"
+  } else if (p < 0.05) {
+    "p < 0.05"
+  } else if (p < 0.1) {
+    "p < 0.1"
+  } else {
+    "p >= 0.1"
+  }
 })
-```
 
-### In Genentech data
-```{r, fig.width=6, fig.height=6}
 coxph_results = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
     lapply(c("all", "LUSC", "LUAD"), function(type) {
         filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
         filter_arm = if(arm == "any") {c("Docetaxel", "MPDL3280A")} else {arm}
         type_covar = ifelse(type == "all", "+ type ", "")
-        coxph_res = lapply(colnames(select(chemo_data, starts_with("sig_"), starts_with("ct_"))), function(col) {
-           res = summary(coxph(as.formula(sprintf("Surv(time, status) ~ `%s` %s", col, type_covar)), data=ici_clin_and_scores |> 
+        arm_covar = ifelse(arm == "any", "+ study_arm", "")
+        coxph_res = lapply(colnames(select(ici_clin_and_scores, starts_with("sig_"))), function(col) {
+           res = summary(coxph(as.formula(sprintf("Surv(time, status) ~ `%s` %s %s + dataset", col, type_covar, arm_covar)), data=ici_clin_and_scores |> 
                                  filter(type %in% filter_type, study_arm %in% filter_arm)))
            res$coefficients |> 
              as_tibble(rownames="var") |> 
@@ -431,7 +211,7 @@ lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
     lapply(c("LUAD", "LUSC", "all"), function(type) {
         filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
         filter_arm = if(arm == "any") {c("Docetaxel", "MPDL3280A")} else {arm}
-        lapply(c("sig_neutro", "sig_nan", "sig_tan", "sig_b_cell_follicular", "sig_neutro2", "sig_neutro3", "sig_lcam_hi", "sig_lcam_consensus"), function(sig) {
+        lapply(c("sig_neutro2"), function(sig) {
           p = plot_kaplan_meyer(
             ici_clin_and_scores |> filter(type %in% filter_type, study_arm %in% filter_arm),
             sig,
@@ -450,40 +230,12 @@ lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
 
 ### Response to ICI
 ```{r, fig.width=6, fig.height=6}
+ici_data = ici_clin_and_scores |> filter(study_arm == "MPDL3280A") 
 glm_res_ici = lapply(c("all", "LUSC", "LUAD"), function(type) {
     filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
     type_covar = ifelse(type == "all", "+ type ", "")
-    tmp_res = lapply(colnames(select(ici_clin_and_scores, starts_with("sig_"), starts_with("ct_"))), function(col) {
-      res = summary(glm(as.formula(sprintf("response ~ `%s` %s + dataset", col, type_covar)), family="binomial", data=ici_clin_and_scores |>
-                          filter(type %in% filter_type) |>
-                          mutate(response = factor(response))))
-      res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
-    }) |> 
-      bind_rows() |> 
-      mutate(sig_code = sig_codes(`Pr(>|z|)`)) |>
-      arrange(-Estimate) |> 
-      mutate(var=factor(var, levels=unique(var)))
-    
-    print(tmp_res |> ggplot(aes(x=var, y=Estimate)) + 
-            geom_bar(aes(fill=sig_code), stat="identity") +
-            scale_fill_brewer(palette= "Blues", direction=-1)  + 
-            theme_cowplot()+
-            theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-            geom_hline(yintercept = 0, color="black") + 
-            ggtitle(type))
-    
-    tmp_res |> mutate(type=type)
-}) |> bind_rows()
-```
-### Response to Chemotherapy
-```{r, fig.width=6, fig.height=6}
-glm_res_chemo = lapply(c("all", "LUSC", "LUAD"), function(type) {
-    filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
-    type_covar = ifelse(type == "all", "+ type ", "")
-    tmp_res = lapply(colnames(select(ici_clin_and_scores, starts_with("sig_"), starts_with("ct_"))), function(col) {
-      res = summary(glm(as.formula(sprintf("response_to_chemotherapy ~ `%s` %s + dataset", col, type_covar)), family="binomial", data=ici_clin_and_scores |>
-                          filter(type %in% filter_type) |>
-                          mutate(response_to_chemotherapy = factor(response_to_chemotherapy))))
+    tmp_res = lapply(colnames(select(ici_clin_and_scores, starts_with("sig_"))), function(col) {
+      res = summary(glm(as.formula(sprintf("response_to_ici ~ `%s` %s + dataset", col, type_covar)), family="binomial", data=ici_data |> filter(type %in% filter_type)))
       res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
     }) |> 
       bind_rows() |> 
@@ -503,12 +255,13 @@ glm_res_chemo = lapply(c("all", "LUSC", "LUAD"), function(type) {
 }) |> bind_rows()
 ```
 
-```{r, fig.width=18, fig.height=7}
+```{r, fig.width=8, fig.height=4}
 pvalue_df = glm_res_ici |> filter(`Pr(>|z|)` < 0.1, type == "all") |> 
   select(signature=var, pvalue=`Pr(>|z|)`) |> 
   mutate(pvalue = sprintf("p=%*.3f", 3, pvalue)) |>
   distinct()
-p = ici_clin_and_scores |> select(type, response, dataset, starts_with("sig_"), starts_with("ct_")) |>
+
+p = ici_data |> select(type, response=response_to_ici, dataset, starts_with("sig_")) |>
     pivot_longer(-c(type, response, dataset), names_to="signature", values_to="score") |>
     filter(!is.na(response)) |> 
     inner_join(pvalue_df) |> 
@@ -526,88 +279,8 @@ ggsave(file.path(params$artifact_dir, "ici_treatment_response.pdf"), width = 18,
 p
 ```
 
-```{r, fig.width=30, fig.height=30}
-ici_clin_and_scores_long = ici_clin_and_scores |> select(sample, type, response, starts_with("sig_"), starts_with("ct_")) |>
-    pivot_longer(-c(sample, type, response), names_to="signature", values_to="score") |> 
-    filter(signature != "sig_n_to_t_ratio")
-
-corr_df = ici_clin_and_scores_long |> inner_join(ici_clin_and_scores_long, by=c("sample", "type", "response"))
-
-corr_df |>  
-  filter(grepl("sig_", signature.x), grepl("sig_", signature.y)) |> 
-  ggplot(aes(x=score.x, y=score.y)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2") + facet_grid(signature.x ~ signature.y)
-```
-
-```{r, fig.width=8, fig.height=8}
-corr_df2 = corr_df |> group_by(signature.x, signature.y) |> group_modify(function(df, label) { tmp_cor = cor.test(df$score.x, df$score.y); tibble_row(cor = tmp_cor$estimate, pvalue = tmp_cor$p.value) })
-corr_mat = corr_df2 |> select(-pvalue) |> pivot_wider(names_from=signature.y, values_from="cor") |> column_to_rownames("signature.x") |> as.matrix()
-corrplot(corr_mat)
-```
-
 ```{r}
-ici_clin_and_scores |> filter(!is.na(response)) |> 
-  ggplot(aes(y=sig_lcam_hi, x=sig_neutro)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
-
-ici_clin_and_scores |> filter(!is.na(response)) |> 
-  ggplot(aes(y=sig_lcam_hi, x=sig_nan)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
-
-ici_clin_and_scores |> filter(!is.na(response)) |> 
-  ggplot(aes(y=sig_lcam_hi, x=sig_tan)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
-
-ici_clin_and_scores |> filter(!is.na(response)) |> 
-  ggplot(aes(y=sig_lcam_consensus, x=sig_neutro2)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
+ici_clin_and_scores |> filter(!is.na(response_to_ici)) |> 
+  ggplot(aes(y=sig_lcam_consensus, x=sig_neutro2)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response_to_ici)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
 ggsave(file.path(params$artifact_dir, "corr_lcam_consensus_vs_neutro2.pdf"), width=6, height=4)
-
-ici_clin_and_scores |> filter(!is.na(response)) |> 
-  ggplot(aes(y=sig_lcam_hi, x=sig_neutro3)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
-
-```
-
-## Does combining the signatures lead to a better quality of fit? 
-
-(GLM with logistic regression)
-
-```{r}
-tmp_df = ici_clin_and_scores |> filter(type == "LUSC")
-tmp_df$response = as.factor(tmp_df$response)
-
-
-mod = glm(response ~ sig_neutro2 + sig_lcam_consensus + dataset, data=tmp_df, family=binomial)
-summary(mod)
-
-mod2 = glm(response ~ sig_neutro2 + dataset, data=tmp_df, family=binomial)
-summary(mod2)
-
-mod3 = glm(response ~ sig_lcam_consensus + dataset, data=tmp_df, family=binomial)
-summary(mod3)
-
-# mod4 = glm(response ~ sig_tan + sig_lcam_hi + dataset, data=tmp_df, family=binomial)
-# summary(mod4)
-
-
-```
-
-
-
-```{r}
-tmp_df = ici_clin_and_scores |> filter(study_arm != "Doxetaxel")
-tmp_df$response = as.factor(tmp_df$response)
-
-
-mod = coxph(Surv(time, status) ~ sig_neutro2 + sig_lcam_consensus + dataset, data=tmp_df)
-print(mod)
-extractAIC(mod)
-
-mod2 = coxph(Surv(time, status) ~ sig_neutro2 + dataset, data=tmp_df)
-print(mod2)
-extractAIC(mod2)
-
-mod3 = coxph(Surv(time, status) ~ sig_lcam_consensus + dataset, data=tmp_df)
-print(mod3)
-extractAIC(mod3)
-
-# mod4 = glm(response ~ sig_tan + sig_lcam_hi + dataset, data=tmp_df, family=binomial)
-# summary(mod4)
-
-
 ```
