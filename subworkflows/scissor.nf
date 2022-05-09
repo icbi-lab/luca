@@ -4,7 +4,9 @@ include { SCISSOR as SCISSOR_TCGA } from "../modules/local/scissor.nf"
 include {
     RMARKDOWNNOTEBOOK as VALIDATE_DECONVOLUTION;
 } from "../modules/local/rmarkdownnotebook/main.nf"
-
+include {
+    JUPYTERNOTEBOOK as SCISSOR_ANALYSIS;
+} from "../modules/local/jupyternotebook/main.nf"
 
 workflow scissor {
     take: adata_annotated
@@ -25,25 +27,42 @@ workflow scissor {
                 // "--column kras_mutation",
                 // "--column braf_mutation",
                 // "--column egfr_mutation",
-                "--column tumor_type",
-                "--surv_time time --surv_status status",
 
-                "--tumor_type LUAD --column braf_mutation",
-                "--tumor_type LUAD --column kras_mutation", // only enough patients in LUAD
-                "--tumor_type LUAD --column egfr_mutation",
-                "--tumor_type LUAD --column tp53_mutation",
-                "--tumor_type LUAD --column stk11_mutation",
-                "--tumor_type LUAD --column random",
-                "--tumor_type LUAD --surv_time time --surv_status status",
+                // "--column tumor_type",
+                // "--surv_time time --surv_status status",
 
-                "--tumor_type LUSC --column braf_mutation",
-                "--tumor_type LUSC --column egfr_mutation",
-                "--tumor_type LUSC --column tp53_mutation",
-                "--tumor_type LUSC --column stk11_mutation",
+                // "--tumor_type LUAD --column braf_mutation",
+                // "--tumor_type LUAD --column kras_mutation", // only enough patients in LUAD
+                // "--tumor_type LUAD --column egfr_mutation",
+                // "--tumor_type LUAD --column tp53_mutation",
+                // "--tumor_type LUAD --column stk11_mutation",
+                // "--tumor_type LUAD --column random",
+                // "--tumor_type LUAD --surv_time time --surv_status status",
+
+                // "--tumor_type LUSC --column braf_mutation",
+                // "--tumor_type LUSC --column egfr_mutation",
+                // "--tumor_type LUSC --column tp53_mutation",
+                // "--tumor_type LUSC --column stk11_mutation",
                 "--tumor_type LUSC --column random",
                 "--tumor_type LUSC --surv_time time --surv_status status"
             ]
         )
+    )
+
+    ch_scissor_analysis_input_files = adata_annotated.concat(
+        Channel.fromPath("$baseDir/tables/tcga/clinical_data_for_scissor.tsv"),
+        SCISSOR_TCGA.out.scissor_cells
+    ).collect()
+    SCISSOR_ANALYSIS(
+        Channel.value(
+            [[id: 'scissor_analysis'], file("${baseDir}/analyses/50_scissor/51_scissor_analysis.py")]
+        ),
+        ch_scissor_analysis_input_files.map{ it -> [
+            "adata_in": it[0].name,
+            "path_clinical_data": it[1].name,
+            "path_scissor": "./"
+        ]},
+        ch_scissor_analysis_input_files
     )
 
     ch_validate_deconvolution_input_files = Channel.fromPath("${baseDir}/tables/tcga/clinical_data_for_scissor.tsv").concat(

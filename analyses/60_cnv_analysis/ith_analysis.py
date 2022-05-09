@@ -43,6 +43,7 @@ import seaborn as sns
 import pickle
 import warnings
 import anndata
+from glob import glob
 import infercnvpy as cnv
 
 alt.data_transformers.disable_max_rows()
@@ -83,10 +84,11 @@ adata = sc.read_h5ad(path_adata)
 
 # %%
 scevan_res_dirs = list(
-    Path(path_scevan).glob(
-        "**/output/*CNAmtx.RData"
-    )
+    glob(path_scevan + "/**/*CNAmtx.RData", recursive=True)
 )
+
+# %%
+assert len(scevan_res_dirs) > 1
 
 # %%
 adata.obs["patient_lower"] = adata.obs["patient"].str.lower()
@@ -96,13 +98,14 @@ adatas_cnv = sh.util.split_anndata(adata, "patient_lower")
 
 # %%
 for scevan_dir in tqdm(scevan_res_dirs):
-    patient = str(scevan_dir).split("/")[-3].replace("full_atlas_merged_", "")
+    patient = str(scevan_dir).split("/")[-2].replace("full_atlas_merged_", "")
+    scevan_dir = Path(scevan_dir)
     try:
         cnv.io.read_scevan(
             adatas_cnv[patient],
             scevan_dir.parent,
             subclones=False,
-            scevan_res_table=scevan_dir.parent.parent / "scevan_result.csv",
+            scevan_res_table=scevan_dir.parent / "scevan_result.csv",
         )
     except (ValueError, KeyError) as e:
         warnings.warn(f"Patient {patient} failed: " + str(e))
@@ -311,5 +314,7 @@ res_df.pipe(
     p_cutoff=1,
     reverse=True,
 )
+
+# %%
 
 # %%

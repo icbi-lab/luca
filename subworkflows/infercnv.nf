@@ -15,8 +15,9 @@ process RUN_SCEVAN {
     // (they will always fail due to characteristics of the data, e.g. too few cells)
     ignore_exit_code = task.ext.ignore_error ? "|| true" : ""
     """
+    mkdir -p output
     scevan_parallel.R ${input_file} ${task.cpus} ${input_file.baseName} > ${id}.log 2>&1 $ignore_exit_code
-    mv scevan_result.csv output
+    mv scevan_result.csv output || true
     mv output ${id}
     """
 }

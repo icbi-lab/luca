@@ -18,6 +18,7 @@ Optional options:
     --surv_time=<surv_time>         Column with survival time for coxph regression. Must be combined with --surv_status
     --surv_status=<surv_status>     Column with survival status for coxpy regression.
     --sample_col=<sample_col>       Column in <metadata> with sample identifier (must match colnames of <bulk_tpm>) [default: sample_id]
+    --prefix=<prefix>               Prefix for the output filename
 " -> doc
 
 library(conflicted)
@@ -44,6 +45,7 @@ column <- arguments$column
 surv_time <- arguments$surv_time
 surv_status <- arguments$surv_status
 tumor_type <- arguments$tumor_type
+prefix <- arguments$prefix
 
 # # For testing only
 # sce = readRDS("../data/30_downstream_analyses/scissor/adata_by_patient/full_atlas_merged_lambrechts_thienpont_2018_6149v1_2.rds")
@@ -110,7 +112,7 @@ if (!is.null(column)) {
     stopifnot(all(colnames(bulk_tpm_subset) == metadata_subset[[sample_col]]))
     message(paste(dim(bulk_tpm_subset), collapse = " "))
 
-    phenotype <- metadata_subset %>% select(time=!!as.name(surv_time), status=!!as.name(surv_status))
+    phenotype <- metadata_subset %>% select(time = !!as.name(surv_time), status = !!as.name(surv_status))
     sample_prefix <- paste0(surv_status, "_", surv_time)
     infos1 <- Scissor(bulk_tpm_subset, sc_dataset, phenotype,
         alpha = sqrt(2)^-(24:2),
@@ -141,4 +143,4 @@ p <- DimPlot(sc_dataset_meta,
 )
 ggsave("dim_plot_scissor.pdf", plot = p)
 
-write_tsv(as.data.frame(Scissor_select) %>% as_tibble(rownames = "cell_id"), sprintf("scissor_%s_%s.tsv", tumor_type, sample_prefix))
+write_tsv(as.data.frame(Scissor_select) %>% as_tibble(rownames = "cell_id"), sprintf("scissor_%s_%s_%s.tsv", prefix, tumor_type, sample_prefix))

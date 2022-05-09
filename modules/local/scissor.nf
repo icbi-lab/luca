@@ -16,7 +16,7 @@ process SCISSOR {
     ignore_exit_code = task.ext.ignore_error ? "|| true" : ""
     """
     scissor_single_sample.R --bulk_tpm $bulk_tpm --sce $sce --metadata $metadata \\
-        --sample_col=$sample_col \\
+        --sample_col=$sample_col --prefix=$id \\
         $options > ${id}_${options.replace("-","").replace(" ", "_")}.log 2>&1 $ignore_exit_code
     """
 }
