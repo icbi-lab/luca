@@ -3,6 +3,12 @@ title: "Untitled"
 output: html_document
 params:
   artifact_dir: "/home/sturm/Downloads"
+  clinical_data: "../../tables/tcga/clinical_data_for_scissor.tsv"
+  tcga_tpm: "../../data/13_tcga/for_scissor/nsclc_primary_tumor.rds"
+  tcga_meta: "../../tables/tcga/mmc1.xlsx"
+  meta: NULL
+  input_dir: NULL
+  cpus: 1
 ---
 
 ```{r}
@@ -21,11 +27,9 @@ conflict_prefer("deconvolute", "immunedeconv")
 ```
 
 ```{r}
-clinical_data = read_tsv("../../tables/tcga/clinical_data_for_scissor.tsv")
-tcga_tpm = read_rds("../../data/13_tcga/for_scissor/nsclc_primary_tumor.rds")
-age = read_excel("../../tables/tcga/mmc1.xlsx") %>% select(TCGA_patient_barcode=bcr_patient_barcode, age=age_at_initial_pathologic_diagnosis)
-
-
+clinical_data = read_tsv(params$clinical_data)
+tcga_tpm = read_rds(params$tcga_tpm)
+age = read_excel(params$tcga_meta) %>% select(TCGA_patient_barcode=bcr_patient_barcode, age=age_at_initial_pathologic_diagnosis)
 ```
 
 
@@ -38,15 +42,6 @@ tcga_clin_and_scores = clinical_data %>%
   mutate(ajcc_stage = as.factor(recode(ajcc_pathologic_tumor_stage, `Stage IV` = 4, `Stage IIIA` = 3, `Stage IB` = 1, `Stage IA` = 1, `Stage I` = 1, `Stage II` = 2, `Stage IIA` = 2, `Stage IIB` = 2, `Stage III`= 3, `Stage IIIB` = 3, .default=NA_real_))) |> filter(time < 365 * 10)
 ```
 
-
-```{r}
-
-
-lapply(c("LUAD", "LUSC"), function(x) { 
- 
-})
-
-```
 
 ```{r, fig.width=4.5, fig.height=4}
 plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75)) {
@@ -69,48 +64,4 @@ ggsave(file.path(params$artifact_dir, "KM_B_cell_epic_LUSC.pdf"))
 plot_kaplan_meyer(tcga_clin_and_scores, "B cell") + ggtitle("any")
 ggsave(file.path(params$artifact_dir, "KM_B_cell_epic_any.pdf"))
 
-```
-
-# Genentech cohort
-```{r}
-ici_tpm = read_rds("../../data/14_ici_treatment/Genentech_for_scissor/genentech.rds")
-ici_meta = read_tsv("../../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv")
-```
-
-```{r}
-ici_deconv = deconvolute(ici_tpm, method="epic") |> column_to_rownames("cell_type") |> as.matrix() |> t() |> as_tibble(rownames="sample_id")
-
-ici_clin_and_scores = ici_meta %>% 
-  left_join(ici_deconv, by="sample_id")
-```
-
-```{r}
-plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75)) {
-  tmp_col = clinical_data[[column]]
-  cutoffs = quantile(tmp_col, q, na.rm=TRUE)
-  group = rep(NA, length(tmp_col))
-  group[tmp_col < cutoffs[1]] = sprintf("low %s", column)
-  group[tmp_col > cutoffs[2]] = sprintf("high %s", column)
-  clinical_data$group = group
-  coxph_fit = summary(coxph(as.formula(sprintf("Surv(time, status) ~ `%s`", column)), data=clinical_data))$coefficients
-  pvalue = coxph_fit[1, 5]
-  fit = survfit(Surv(time, status) ~ group, data=clinical_data)
-  ggsurvplot(fit, data=clinical_data, pval=sprintf("p=%*.3f, CoxPH reg.", 3, pvalue), risk.table = FALSE, xlab="time in days")
-}
-
-plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUAD", study_arm == "Docetaxel"), "B cell") + ggtitle("LUAD (chemo)")
-plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUAD", study_arm == "MPDL3280A"), "B cell") + ggtitle("LUAD (ICI)")
-plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUSC", study_arm == "Docetaxel"), "B cell") + ggtitle("LUSC (chemo)")
-plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUSC", study_arm == "MPDL3280A"), "B cell") + ggtitle("LUSC (ICI)")
-
-plot_kaplan_meyer(ici_clin_and_scores |> filter(study_arm == "MPDL3280A"), "B cell") + ggtitle("any (ICI)")
-plot_kaplan_meyer(ici_clin_and_scores |> filter(study_arm == "Docetaxel"), "B cell") + ggtitle("any (chemo)")
-
-plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUAD"), "B cell") + ggtitle("LUAD")
-plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUAD"), "B cell") + ggtitle("LUAD")
-# ggsave(file.path(params$artifact_dir, "KM_B_cell_epic_LUAD.pdf"))
-plot_kaplan_meyer(ici_clin_and_scores |> filter(type == "LUSC"), "B cell") + ggtitle("LUSC")
-# ggsave(file.path(params$artifact_dir, "KM_B_cell_epic_LUSC.pdf"))
-plot_kaplan_meyer(ici_clin_and_scores, "B cell") + ggtitle("any")
-# ggsave(file.path(params$artifact_dir, "KM_B_cell_epic_any.pdf"))
 ```

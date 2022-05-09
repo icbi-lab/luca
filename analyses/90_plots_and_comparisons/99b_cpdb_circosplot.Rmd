@@ -3,6 +3,9 @@ title: "CPDB interaction plots"
 output: html_document
 params:
   artifact_dir: "/home/sturm/Downloads"
+  input_dir: "../../data/30_downstream_analyses/plots_and_comparisons/99_cpdb_analysis/artifacts"
+  cpus: 1
+  meta: NULL
 ---
 
 ```{r, include=FALSE}
@@ -171,7 +174,7 @@ cpdb_plot = function(
 ```
 
 ```{r, include=FALSE}
-cpdb_res_luad_lusc_coarse = read_csv("../../data/30_downstream_analyses/plots_and_comparisons/99_cpdb_analysis/artifacts/cpdb_luad_lusc_coarse.csv")
+cpdb_res_luad_lusc_coarse = read_csv(file.path(params$input_dir, "cpdb_luad_lusc_coarse.csv"))
 ```
 
 ## Explanation of the plots

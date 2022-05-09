@@ -1,6 +1,9 @@
 include { SPLIT_ANNDATA }  from "../modules/local/scconversion/main.nf"
 include { H5AD_TO_SCE }  from "../modules/local/scconversion/main.nf"
 include { SCISSOR as SCISSOR_TCGA } from "../modules/local/scissor.nf"
+include {
+    RMARKDOWNNOTEBOOK as VALIDATE_DECONVOLUTION;
+} from "../modules/local/rmarkdownnotebook/main.nf"
 
 
 workflow scissor {
@@ -41,6 +44,22 @@ workflow scissor {
                 "--tumor_type LUSC --surv_time time --surv_status status"
             ]
         )
+    )
+
+    ch_validate_deconvolution_input_files = Channel.fromPath("${baseDir}/tables/tcga/clinical_data_for_scissor.tsv").concat(
+        Channel.fromPath("${baseDir}/data/13_tcga/for_scissor/nsclc_primary_tumor.rds"),
+        Channel.fromPath("${baseDir}/tables/tcga/mmc1.xlsx"),
+    ).collect()
+    VALIDATE_DECONVOLUTION(
+        Channel.value(
+            [[id: 'scissor_validate_deconvolution'], file("${baseDir}/analyses/50_scissor/52_validate_deconvolution.Rmd")]
+        ),
+        ch_validate_deconvolution_input_files.map{ clinical, tpm, mmc1 -> [
+            "clinical_data": clinical.name,
+            "tcga_tpm": tpm.name,
+            "tcga_meta": mmc1.name
+        ]},
+        ch_validate_deconvolution_input_files
     )
 
 }

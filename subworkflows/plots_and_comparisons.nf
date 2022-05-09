@@ -11,6 +11,10 @@ include {
     JUPYTERNOTEBOOK as CPDB_ANALYSIS;
     JUPYTERNOTEBOOK as SCCODA_CONDITION;
 } from "../modules/local/jupyternotebook/main.nf"
+include {
+    RMARKDOWNNOTEBOOK as RESPONSE_TO_ICI;
+    RMARKDOWNNOTEBOOK as CPDB_CIRCOS_PLOT;
+} from "../modules/local/rmarkdownnotebook/main.nf"
 
 workflow plots_and_comparisons {
     take:
@@ -45,6 +49,7 @@ workflow plots_and_comparisons {
         ]},
         ch_neutrophil_analysis_input_files
     )
+    ch_neutro_sigs = NEUTROPHIL_ANALYSIS.out.artifacts.flatten().filter{ it -> it.name.equals("neutro_sigs.csv") }
 
     ch_velocyto_input_files = adata_neutrophil_clusters.concat(
         Channel.fromPath("${baseDir}/data/11_own_datasets/velocyto/")
@@ -164,11 +169,27 @@ workflow plots_and_comparisons {
         extended_atlas
     )
 
+    ch_response_to_ici_input_files = ch_neutro_sigs.concat(
+        Channel.fromPath("${baseDir}/data/14_ici_treatment/Genentech_for_scissor/genentech.rds"),
+        Channel.fromPath("${baseDir}/data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv")
+    ).collect()
+    RESPONSE_TO_ICI(
+        Channel.value(
+            [[id: 'response_to_ici'], file("${baseDir}/analyses/90_plots_and_comparisons/97_response_to_icb.Rmd")]
+        ),
+        ch_response_to_ici_input_files.map{ sigs, tpm, meta -> [
+            "neutro_sigs": sigs.name,
+            "ici_tpm": tpm.name,
+            "ici_meta": meta.name
+        ]},
+        ch_response_to_ici_input_files
+    )
+
     ch_cpdb_analysis_input_files = extended_atlas.concat(
         adata_neutrophil_clusters,
         Channel.fromPath("${baseDir}/tables/cellphonedb_2022-04-06.tsv"),
         deseq2_results,
-    ).collect().view()
+    ).collect()
     CPDB_ANALYSIS(
         Channel.value(
             [[id: 'cell2cell'], file("${baseDir}/analyses/90_plots_and_comparisons/99_cpdb_analysis.py")]
@@ -180,6 +201,13 @@ workflow plots_and_comparisons {
             "deseq2_path_prefix": "./"
         ]},
         ch_cpdb_analysis_input_files
+    )
+    CPDB_CIRCOS_PLOT(
+         Channel.value(
+            [[id: 'cell2cell_circos'], file("${baseDir}/analyses/90_plots_and_comparisons/99b_cpdb_circosplot.Rmd")]
+        ),
+        [],
+        CPDB_ANALYSIS.out.artifacts
     )
 
 
