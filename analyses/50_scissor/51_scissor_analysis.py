@@ -48,51 +48,23 @@ threadpool_limits(32)
 ah = AnnotationHelper()
 
 # %%
-dataset = nxfvars.get("dataset", "genentech")
-
-# %% jupyter={"source_hidden": true} tags=[]
 path_adata = nxfvars.get(
     "adata_in",
     "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
-
-# %%
-scissor_clinical_data = pd.read_csv(
-    # nxfvars.get("scissor_clinical", "../../tables/tcga/clinical_data_for_scissor.tsv"),
-    nxfvars.get(
-        "scissor_clinical",
-        "../../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv",
-    ),
-    sep="\t",
+path_clinical_data = nxfvars.get(
+    "path_clinical_data", "../../tables/tcga/clinical_data_for_scissor.tsv"
 )
-
-# %%
+path_scissor = nxfvars.get(
+    "path_scissor", f"../../data/30_downstream_analyses/scissor_tcga/scissor_by_sample/"
+)
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
 # %%
+scissor_clinical_data = pd.read_csv(path_clinical_data, sep="\t")
+
+# %%
 adata = sc.read_h5ad(path_adata)
-
-# %%
-adata_neutro = sc.read_h5ad(
-    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad"
-)
-
-# %%
-adata.obs["cell_type_neutro"] = adata_neutro.obs["cell_type_neutro"]
-
-# %%
-adata.obs["cell_type_tan_nan"] = adata_neutro.obs["cell_type_neutro"].str.replace(
-    "-\d?", "", regex=True
-)
-
-# %%
-sc.pl.umap(
-    adata,
-    color=["cell_type_tan_nan", "PI3", "KATNBL1"],
-    groups=["TAN", "NAN"],
-    cmap="inferno",
-    size=1,
-)
 
 # %%
 sc.pl.umap(adata, color=["cell_type_coarse", "origin"], wspace=0.8)
@@ -113,9 +85,7 @@ scissor_clinical_data.loc[
         "tp53_mutation",
         "stk11_mutation",
         "stk11_kras_mutation",
-    ]
-    if dataset == "tcga"
-    else ["type", "response_to_ici", "response_to_chemotherapy"],
+    ],
 ].assign(total=1).groupby("type").agg(sum).astype(int)
 
 # %% [markdown]
@@ -123,58 +93,29 @@ scissor_clinical_data.loc[
 
 # %%
 scissor_res_files = {
-    id: list(
-        Path(
-            f"../../data/30_downstream_analyses/scissor_{dataset}/scissor_by_sample/"
-        ).glob(f"**/scissor_{id}.tsv")
-    )
+    id: list(Path(path_scissor).glob(f"**/scissor_{id}.tsv"))
     for id in (
         [
-            "any_tumor_stage",
-            "any_response_to_chemotherapy",
             # "any_kras_mutation",
             # "any_braf_mutation",
             # "any_egfr_mutation",
             "any_tumor_type",
             "any_status_time",
             #
-            "LUAD_response_to_chemotherapy",
             "LUAD_braf_mutation",
             "LUAD_kras_mutation",
             "LUAD_egfr_mutation",
             "LUAD_tp53_mutation",
             "LUAD_stk11_mutation",
-            "LUAD_stk11_kras_mutation",
-            "LUAD_tumor_stage",
             "LUAD_random",
             "LUAD_status_time",
             #
-            "LUSC_response_to_chemotherapy",
             "LUSC_braf_mutation",
             "LUSC_egfr_mutation",
             "LUSC_tp53_mutation",
             "LUSC_stk11_mutation",
-            "LUSC_tumor_stage",
             "LUSC_random",
             "LUSC_status_time",
-        ]
-        if dataset == "tcga"
-        else [
-            "any_response_to_ici",
-            "any_response_to_chemotherapy",
-            "any_status_time",
-            "any_status_ici_time_ici",
-            "any_status_chemo_time_chemo",
-            "LUAD_response_to_ici",
-            "LUAD_response_to_chemotherapy",
-            "LUAD_status_time",
-            "LUAD_status_ici_time_ici",
-            "LUAD_status_chemo_time_chemo",
-            "LUSC_response_to_ici",
-            "LUSC_response_to_chemotherapy",
-            "LUSC_status_time",
-            "LUSC_status_ici_time_ici",
-            "LUSC_status_chemo_time_chemo",
         ]
     )
 }
@@ -209,23 +150,6 @@ for colname, series in scissor_obs.items():
     assert adata.obs[colname].value_counts().tolist() == series.value_counts().tolist()
 
 # %%
-# pd.set_option("display.max_rows", 100)
-# c = "scissor_lusc_status_time"
-# adata.obs.loc[lambda x: x["cell_type_coarse"] == "Neutrophils"].groupby(
-#     ["patient"]
-# ).apply(lambda x: x[c].value_counts(normalize=True, dropna=False)).reset_index().loc[
-#     lambda x: ~x["level_1"].isnull()
-# ].sort_values(
-#     c, ascending=False
-# ).head(
-#     99
-# )
-
-# %%
-# colname, series = "scissor_lusc_tumor_stage", scissor_obs["scissor_lusc_tumor_stage"]
-# adata.obs[colname].value_counts().tolist(), series.value_counts().tolist()
-
-# %%
 sc.settings.set_figure_params(figsize=(8, 8))
 
 # %%
@@ -242,28 +166,6 @@ sc.pl.umap(
 
 # %% [markdown]
 # Scissor+ cells are associated with late stage or with having the corresponding mutation.
-
-# %%
-# adata.obs["scissor_tumor_stage"] = [
-#     {"scissor+": "late", "scissor-": "early"}.get(x, np.nan)
-#     for x in adata.obs["scissor_tumor_stage"]
-# ]
-# adata.obs["scissor_tumor_type"] = [
-#     {"scissor+": "LUSC", "scissor-": "LUAD"}.get(x, np.nan)
-#     for x in adata.obs["scissor_tumor_type"]
-# ]
-# adata.obs["scissor_kras_mutation"] = [
-#     {"scissor+": "KRAS mut", "scissor-": "no KRAS mut"}.get(x, None)
-#     for x in adata.obs["scissor_kras_mutation"]
-# ]
-# adata.obs["scissor_braf_mutation"] = [
-#     {"scissor+": "BRAF mut", "scissor-": "no BRAF mut"}.get(x, None)
-#     for x in adata.obs["scissor_braf_mutation"]
-# ]
-# adata.obs["scissor_egfr_mutation"] = [
-#     {"scissor+": "EGFR mut", "scissor-": "no EGFR mut"}.get(x, None)
-#     for x in adata.obs["scissor_egfr_mutation"]
-# ]
 
 # %%
 adata_primary = adata[
@@ -291,7 +193,7 @@ for var in scissor_cols:
             frameon=False,
             return_fig=True,
         )
-        # fig.savefig(f"{artifact_dir}/{var}.pdf", dpi=1200, bbox_inches="tight")
+        fig.savefig(f"{artifact_dir}/{var}.pdf", dpi=1200, bbox_inches="tight")
 
 
 # %%
@@ -420,25 +322,3 @@ for col, df in scissor_dfs.items():
     except JSONDecodeError:
         warnings.warn(f"Failed to save plot {col} to svg!")
     ch.display()
-
-# %%
-scissor_dfs = {
-    k: scissor_by_group(
-        adata_primary,
-        scissor_col=k,
-        cell_cutoff=1,
-        groupby=["cell_type_tan_nan", "patient"],
-    )
-    for k in scissor_cols
-}
-
-# %%
-for col, df in scissor_dfs.items():
-    ch = plot_scissor_df_ratio(df, title=col, groupby="cell_type_tan_nan")
-    try:
-        ch.save(f"{artifact_dir}/{col}.svg")
-    except JSONDecodeError:
-        warnings.warn(f"Failed to save plot {col} to svg!")
-    ch.display()
-
-# %%

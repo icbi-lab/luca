@@ -62,7 +62,7 @@ workflow downstream_analyses {
     ).flatten().filter{ it -> it.baseName.contains("tumor_cells") }
 
     scissor(extended_atlas)
-    infercnv(extended_atlas)
+    infercnv(extended_atlas, patient_stratification_table)
     plots_and_comparisons(
         extended_atlas,
         neutro_clusters,

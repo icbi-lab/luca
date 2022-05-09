@@ -1,5 +1,5 @@
 ---
-title: "Untitled"
+title: "Validate Scissor with Deconvolution"
 output: html_document
 params:
   artifact_dir: "/home/sturm/Downloads"
@@ -26,7 +26,7 @@ library(immunedeconv)
 conflict_prefer("deconvolute", "immunedeconv")
 ```
 
-```{r}
+```{r, include=FALSE}
 clinical_data = read_tsv(params$clinical_data)
 tcga_tpm = read_rds(params$tcga_tpm)
 age = read_excel(params$tcga_meta) %>% select(TCGA_patient_barcode=bcr_patient_barcode, age=age_at_initial_pathologic_diagnosis)

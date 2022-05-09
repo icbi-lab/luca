@@ -58,21 +58,21 @@ ah = AnnotationHelper()
 
 # %%
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
-
-# %%
 path_adata = nxfvars.get(
     "adata_in",
     "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
+path_patient_strat = nxfvars.get(
+    "stratification_csv",
+    "../../data/30_downstream_analyses/stratify_patients/stratification/artifacts/patient_stratification.csv",
+)
+path_scevan = nxfvars.get(
+    "path_scevan",
+    "../../data/30_downstream_analyses/infercnv/scevan/"
+)
 
 # %%
-patient_strat = pd.read_csv(
-    nxfvars.get(
-        "stratification_csv",
-        "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv",
-    ),
-    index_col=0,
-)
+patient_strat = pd.read_csv(path_patient_strat, index_col=0)
 MIN_TUMOR_CELLS = 50
 
 # %%
@@ -83,12 +83,9 @@ adata = sc.read_h5ad(path_adata)
 
 # %%
 scevan_res_dirs = list(
-    Path("../../data/30_downstream_analyses/infercnv/scevan/").glob(
+    Path(path_scevan).glob(
         "**/output/*CNAmtx.RData"
     )
-)
-infercnvpy_res_files = list(
-    Path("../../data/30_downstream_analyses/infercnv/infercnvpy/").glob("**/*.h5ad")
 )
 
 # %%
@@ -96,12 +93,6 @@ adata.obs["patient_lower"] = adata.obs["patient"].str.lower()
 
 # %%
 adatas_cnv = sh.util.split_anndata(adata, "patient_lower")
-
-# %%
-adatas_infercnvpy = {}
-for infercnvpy_path in tqdm(infercnvpy_res_files):
-    patient = str(infercnvpy_path).split("/")[-2].replace("full_atlas_merged_", "")
-    adatas_infercnvpy[patient] = sc.read_h5ad(infercnvpy_path)
 
 # %%
 for scevan_dir in tqdm(scevan_res_dirs):
@@ -116,13 +107,6 @@ for scevan_dir in tqdm(scevan_res_dirs):
     except (ValueError, KeyError) as e:
         warnings.warn(f"Patient {patient} failed: " + str(e))
 
-
-# %%
-ithcna_infercnvpy = {}
-for patient, tmp_ad in tqdm(adatas_infercnvpy.items()):
-    ithcna_infercnvpy[patient] = cnv.tl.ithcna(
-        tmp_ad, groupby="cell_type_major", inplace=False
-    )
 
 # %%
 ithgex = {}
@@ -161,17 +145,6 @@ diversity_per_patient = (
             on=["index", "cell_type_major"],
             how="outer",
         )
-        .merge(
-            pd.DataFrame.from_dict(ithcna_infercnvpy)
-            .T.reset_index()
-            .melt(
-                id_vars="index",
-                var_name="cell_type_major",
-                value_name="ithcna_infercnvpy",
-            ),
-            on=["index", "cell_type_major"],
-            how="outer",
-        )
     )
     .loc[lambda x: x["cell_type_major"] == "Tumor cells", :]
     .set_index("index")
@@ -193,21 +166,7 @@ patient_strat2 = patient_strat.join(
 patient_strat2["dataset"] = patient_strat2["dataset"].astype(str)
 
 # %%
-ax = sns.scatterplot(
-    x="ITHCNA", y="ithcna_infercnvpy", data=patient_strat2, hue="study"
-)
-ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-
-# %%
-mod = smf.ols(
-    "ITHCNA ~ ithcna_infercnvpy + dataset",
-    data=patient_strat2,
-)
-res = mod.fit()
-res.summary()
-
-# %%
-for var in ["ITHCNA", "ithcna_infercnvpy", "ITHGEX"]:
+for var in ["ITHCNA", "ITHGEX"]:
     # for var in ["cnvsum"]:
     print(var)
     fig, (ax3, ax4, ax5) = plt.subplots(
@@ -231,7 +190,7 @@ for var in ["ITHCNA", "ithcna_infercnvpy", "ITHGEX"]:
     ax5.legend(loc="center left", bbox_to_anchor=(1, 0.5))
     # ax5.get_legend().remove()
     plt.show()
-    
+
     fig.savefig(f"{artifact_dir}/ith_analysis_{var}.pdf", bbox_inches="tight")
 
 # %%
@@ -285,7 +244,7 @@ cells_per_dataset
 
 # %%
 results = []
-for x in ["ITHCNA", "ITHGEX", "ithcna_infercnvpy"]:
+for x in ["ITHCNA", "ITHGEX"]:
     for ct in sorted(cna_ct_df["cell_type_major"].unique()):
         tmp_data = cna_ct_df.loc[lambda x: x["cell_type_major"] == ct]
         # only keep datasets that have at least 100 cells of a type
