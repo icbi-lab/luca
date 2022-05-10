@@ -93,28 +93,28 @@ scissor_clinical_data.loc[
 
 # %%
 scissor_res_files = {
-    id: list(Path(path_scissor).glob(f"**/scissor_{id}.tsv"))
+    id: list(Path(path_scissor).glob(f"**/scissor_*_{id}.tsv"))
     for id in (
         [
             # "any_kras_mutation",
             # "any_braf_mutation",
             # "any_egfr_mutation",
             
-            # "any_tumor_type",
-            # "any_status_time",
-            # #
-            # "LUAD_braf_mutation",
-            # "LUAD_kras_mutation",
-            # "LUAD_egfr_mutation",
-            # "LUAD_tp53_mutation",
-            # "LUAD_stk11_mutation",
-            # "LUAD_random",
-            # "LUAD_status_time",
+            "any_tumor_type",
+            "any_status_time",
             #
-            # "LUSC_braf_mutation",
-            # "LUSC_egfr_mutation",
-            # "LUSC_tp53_mutation",
-            # "LUSC_stk11_mutation",
+            "LUAD_braf_mutation",
+            "LUAD_kras_mutation",
+            "LUAD_egfr_mutation",
+            "LUAD_tp53_mutation",
+            "LUAD_stk11_mutation",
+            "LUAD_random",
+            "LUAD_status_time",
+            
+            "LUSC_braf_mutation",
+            "LUSC_egfr_mutation",
+            "LUSC_tp53_mutation",
+            "LUSC_stk11_mutation",
             "LUSC_random",
             "LUSC_status_time",
         ]
