@@ -6,8 +6,6 @@ work
 .vscode
 *.code-workspace
 rik*.json
-containers
-deploy
 _scratchpad.*
 presentations
 paper
