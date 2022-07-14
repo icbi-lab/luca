@@ -41,20 +41,18 @@ alt.data_transformers.disable_max_rows()
 sc.settings.set_figure_params(figsize=(5, 5))
 
 # %%
-artifact_dir = nxfvars.get(
-    "artifact_dir", "../../data/30_downstream_analyses/neutrophils"
-)
+artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 adata_n_path = nxfvars.get(
     "adata_n_path",
-    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad",
+    "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/adata_neutrophil_clusters.h5ad",
 )
 adata_path = nxfvars.get(
     "adata_path",
-    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
+    "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
 )
 patient_stratification_path = nxfvars.get(
     "patient_stratification_path",
-    "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv",
+    "../../data/30_downstream_analyses/stratify_patients/stratification/artifacts/patient_stratification.csv",
 )
 neutro_geneset_path = nxfvars.get(
     "neutro_geneset_path",
@@ -203,6 +201,75 @@ with plt.rc_context({"figure.dpi": 150}):
 
 # %% [markdown]
 # # Clusters by patient and dataset
+
+# %%
+np.sum(adata_n.obs["dataset"].str.contains("UKIM-V"))
+
+# %%
+adata_n.shape[0]
+
+# %%
+np.sum(adata_n.obs["dataset"].str.contains("UKIM-V")) / adata_n.shape[0]
+
+# %%
+neutro_counts = (
+    adata_n.obs.groupby(["cell_type", "dataset", "patient"], observed=True)
+    .size()
+    .reset_index(name="n_cells")
+    .groupby(["cell_type", "dataset"])
+    .apply(lambda x: x.assign(n_cells_cell_type_dataset=lambda k: k["n_cells"].sum()))
+    .groupby("patient")
+    .apply(lambda x: x.assign(n_cells_patient=lambda k: k["n_cells"].sum()))
+).query("n_cells_patient >= 30")
+
+# %%
+patient_cell_type_combs = (
+    neutro_counts.loc[:, ["dataset", "patient"]]
+    .merge(neutro_counts.loc[:, ["cell_type"]], how="cross")
+    .drop_duplicates()
+)
+
+# %%
+tmp_df = neutro_counts.merge(
+    patient_cell_type_combs, on=["dataset", "patient", "cell_type"], how="outer"
+)
+
+# %%
+tmp_df["n_cells"].fillna(0, inplace=True)
+
+# %%
+heatmp = (
+    alt.Chart(tmp_df)
+    .mark_rect()
+    .encode(
+        x="cell_type",
+        y=alt.Y("patient", axis=None),
+        color=alt.Color("n_cells", scale=alt.Scale(scheme="inferno", reverse=True)),
+    )
+)
+txt = (
+    alt.Chart(tmp_df)
+    .mark_text()
+    .encode(
+        x="cell_type",
+        y=alt.Y("patient", axis=None),
+        text="n_cells",
+        color=alt.condition(
+            alt.datum.n_cells < 500, alt.value("black"), alt.value("white")
+        ),
+    )
+)
+studies = (
+    alt.Chart(tmp_df.assign(study=lambda x: x["dataset"].str.replace("-2", "")))
+    .mark_rect()
+    .encode(
+        y="patient",
+        color=alt.Color("study", scale=sh.colors.altair_scale("study"), legend=None),
+    )
+)
+
+# %%
+(studies | (heatmp + txt).properties(width=300)).configure_concat(spacing=0)
 
 # %%
 patient_fracs = (
