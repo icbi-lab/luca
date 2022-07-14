@@ -90,8 +90,10 @@ response_to_chemotherapy = selected_treatments |>
 set.seed(0)
 clinical_data = read_excel("../../tables/tcga/mmc1.xlsx", guess_max=1000000, na=c("", "[Not Available]")) %>%
   filter(type %in% c("LUAD", "LUSC")) %>%
-  select(TCGA_patient_barcode=bcr_patient_barcode, time=OS.time, status=OS, ajcc_pathologic_tumor_stage, type) %>%
+  select(TCGA_patient_barcode=bcr_patient_barcode, time=OS.time, status=OS, ajcc_pathologic_tumor_stage, type, age_at_diagnosis=age_at_initial_pathologic_diagnosis, birth_days_to, gender) %>%
   left_join(response_to_chemotherapy, by="TCGA_patient_barcode") %>% 
+  mutate(tumor_stage_ajcc = ifelse(ajcc_pathologic_tumor_stage == "[Discrepancy]", NA, str_replace(ajcc_pathologic_tumor_stage, "[AB]", ""))) %>%
+  mutate(age = round(birth_days_to/365) * -1) %>% 
   mutate(tumor_stage = if_else(
     ajcc_pathologic_tumor_stage %in% c("Stage I", "Stage IA", "Stage IB", "Stage II", "Stage IIA", "Stage IIB"),
     0,
