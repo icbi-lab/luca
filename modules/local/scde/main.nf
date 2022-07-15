@@ -4,78 +4,6 @@ nextflow.enable.dsl = 2
 include { SPLIT_ANNDATA } from "../scconversion/main.nf"
 
 
-
-process PREPARE_ANNDATA {
-    cpus 1
-    container "${baseDir}/containers/seuratdisk.sif"
-
-    input:
-    tuple val(id), path(input_adata)
-    // layer in anndata which contains raw counts. Set to "X" to use `X`.
-    val count_layer
-    // column containing the dependent group
-    val status_col
-    // specify which groups to test against which. May be
-    //   * a list of strings refering to individual values in `status_col`
-    //   * the string "rest" for `control_groups`, referring to all columns
-    //     that are not in `case_group`.
-    //   * the string "all" for 'case_group', referring to all-against-all
-    //     comparisons ("ignores control_groups")
-    tuple val(case_groups), val(control_groups)
-
-    output:
-    // the output anndata contains only X (filled with raw counts), var and obs.
-    tuple val(id), path("*.h5ad"), emit: adata
-
-
-    script:
-    def case_groups_py = (case_groups == "all") ? '"all"' : "[" + case_groups.collect{ "\"$it\"" }.join(", ") + "]"
-    def control_groups_py = (control_groups == "rest") ? '"rest"' : "[" + control_groups.collect{ "\"$it\"" }.join(", ") + "]"
-    """
-    #!/usr/bin/env python
-
-    import scanpy as sc
-
-    layer = "${count_layer}"
-    case_groups = ${case_groups_py}
-    control_groups = ${control_groups_py}
-    status_col = "${status_col}"
-    adata = sc.read_h5ad("${input_adata}")
-
-    if case_groups == "all":
-        case_groups_iter = [[x] for x in adata.obs[status_col].unique()]
-        control_groups = "rest"
-    else:
-        case_groups_iter = [case_groups]
-
-    for case_groups in case_groups_iter:
-        status_groups = (
-            set(list(adata.obs[status_col].unique()))
-            if control_groups == "rest"
-            else set(case_groups) | set(control_groups)
-        )
-
-        # subset to only the categories of interest
-        adata_sub = adata[adata.obs[status_col].isin(status_groups), :]
-
-        # create new, reduced anndata with only the information required for DE analysis
-        tmp_adata = sc.AnnData(
-            X = adata_sub.layers[layer] if layer != "X" else adata_sub.X,
-            obs = adata_sub.obs,
-            var = adata_sub.var
-        )
-
-        tmp_adata.obs[status_col] = [
-            "case" if v in case_groups else "control" for v in tmp_adata.obs[status_col]
-        ]
-        # make categorical
-        tmp_adata._sanitize()
-
-        tmp_adata.write_h5ad(f"${id}_{'-'.join(case_groups)}_for_de.h5ad")
-    """
-}
-
-
 process MAKE_PSEUDOBULK {
     cpus 1
     container "${baseDir}/containers/seuratdisk.sif"
@@ -105,7 +33,7 @@ process MAKE_PSEUDOBULK {
     replicate_col = "${replicate_col}"
     condition_col = "${condition_col}"
     keep_unpaired_samples = ${keep_unpaired_samples}
-    min_cells_per_sample = $min_cells_per_sample
+    min_cells_per_sample = ${min_cells_per_sample}
 
     # aggregate counts by sample
     bulk_samples = {}
@@ -172,18 +100,21 @@ process DE_DESEQ2 {
 
     input:
     tuple val(id), path(counts), path(samplesheet)
+    val(comparison)
     val(condition_col)
     val(covariate_formula)
 
     output:
     path("*_DESeq2_result.tsv"), emit: de_res
 
+    when: comparison != "sum2zero"
+
     script:
     """
     run_deseq2.R $counts $samplesheet \\
         --cond_col $condition_col \\
-        --c1 case \\
-        --c2 control \\
+        --c1 "${comparison[0]}" \\
+        --c2 "${comparison[1]}" \\
         --resDir "." \\
         --prefix $id \\
         --covariate_formula "$covariate_formula" \\
@@ -197,22 +128,16 @@ workflow deseq2_analysis {
         id                  // manually specified, unique identifier for the comparison
         adata
         column_to_test      // column to test, e.g. "tumor_stage"
-        comparison          // Tuple [["treatment"], ["reference"]] or [["treatment"], "rest"]
+        comparison          // Tuple ["treatment", "reference"] or String "sum2zero"
         cell_type_column    // column in adata containing cell-type information
-        pseudobulk_group_by // column to generate pseudobulkk by
+        pseudobulk_group_by // column to generate pseudobulk by
         pseudobulk_settings // Tuple [min_cells, keep_unpaired samples]
         min_samples         // only consider cell-types with this minimum number of samples
         covariate_formula   // covariate formula (e.g. " + patient + sex")
 
     main:
-    PREPARE_ANNDATA(
-        adata,
-        "X",
-        column_to_test,
-        comparison
-    )
     SPLIT_ANNDATA(
-        PREPARE_ANNDATA.out.adata,
+        adata,
         cell_type_column
     )
     MAKE_PSEUDOBULK(
@@ -222,13 +147,14 @@ workflow deseq2_analysis {
         pseudobulk_settings
     )
     DE_DESEQ2(
-        // only consider cell-types with at least three case/control samples
+        // only consider cell-types with at least N case/control samples
         MAKE_PSEUDOBULK.out.pseudobulk.filter{
             id, counts, samplesheet -> samplesheet.text.count("\n") >= min_samples
         }.map{
             //override ID
             it -> ["${id}_${it[0]}", it[1], it[2]]
         },
+        comparison,
         column_to_test,
         covariate_formula
     )

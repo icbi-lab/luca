@@ -2,9 +2,8 @@ include { JUPYTERNOTEBOOK as PREPARE_FOR_DE } from "../modules/local/jupyternote
 include { deseq2_analysis as de_analysis_tumor_normal;
           deseq2_analysis as de_analysis_luad_lusc;
           deseq2_analysis as de_analysis_early_advanced;
-          deseq2_analysis as de_analysis_t_desert;
-          deseq2_analysis as de_analysis_m_desert;
-          deseq2_analysis as de_analysis_b_desert } from "../modules/local/scde/main.nf"
+          deseq2_analysis as de_analysis_immune_infiltration;
+        } from "../modules/local/scde/main.nf"
 
 
  workflow de_analysis {
@@ -31,7 +30,7 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         "tumor_normal",
         ch_prepare_adata.filter{ id, adata -> id == "adata_tumor_normal"},
         "origin",
-        [["tumor_primary"], "rest"],
+        ["tumor_primary", "normal_adjacent"],
         "cell_type_major",
         "patient",
         [10, false],
@@ -42,7 +41,7 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         "luad_lusc_primary_tumor",
         ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
         "condition",
-        [["LUAD"], ["LUSC"]],
+        ["LUAD", "LUSC"],
         "cell_type_major",
         "patient",
         [10, true],
@@ -53,51 +52,51 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         "early_advanced_primary_tumor",
         ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
         "tumor_stage",
-        [["early"], ["advanced"]],
+        ["early", "advanced"],
         "cell_type_major",
         "patient",
         [10, true],
         10, // keep only cell-types with at least 10  samples
         "+ dataset"
     )
-    de_analysis_b_desert(
-        "b_desert_primary_tumor",
-        ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
-        "immune_infiltration",
-        [["B"], ["desert"]],
-        "cell_type_major",
-        "patient",
-        [10, true],
-        10, // keep only cell-types with at least 10 samples
-        "+ dataset"
-    )
-    de_analysis_t_desert(
-        "t_desert_primary_tumor",
-        ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
-        "immune_infiltration",
-        [["T"], ["desert"]],
-        "cell_type_major",
-        "patient",
-        [10, true],
-        10, // keep only cell-types with at least 10 samples
-        "+ dataset"
-    )
-    de_analysis_m_desert(
-        "m_desert_primary_tumor",
-        ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
-        "immune_infiltration",
-        [["M"], ["desert"]],
-        "cell_type_major",
-        "patient",
-        [10, true],
-        10, // keep only cell-types with at least 10 samples
-        "+ dataset"
-    )
+    // de_analysis_immune_infiltration(
+    //     "b_desert_primary_tumor",
+    //     ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
+    //     "immune_infiltration",
+    //     "sum2zero",
+    //     "cell_type_major",
+    //     "patient",
+    //     [10, true],
+    //     10, // keep only cell-types with at least 10 samples
+    //     "+ dataset"
+    // )
+    // de_analysis_t_desert(
+    //     "t_desert_primary_tumor",
+    //     ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
+    //     "immune_infiltration",
+    //     [["T"], ["desert"]],
+    //     "cell_type_major",
+    //     "patient",
+    //     [10, true],
+    //     10, // keep only cell-types with at least 10 samples
+    //     "+ dataset"
+    // )
+    // de_analysis_m_desert(
+    //     "m_desert_primary_tumor",
+    //     ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
+    //     "immune_infiltration",
+    //     [["M"], ["desert"]],
+    //     "cell_type_major",
+    //     "patient",
+    //     [10, true],
+    //     10, // keep only cell-types with at least 10 samples
+    //     "+ dataset"
+    // )
 
     emit:
     luad_lusc = de_analysis_luad_lusc.out.deseq2_result
-    b_desert = de_analysis_b_desert.out.deseq2_result
-    t_desert = de_analysis_t_desert.out.deseq2_result
-    m_desert = de_analysis_m_desert.out.deseq2_result
+    // b_desert = de_analysis_b_desert.out.deseq2_result
+    // t_desert = de_analysis_t_desert.out.deseq2_result
+    // m_desert = de_analysis_m_desert.out.deseq2_result
 
  }

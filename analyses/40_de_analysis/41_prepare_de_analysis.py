@@ -21,17 +21,16 @@ import pandas as pd
 from nxfvars import nxfvars
 
 # %%
-# only contains 6000 most DE genes
 adata = sc.read_h5ad(
     nxfvars.get(
         "input_adata",
-        "../../data/30_downstream_analyses/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+        "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
     )
 )
 patient_stratification = pd.read_csv(
     nxfvars.get(
         "patient_stratification",
-        "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv",
+        "../../data/30_downstream_analyses/stratify_patients/stratification/artifacts/patient_stratification.csv",
     )
 )
 
@@ -138,6 +137,12 @@ adata_tumor_normal = adata[
 
 # %%
 adata_tumor_normal
+
+# %%
+adata_tumor_normal.obs["origin"].value_counts()
+
+# %%
+assert set(adata_tumor_normal.obs["origin"]) == {"tumor_primary", "normal_adjacent"}
 
 # %%
 sc.pl.umap(adata_tumor_normal, color="cell_type")
