@@ -54,12 +54,14 @@ def plot_lm_result_altair(
         else:
             return np.nan
 
-    df_subset["FDR"] = pd.Categorical([_get_significance(x) for x in df_subset["fdr"]])
+    df_subset["FDR"] = pd.Categorical([_get_significance(x) for x in df_subset[p_col]])
 
     if value_max is None:
         value_max = max(
             abs(np.nanmin(df_subset[color])), abs(np.nanmax(df_subset[color]))
         )
+    # just setting the domain in altair will lead to "black" fields. Therefore, we constrain the values themselves.
+    df_subset[color] = np.clip(df_subset[color], *domain(value_max))
     return configure(
         alt.Chart(df_subset, title=title)
         .mark_rect()

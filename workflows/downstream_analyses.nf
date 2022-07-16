@@ -54,7 +54,7 @@ workflow downstream_analyses {
     patient_stratification_adata_immune = STRATIFY_PATIENTS.out.artifacts.flatten().filter{ it -> it.name.equals("adata_immune.h5ad") }
     patient_stratification_adata_tumor_subtypes = STRATIFY_PATIENTS.out.artifacts.flatten().filter{ it -> it.name.equals("adata_tumor_subtypes.h5ad") }
 
-    de_analysis(extended_atlas, patient_stratification_table)
+    de_analysis(core_atlas, extended_atlas, patient_stratification_table)
     de_result_tumor_cells = de_analysis.out.immune_infiltration.mix(
         de_analysis.out.luad_lusc
     ).flatten().filter{ it -> it.baseName.contains("tumor_cells") }

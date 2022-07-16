@@ -3,11 +3,14 @@ include { deseq2_analysis as de_analysis_tumor_normal;
           deseq2_analysis as de_analysis_luad_lusc;
           deseq2_analysis as de_analysis_early_advanced;
           deseq2_analysis as de_analysis_immune_infiltration;
+          deseq2_analysis as de_analysis_tumor_cell_types;
         } from "../modules/local/scde/main.nf"
+include { SPLIT_ANNDATA } from "../modules/local/scconversion/main.nf"
 
 
  workflow de_analysis {
     take:
+    core_atlas
     final_atlas
     patient_stratification
 
@@ -37,7 +40,8 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         "patient",
         [10, false],
         6, // keep only cell-types with at least 3 paired samples
-        "+ patient"
+        "+ patient",
+        null
     )
     de_analysis_luad_lusc(
         "luad_lusc_primary_tumor",
@@ -48,7 +52,8 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         "patient",
         [10, true],
         10, // keep only cell-types with at least 10 samples
-        "+ dataset"
+        "+ dataset",
+        null
     )
     de_analysis_early_advanced(
         "early_advanced_primary_tumor",
@@ -59,7 +64,8 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         "patient",
         [10, true],
         10, // keep only cell-types with at least 10  samples
-        "+ dataset"
+        "+ dataset",
+        null
     )
     de_analysis_immune_infiltration(
         "immune_infiltration_primary_tumor",
@@ -70,7 +76,24 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         "patient",
         [10, true],
         10, // keep only cell-types with at least 10 samples
-        "+ dataset"
+        "+ dataset",
+        null
+    )
+
+    /**
+     * Find empirical marker genes for tumor cell clusters
+     */
+    de_analysis_tumor_cell_types(
+        "core_atlas_tumor_cell_types",
+        core_atlas.map{ it -> ["core_atlas", it]},
+        "cell_type_tumor",
+        "sum2zero",
+        "cell_type",
+        "patient",
+        [10, true],
+        10,
+        "+ dataset",
+        ["tumor_cells"]
     )
 
     emit:

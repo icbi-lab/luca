@@ -132,14 +132,18 @@ workflow deseq2_analysis {
         pseudobulk_settings // Tuple [min_cells, keep_unpaired samples]
         min_samples         // only consider cell-types with this minimum number of samples
         covariate_formula   // covariate formula (e.g. " + patient + sex")
+        filter_cell_types   // only perform DE for certain cell-types. List of keywords that are checked with "contains". Set to null if you don't want to filter.
 
     main:
     SPLIT_ANNDATA(
         adata,
         cell_type_column
     )
+    ch_split = SPLIT_ANNDATA.out.adata.flatten().map{it -> [it.baseName, it]}.filter{
+         id, tmp_ad -> filter_cell_types == null || filter_cell_types.any{ it -> id.contains(it) }
+    }
     MAKE_PSEUDOBULK(
-        SPLIT_ANNDATA.out.adata.flatten().map{it -> [it.baseName, it]},
+        ch_split,
         pseudobulk_group_by,
         column_to_test,
         pseudobulk_settings
