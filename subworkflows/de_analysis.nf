@@ -25,10 +25,12 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         ch_prepare_de_input
     )
     ch_prepare_adata = PREPARE_FOR_DE.out.artifacts.flatten().map { it -> [it.baseName, it] }
+    ch_adata_tumor_normal = ch_prepare_adata.filter{ id, adata -> id == "adata_tumor_normal"}
+    ch_adata_primary_tumor = ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"}
 
     de_analysis_tumor_normal(
         "tumor_normal",
-        ch_prepare_adata.filter{ id, adata -> id == "adata_tumor_normal"},
+        ch_adata_tumor_normal,
         "origin",
         ["tumor_primary", "normal_adjacent"],
         "cell_type_major",
@@ -39,7 +41,7 @@ include { deseq2_analysis as de_analysis_tumor_normal;
     )
     de_analysis_luad_lusc(
         "luad_lusc_primary_tumor",
-        ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
+        ch_adata_primary_tumor,
         "condition",
         ["LUAD", "LUSC"],
         "cell_type_major",
@@ -50,7 +52,7 @@ include { deseq2_analysis as de_analysis_tumor_normal;
     )
     de_analysis_early_advanced(
         "early_advanced_primary_tumor",
-        ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
+        ch_adata_primary_tumor,
         "tumor_stage",
         ["early", "advanced"],
         "cell_type_major",
@@ -59,44 +61,20 @@ include { deseq2_analysis as de_analysis_tumor_normal;
         10, // keep only cell-types with at least 10  samples
         "+ dataset"
     )
-    // de_analysis_immune_infiltration(
-    //     "b_desert_primary_tumor",
-    //     ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
-    //     "immune_infiltration",
-    //     "sum2zero",
-    //     "cell_type_major",
-    //     "patient",
-    //     [10, true],
-    //     10, // keep only cell-types with at least 10 samples
-    //     "+ dataset"
-    // )
-    // de_analysis_t_desert(
-    //     "t_desert_primary_tumor",
-    //     ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
-    //     "immune_infiltration",
-    //     [["T"], ["desert"]],
-    //     "cell_type_major",
-    //     "patient",
-    //     [10, true],
-    //     10, // keep only cell-types with at least 10 samples
-    //     "+ dataset"
-    // )
-    // de_analysis_m_desert(
-    //     "m_desert_primary_tumor",
-    //     ch_prepare_adata.filter{ id, adata -> id == "adata_primary_tumor"},
-    //     "immune_infiltration",
-    //     [["M"], ["desert"]],
-    //     "cell_type_major",
-    //     "patient",
-    //     [10, true],
-    //     10, // keep only cell-types with at least 10 samples
-    //     "+ dataset"
-    // )
+    de_analysis_immune_infiltration(
+        "immune_infiltration_primary_tumor",
+        ch_adata_primary_tumor,
+        "immune_infiltration",
+        "sum2zero",
+        "cell_type_major",
+        "patient",
+        [10, true],
+        10, // keep only cell-types with at least 10 samples
+        "+ dataset"
+    )
 
     emit:
     luad_lusc = de_analysis_luad_lusc.out.deseq2_result
-    // b_desert = de_analysis_b_desert.out.deseq2_result
-    // t_desert = de_analysis_t_desert.out.deseq2_result
-    // m_desert = de_analysis_m_desert.out.deseq2_result
+    immune_infiltration = de_analysis_immune_infiltration.out.deseq2_result
 
  }

@@ -107,14 +107,12 @@ process DE_DESEQ2 {
     output:
     path("*_DESeq2_result.tsv"), emit: de_res
 
-    when: comparison != "sum2zero"
-
     script:
+    def comparison_params = (comparison == "sum2zero") ? "--sum2zero" : """--c1 "${comparison[0]}" --c2 "${comparison[1]}" """
     """
     run_deseq2.R $counts $samplesheet \\
         --cond_col $condition_col \\
-        --c1 "${comparison[0]}" \\
-        --c2 "${comparison[1]}" \\
+        $comparison_params \\
         --resDir "." \\
         --prefix $id \\
         --covariate_formula "$covariate_formula" \\
