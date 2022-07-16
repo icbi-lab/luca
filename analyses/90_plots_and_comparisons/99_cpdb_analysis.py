@@ -132,10 +132,11 @@ de_res_tumor_cells_luad_lusc = (
     )
     .fillna(1)
     .pipe(sh.util.fdr_correction)
-    .drop("gene_id", axis="columns")
-    .rename(columns={"gene_id.1": "gene_id"})
     .assign(group="LUAD")
 )
+
+# %%
+de_res_tumor_cells_luad_lusc
 
 # %%
 cpdb_res = cpdba_coarse.significant_interactions(
@@ -180,22 +181,16 @@ cpdba_lusc.plot_result(
 
 # %%
 de_res_tumor_cells_patient_strat = (
-    pd.concat(
-        [
-            pd.read_csv(
-                (
-                    deseq2_path_prefix
-                    + "/{k}_desert_primary_tumor_adata_primary_tumor_tumor_cells_DESeq2_result.tsv"
-                ).format(k=k),
-                sep="\t",
-            ).assign(group=k.upper())
-            for k in "tmb"
-        ]
+    pd.read_csv(
+        (
+            deseq2_path_prefix
+            + "/{comparison}_primary_tumor_adata_primary_tumor_tumor_cells_DESeq2_result.tsv"
+        ).format(comparison="immune_infiltration"),
+        sep="\t",
     )
     .fillna(1)
     .pipe(sh.util.fdr_correction)
-    .drop("gene_id", axis="columns")
-    .rename(columns={"gene_id.1": "gene_id"})
+    .rename(columns={"comparison": "group"})
 )
 
 # %%
