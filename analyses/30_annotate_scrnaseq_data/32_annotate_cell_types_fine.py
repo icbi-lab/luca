@@ -46,6 +46,17 @@ ah2 = AnnotationHelper(
 )
 
 # %%
+# based on Oliviera, ..., Wu (2021), Nature
+# for CD8+ T cell subclusters
+ah_wu = AnnotationHelper(
+    markers=pd.read_csv(
+        nxfvars.get(
+            "wu_markers", "../../tables/gene_annotations/wu_cd8_t_cell_signatures.csv"
+        )
+    ).loc[lambda x: x["logFC"] > 1]
+)
+
+# %%
 input_dir = nxfvars.get(
     "input_dir",
     "../../data/20_build_atlas//annotate_datasets/31_cell_types_coarse/by_cell_type/",
@@ -288,7 +299,11 @@ ah2.plot_dotplot_scores(adata_m)
 ah.plot_dotplot(adata_m, groupby="leiden")
 
 # %%
-sc.pl.umap(adata_m, color=["total_counts", "n_genes_by_counts", "dataset"], vmax=[10000, 2000, None])
+sc.pl.umap(
+    adata_m,
+    color=["total_counts", "n_genes_by_counts", "dataset"],
+    vmax=[10000, 2000, None],
+)
 
 # %%
 sc.pl.umap(adata_m, color="leiden", legend_loc="on data", legend_fontoutline=2)
@@ -400,7 +415,9 @@ ah.plot_umap(
 ah2.score_cell_types(adata_stromal)
 
 # %%
-sc.pl.umap(adata_stromal, color=["total_counts", "n_genes_by_counts"], vmax=[10000, 2000])
+sc.pl.umap(
+    adata_stromal, color=["total_counts", "n_genes_by_counts"], vmax=[10000, 2000]
+)
 
 # %%
 ah2.plot_umap_scores(
@@ -478,16 +495,100 @@ with plt.rc_context({"figure.figsize": (5, 5)}):
 # %%
 cell_type_map = {
     "NK cell": [5, 3],
-    "T cell dividing": [15],
+    "T cell dividing": [15, 18],
     "T cell CD4": [1, 4, 0, 17, 16, 7],
     "T cell CD8": [13, 10, 8, 6, 12, 14, 9],
     "T cell regulatory": [2],
-    "B cell dividing": [18],
     "potentially empty droplets (T)": [11],
 }
 
 # %%
 ah.annotate_cell_types(adata_t, cell_type_map)
+
+# %% [markdown]
+# ### Subcluster dividing T cells
+
+# %%
+adata_t_div = adata_t[adata_t.obs["cell_type"] == "T cell dividing", :].copy()
+
+# %%
+ah.reprocess_adata_subset_scvi(adata_t_div, leiden_res=0.5, use_rep="X_scANVI")
+
+# %%
+ah.plot_umap(adata_t_div, filter_cell_type=["T cell", "NK cell", "B cell"])
+
+# %%
+ah.plot_dotplot(adata_t_div)
+
+# %%
+sc.pl.umap(adata_t_div, color="leiden", legend_loc="on data", legend_fontoutline=2)
+
+# %%
+ah.annotate_cell_types(
+    adata_t_div,
+    {
+        "B cell dividing": [6],
+        "potential B/T doublets": [5],
+        "NK cell dividing": [4],
+        "T cell CD8 dividing": [8, 1, 2, 7],
+        "T cell CD4 dividing": [0, 3],
+    },
+)
+
+# %%
+ah.integrate_back(adata_t, adata_t_div)
+
+# %% [markdown]
+# ### Subcluster CD8+ T cells
+
+# %%
+adata_t_cd8 = adata_t[adata_t.obs["cell_type"] == "T cell CD8", :].copy()
+
+# %%
+ah.reprocess_adata_subset_scvi(adata_t_cd8, leiden_res=0.5, use_rep="X_scANVI")
+
+# %%
+ah.plot_dotplot(adata_t_cd8)
+
+# %%
+sc.pl.umap(adata_t_cd8, color=["log_counts", "n_genes_by_counts"], vmax=[10, 2000])
+
+# %%
+ah.plot_umap(adata_t_cd8, filter_cell_type=["T cell", "NK cell"])
+
+# %%
+sc.pl.umap(adata_t_cd8, color=["CD1D", "KLRD1"])
+
+# %%
+ah_wu.score_cell_types(adata_t_cd8)
+
+# %%
+ah_wu.plot_dotplot_scores(adata_t_cd8, cmap="viridis")
+
+# %%
+ah_wu.plot_umap_scores(adata_t_cd8)
+
+# %%
+sc.pl.umap(adata_t_cd8, color="leiden", legend_loc="on data", legend_fontoutline=2)
+
+# %%
+ah.annotate_cell_types(
+    adata_t_cd8,
+    {
+        "T cell CD8 naive": [3],
+        "T cell NK-like": [0],
+        "potentially empty droplets (T)": [7],
+        "T cell CD8 terminally exhausted": [2],
+        "T cell CD8 activated": [6],
+        "T cell CD8 effector memory": [1,4,5,8]
+    },
+)
+
+# %%
+ah.integrate_back(adata_t, adata_t_cd8)
+
+# %% [markdown]
+# ### Merge annotations
 
 # %%
 ah.integrate_back(adata, adata_t)
@@ -530,9 +631,3 @@ ah.plot_dotplot(adata, groupby="cell_type")
 
 # %%
 adata.write_h5ad(f"{artifact_dir}/adata_annotated_fine.h5ad")
-
-# %%
-# adata_cxg = sc.AnnData(var=adata.raw.var, obs=adata.obs, X=adata.raw.X, obsm=adata.obsm)
-
-# %%
-# adata_cxg.write_h5ad("/home/sturm/Downloads/2022-03-29_refined_cell_types.h5ad")

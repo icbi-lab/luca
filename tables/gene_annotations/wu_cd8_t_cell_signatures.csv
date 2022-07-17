@@ -1,4 +1,4 @@
-cluster,gene,logFC
+cell_type,gene_identifier,logFC
 CD8 T Terminally Exhausted,KRT86,2.41366211847054
 CD8 T Terminally Exhausted,ACP5,1.84186550026256
 CD8 T Terminally Exhausted,CXCR6,1.65964418534576
