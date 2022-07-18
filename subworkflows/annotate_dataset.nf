@@ -45,11 +45,13 @@ workflow annotate_dataset {
         [
             "input_dir": '.',
             "main_adata": 'adata_cell_type_coarse.h5ad',
-            "hlca_markers": 'hlca_cell_type_signatures.csv'
+            "hlca_markers": 'hlca_cell_type_signatures.csv',
+            "wu_markers": "wu_cd8_t_cell_signatures.csv"
         ],
         NEIGHBORS_LEIDEN_UMAP_CELL_TYPES.out.adata.map{ id, adata -> adata }.mix(
             ch_adata_annotated,
-            Channel.fromPath("${baseDir}/tables/gene_annotations/hlca_cell_type_signatures.csv")
+            Channel.fromPath("${baseDir}/tables/gene_annotations/hlca_cell_type_signatures.csv"),
+            Channel.fromPath("${baseDir}/tables/gene_annotations/wu_cd8_t_cell_signatures.csv")
         ).collect()
     )
     ANNOTATE_CELL_TYPES_EPI(

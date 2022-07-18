@@ -349,6 +349,7 @@ adata.obs["cell_type_coarse"] = [
 # This may be useful for some downstream analyses. 
 
 # %%
+# TODO
 cell_type_major_map = {
     "Alveolar cell type 1": "Alveolar cell type 1",
     "Alveolar cell type 2": "Alveolar cell type 2",
