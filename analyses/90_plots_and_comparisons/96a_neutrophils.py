@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ---
 # jupyter:
 #   jupytext:
@@ -270,6 +271,75 @@ studies = (
 
 # %%
 (studies | (heatmp + txt).properties(width=300)).configure_concat(spacing=0)
+
+# %% [markdown]
+# ### more compact representation
+
+# %%
+tmp_df2 = (
+    tmp_df.groupby(["dataset", "cell_type"], observed=True)
+    .agg(n_cells=("n_cells", np.sum))
+    .reset_index()
+)
+
+# %%
+tmp_df2_study = (
+    neutro_counts.groupby("dataset", observed=True)
+    .agg(n_patients_ge_30_cells=("patient", lambda x: x.nunique()))
+    .reset_index()
+    .assign(study=lambda x: x["dataset"].str.replace("-2", ""))
+    .assign(x="#patients with ≥ 30 Neutrophils")
+)
+
+# %%
+heatmp = (
+    alt.Chart(tmp_df2)
+    .mark_rect()
+    .encode(
+        x="cell_type",
+        y=alt.Y("dataset", axis=None),
+        color=alt.Color("n_cells", scale=alt.Scale(scheme="inferno", reverse=True)),
+    )
+)
+txt = (
+    alt.Chart(tmp_df2)
+    .mark_text()
+    .encode(
+        x="cell_type",
+        y=alt.Y("dataset", axis=None),
+        text="n_cells",
+        color=alt.condition(
+            alt.datum.n_cells < 600, alt.value("black"), alt.value("white")
+        ),
+    )
+)
+studies = (
+    alt.Chart(tmp_df2_study)
+    .mark_rect()
+    .encode(
+        y=alt.Y("dataset"),
+        x=alt.X("x", title=None),
+        color=alt.Color("study", scale=sh.colors.altair_scale("study"), legend=None),
+    )
+)
+studies_txt = (
+    alt.Chart(tmp_df2_study)
+    .mark_text()
+    .encode(
+        y="dataset",
+        x=alt.X("x", title=None),
+        text="n_patients_ge_30_cells"
+    )
+)
+
+# %%
+studies + studies_txt
+
+# %%
+((studies + studies_txt) | (heatmp + txt).properties(width=300)).configure_concat(spacing=0)
+
+# %% [markdown]
+# ### bar charts
 
 # %%
 patient_fracs = (
