@@ -31,16 +31,16 @@ workflow downstream_analyses {
     )
 
 
-    NEUTROPHIL_SUBCLUSTERING(
-        Channel.value([
-            [id: 'neutrophil_subclustering'],
-            file("${baseDir}/analyses/37_subclustering/37_neutrophil_subclustering.py")
-        ]),
-        extended_atlas.map{ it -> ["adata_in": it.name, "neutro_clustering": "neutrophil_clustering.csv"]},
-        extended_atlas.mix(Channel.fromPath("${baseDir}/tables/neutrophil_clustering.csv")).collect()
-    )
-    atlas_neutro_clusters = NEUTROPHIL_SUBCLUSTERING.out.artifacts.flatten().filter{ it -> it.baseName.equals("full_atlas_neutrophil_clusters") }
-    neutro_clusters = NEUTROPHIL_SUBCLUSTERING.out.artifacts.flatten().filter{ it -> it.baseName.equals("adata_neutrophil_clusters") }
+    // NEUTROPHIL_SUBCLUSTERING(
+    //     Channel.value([
+    //         [id: 'neutrophil_subclustering'],
+    //         file("${baseDir}/analyses/37_subclustering/37_neutrophil_subclustering.py")
+    //     ]),
+    //     extended_atlas.map{ it -> ["adata_in": it.name, "neutro_clustering": "neutrophil_clustering.csv"]},
+    //     extended_atlas.mix(Channel.fromPath("${baseDir}/tables/neutrophil_clustering.csv")).collect()
+    // )
+    // atlas_neutro_clusters = NEUTROPHIL_SUBCLUSTERING.out.artifacts.flatten().filter{ it -> it.baseName.equals("full_atlas_neutrophil_clusters") }
+    // neutro_clusters = NEUTROPHIL_SUBCLUSTERING.out.artifacts.flatten().filter{ it -> it.baseName.equals("adata_neutrophil_clusters") }
 
     STRATIFY_PATIENTS(
         Channel.value([
@@ -59,19 +59,19 @@ workflow downstream_analyses {
         de_analysis.out.luad_lusc
     ).flatten().filter{ it -> it.baseName.contains("tumor_cells") }
 
-    // scissor(extended_atlas)
+    scissor(extended_atlas)
     // infercnv(extended_atlas, patient_stratification_table)
-    plots_and_comparisons(
-        extended_atlas,
-        neutro_clusters,
-        core_atlas,
-        core_atlas_epithelial_cells,
-        core_atlas_tumor_cells,
-        patient_stratification_table,
-        patient_stratification_adata_immune,
-        patient_stratification_adata_tumor_subtypes,
-        de_result_tumor_cells
-    )
+    // plots_and_comparisons(
+    //     extended_atlas,
+    //     neutro_clusters,
+    //     core_atlas,
+    //     core_atlas_epithelial_cells,
+    //     core_atlas_tumor_cells,
+    //     patient_stratification_table,
+    //     patient_stratification_adata_immune,
+    //     patient_stratification_adata_tumor_subtypes,
+    //     de_result_tumor_cells
+    // )
 }
 
 

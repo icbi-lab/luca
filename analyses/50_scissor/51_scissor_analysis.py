@@ -262,9 +262,6 @@ def plot_scissor_df(df, *, title="scissor"):
         .encode(
             x=alt.X("cell_type_major", sort=order, axis=None),
             y=alt.Y(up, scale=alt.Scale(domain=[0, 1])),
-            # color=alt.Color(
-            #     "gini_better", scale=alt.Scale(scheme="magma", reverse=False)
-            # ),
         )
         .properties(height=100, title=title),
         alt.Chart(df.assign(**{down: lambda x: -x[down]}))
@@ -272,9 +269,6 @@ def plot_scissor_df(df, *, title="scissor"):
         .encode(
             x=alt.X("cell_type_major", sort=order),
             y=alt.Y(down, scale=alt.Scale(domain=[-1, 0]))
-            # color=alt.Color(
-            #     "gini_worse", scale=alt.Scale(scheme="magma", reverse=False)
-            # ),
         )
         .properties(height=100),
         spacing=0,
@@ -287,9 +281,7 @@ def plot_scissor_df_ratio(
 ):
     """Plot the result of scissor_by_group as a bar chart"""
     df = df.loc[lambda x: x["fdr"] < fdr_cutoff].copy().reset_index(drop=False)
-    # print(df)
     up, down = df.columns[:2]
-    # df["log2_ratio"] = np.log2(df[up]) - np.log2(df[down])
     order = df.sort_values("log2_ratio")[groupby].values.tolist()
     max_ = np.max(np.abs(df["log2_ratio"]))
     return (
@@ -301,9 +293,6 @@ def plot_scissor_df_ratio(
             color=alt.Color(
                 "log2_ratio", scale=alt.Scale(scheme="redblue", domain=[-max_, max_])
             )
-            # color=alt.Color(
-            #     "gini_better", scale=alt.Scale(scheme="magma", reverse=False)
-            # ),
         )
         .properties(height=100, title=title)
     )
@@ -323,3 +312,26 @@ for col, df in scissor_dfs.items():
     except JSONDecodeError:
         warnings.warn(f"Failed to save plot {col} to svg!")
     ch.display()
+
+# %% [markdown]
+# ## Only CD8+T cells
+
+# %%
+adata_primary.obs["cell_type_cd8"] = [ct if "CD8" in ct else np.nan for ct in adata_primary.obs["cell_type"]]
+
+# %%
+scissor_dfs_cd8 = {
+    k: scissor_by_group(adata_primary, scissor_col=k, cell_cutoff=1, groupby=["cell_type_cd8", "patient"])
+    for k in scissor_cols
+}
+
+# %%
+for col, df in scissor_dfs_cd8.items():
+    ch = plot_scissor_df_ratio(df, title=col, groupby="cell_type_cd8")
+    try:
+        ch.save(f"{artifact_dir}/cd8_{col}.svg")
+    except JSONDecodeError:
+        warnings.warn(f"Failed to save plot {col} to svg!")
+    ch.display()
+
+# %%
