@@ -325,18 +325,16 @@ studies = (
 studies_txt = (
     alt.Chart(tmp_df2_study)
     .mark_text()
-    .encode(
-        y="dataset",
-        x=alt.X("x", title=None),
-        text="n_patients_ge_30_cells"
-    )
+    .encode(y="dataset", x=alt.X("x", title=None), text="n_patients_ge_30_cells")
 )
 
 # %%
 studies + studies_txt
 
 # %%
-((studies + studies_txt) | (heatmp + txt).properties(width=300)).configure_concat(spacing=0)
+((studies + studies_txt) | (heatmp + txt).properties(width=300)).configure_concat(
+    spacing=0
+)
 
 # %% [markdown]
 # ### bar charts
@@ -443,6 +441,19 @@ ch.display()
 # # Find marker genes for Neutrophil clusters
 
 # %%
+sh.signatures.grid_search_cv(
+    adata_n,
+    replicate_col="patient",
+    label_col="cell_type_tan_nan_label",
+    positive_class="TAN",
+    param_grid={
+        "min_fc": [0.5, 1, 1.5, 2, 2.5],
+        "min_sfc": [1],
+        "min_auroc": [0.75, 0.9],
+    },
+)
+
+# %%
 pb_tan_nan = sh.pseudobulk.pseudobulk(
     adata_n,
     groupby=[
@@ -456,8 +467,34 @@ pb_tan_nan = sh.pseudobulk.pseudobulk(
 )
 
 # %%
+adata_n.obs.groupby("patient").apply(
+    lambda x: x["cell_type_tan_nan_label"].value_counts(normalize=True, dropna=False)
+).unstack()["NAN"]
+
+
+# %%
+def _get_grid(param_grid):
+    for keys, values in zip(
+        itertools.repeat(param_grid.keys()), itertools.product(*param_grid.values())
+    ):
+        yield {k: v for k, v in zip(keys, values)}
+
+
+# %%
+list(_get_grid({"C": [1, 10, 100, 1000], "gamma": [0.001, 0.0001], "kernel": ["rbf"]}))
+
+# %%
 sc.pp.normalize_total(pb_tan_nan, target_sum=1e6)
 sc.pp.log1p(pb_tan_nan, base=2)
+
+# %%
+sh.signatures.test_train_split(pb_tan_nan, test_size=0.2, stratify_col="dataset")
+
+# %%
+mcpr = sh.signatures.MCPSignatureRegressor(min_fc=1.5, min_sfc=1.5, min_auroc=0.75)
+
+# %%
+mcpr.fit(pb_tan_nan, obs_col="cell_type_tan_nan_label", positive_class="TAN")
 
 # %%
 for ct in tqdm(pb_tan_nan.obs["cell_type_tan_nan_label"].unique()):
