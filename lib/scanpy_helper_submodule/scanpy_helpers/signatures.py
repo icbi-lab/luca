@@ -290,13 +290,15 @@ def grid_search_cv(
         for params in grid:
             mcpr = MCPSignatureRegressor(**params)
             mcpr.fit(pb_train)
-            try:
-                y_pred = mcpr.predict(pb_test)
-                score_pearson = scipy.stats.pearsonr(pb_test.obs["true_frac"], y_pred)
-                n_genes = len(mcpr.signature_genes)
-            except ValueError:
+            n_genes = len(mcpr.signature_genes)
+            if not n_genes:
                 score_pearson = np.nan
-                n_genes = 0
+            else:
+                y_pred = mcpr.predict(pb_test)
+                score_pearson = scipy.stats.pearsonr(
+                    pb_test.obs["true_frac"].values, y_pred
+                )[0]
+
             results.append(
                 {
                     "fold": i,
@@ -321,7 +323,15 @@ class MCPSignatureRegressor:
 
     @staticmethod
     def prepare_anndata(adata, *, obs_col: str, positive_class: str):
-        """Pre-compute scores on an anndata object. Saves expensive re-computations."""
+        """Pre-compute scores on an anndata object. Saves expensive re-computations.
+
+        Parameters
+        ----------
+        obs_col
+            column in adata.obs that contains the class labels
+        positive_class
+            label in `obs_col` that contains the positive class label
+        """
         adata = adata.copy()
         roc_auc(adata, obs_col=obs_col, positive_class=positive_class, inplace=True)
         fold_change(adata, obs_col=obs_col, positive_class=positive_class, inplace=True)
@@ -338,11 +348,8 @@ class MCPSignatureRegressor:
         Parameters
         ----------
         X
-            anndata object. It is recommended that values in .X are log-normalized.
-        obs_col
-            column in adata.obs that contains the class labels
-        positive_class
-            label in `obs_col` that contains the positive class label
+            Pseudobulk anndata object. It is recommended that values in .X are log-normalized.
+            Scores need to be precalculated with prepare_anndata().
         """
         try:
             assert X.uns["MCPSignatureRegressor"]["prepared"]
@@ -364,14 +371,56 @@ class MCPSignatureRegressor:
          * z-score each gene across patients
          * the mean z-score across genes is the signature score.
         """
-        if self._signature_genes is None:
-            raise ValueError("Model is not fitted!")
-        elif not len(self._signature_genes):
-            raise ValueError("Model has an empty signature!")
         X = X[:, self._signature_genes].copy()
-        X.X = scipy.stats.zscore(X.X, axis=0)
-        return np.mean(X.X, axis=1)
+        X = X.X
+
+        X = scipy.stats.zscore(X, axis=0)
+        # remove genes without a z-score (e.g. all zero across all patients)
+        X = X[:, ~np.any(np.isnan(X), axis=0)]
+
+        return np.mean(X, axis=1)
 
     @property
     def signature_genes(self):
         return self._signature_genes
+
+
+class HierarchicalMCPSignatureRegressor(MCPSignatureRegressor):
+    def __init__(
+        self,
+        min_fc_coarse=2,
+        min_sfc_coarse=1.5,
+        min_auroc_coarse=0.97,
+        min_fc_fine=1,
+        min_sfc_fine=1,
+        min_auroc_fine=0.8,
+    ):
+        """An extension to the MCP signature regressor that takes into account different cutoffs
+        for two different hierarchy levels. The "coarse grained" (="low res") cutoffs are
+        to distinguish major cell types. The "fine grained" (="high res") cutoffs are to distinguish
+        subtypes of a cell-type.
+
+        Marker genes will be selected for the signature that pass both the threshold for low res and
+        for high res.
+        """
+        self._signature_genes = None
+        self.min_fc_coarse = min_fc_coarse
+        self.min_sfc_coarse = min_sfc_coarse
+        self.min_auroc_coarse = min_auroc_coarse
+        self.min_fc_fine = min_fc_fine
+        self.min_sfc_fine = min_sfc_fine
+        self.min_auroc_fine = min_auroc_fine
+
+    @staticmethod
+    def prepare_anndata(
+        adata,
+        *,
+        obs_col_coarse,
+        obs_col_fine,
+        positive_class_coarse,
+        positive_class_fine
+    ):
+        pass
+
+    def fit(self, X: AnnData):
+        pass

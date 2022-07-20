@@ -441,16 +441,25 @@ ch.display()
 # # Find marker genes for Neutrophil clusters
 
 # %%
-sh.signatures.grid_search_cv(
+results = sh.signatures.grid_search_cv(
     adata_n,
     replicate_col="patient",
     label_col="cell_type_tan_nan_label",
     positive_class="TAN",
     param_grid={
-        "min_fc": [0.5, 1, 1.5, 2, 2.5],
-        "min_sfc": [1],
-        "min_auroc": [0.75, 0.9],
+        "min_fc": list(np.arange(0.5, 2.6, 0.1)),
+        "min_sfc": [0],
+        "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
     },
+)
+
+# %%
+pd.DataFrame(results).drop(columns="fold").groupby(
+    ["min_fc", "min_sfc", "min_auroc"]
+).agg(lambda x: x.mean(skipna=False)).sort_values(
+    "score_pearson", ascending=False
+).head(
+    15
 )
 
 # %%
@@ -467,34 +476,8 @@ pb_tan_nan = sh.pseudobulk.pseudobulk(
 )
 
 # %%
-adata_n.obs.groupby("patient").apply(
-    lambda x: x["cell_type_tan_nan_label"].value_counts(normalize=True, dropna=False)
-).unstack()["NAN"]
-
-
-# %%
-def _get_grid(param_grid):
-    for keys, values in zip(
-        itertools.repeat(param_grid.keys()), itertools.product(*param_grid.values())
-    ):
-        yield {k: v for k, v in zip(keys, values)}
-
-
-# %%
-list(_get_grid({"C": [1, 10, 100, 1000], "gamma": [0.001, 0.0001], "kernel": ["rbf"]}))
-
-# %%
 sc.pp.normalize_total(pb_tan_nan, target_sum=1e6)
 sc.pp.log1p(pb_tan_nan, base=2)
-
-# %%
-sh.signatures.test_train_split(pb_tan_nan, test_size=0.2, stratify_col="dataset")
-
-# %%
-mcpr = sh.signatures.MCPSignatureRegressor(min_fc=1.5, min_sfc=1.5, min_auroc=0.75)
-
-# %%
-mcpr.fit(pb_tan_nan, obs_col="cell_type_tan_nan_label", positive_class="TAN")
 
 # %%
 for ct in tqdm(pb_tan_nan.obs["cell_type_tan_nan_label"].unique()):
@@ -1095,6 +1078,29 @@ fig.savefig(f"{artifact_dir}/vegfa_fractions.pdf", bbox_inches="tight")
 
 # %%
 neutro_sigs = {}
+
+# %%
+adata_primary = adata[adata.obs["origin"] == "tumor_primary", :]
+
+# %%
+results_neutro = sh.signatures.grid_search_cv(
+    adata_primary,
+    replicate_col="patient",
+    label_col="cell_type_major",
+    positive_class="Neutrophils",
+    param_grid={
+        "min_fc": list(np.arange(0.5, 3, 0.1)),
+        "min_sfc": list(np.arange(0.5, 3, 0.1)),
+        "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
+    },
+)
+
+# %%
+pd.DataFrame(results_neutro).drop(columns="fold").groupby(
+    ["min_fc", "min_sfc", "min_auroc"]
+).agg(lambda x: x.mean(skipna=False)).sort_values(
+    "score_pearson", ascending=False
+).head(500)
 
 # %% [markdown]
 # ### Compute metrics
