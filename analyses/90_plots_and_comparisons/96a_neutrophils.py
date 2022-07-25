@@ -34,6 +34,7 @@ from tqdm.auto import tqdm
 from IPython.display import display_html
 import itertools
 from nxfvars import nxfvars
+import sklearn.model_selection
 
 # %%
 alt.data_transformers.disable_max_rows()
@@ -97,6 +98,14 @@ adata_n.obs["cell_type_tan_nan"] = [x[:4] for x in adata_n.obs["cell_type"]]
 
 # %%
 adata_n.obs["cell_type_tan_nan_label"] = [x[:3] for x in adata_n.obs["cell_type"]]
+
+# %%
+adata.obs["cell_type_major_tan_nan"] = adata.obs["cell_type_major"].astype(str)
+
+# %%
+adata.obs.loc[adata_n.obs_names, "cell_type_major_tan_nan"] = adata_n.obs[
+    "cell_type_tan_nan"
+]
 
 # %% [markdown]
 # # UMAPs by covariate
@@ -1077,14 +1086,16 @@ fig.savefig(f"{artifact_dir}/vegfa_fractions.pdf", bbox_inches="tight")
 # The purpose of the signatures is to use them for scoring bulk RNA-seq samples. 
 
 # %%
-neutro_sigs = {}
-
-# %%
 adata_primary = adata[adata.obs["origin"] == "tumor_primary", :]
 
 # %%
+adata_primary_train, adata_primary_test = sh.signatures.train_test_split(
+    adata_primary, replicate_col="patient"
+)
+
+# %%
 results_neutro = sh.signatures.grid_search_cv(
-    adata_primary,
+    adata_primary_train,
     replicate_col="patient",
     label_col="cell_type_major",
     positive_class="Neutrophils",
@@ -1100,7 +1111,29 @@ pd.DataFrame(results_neutro).drop(columns="fold").groupby(
     ["min_fc", "min_sfc", "min_auroc"]
 ).agg(lambda x: x.mean(skipna=False)).sort_values(
     "score_pearson", ascending=False
-).head(500)
+).head(
+    50
+)
+
+# %% [markdown]
+# Retrain on full train dataset with  optimal parameters
+
+# %%
+mcpr = sh.signatures.MCPSignatureRegressor(min_fc=1, min_sfc=2.8, min_auroc=0.85)
+sh.signatures.refit_and_evaluate(
+    mcpr,
+    adata_primary_train,
+    adata_primary_test,
+    replicate_col="patient",
+    label_col="cell_type_major",
+    positive_class="Neutrophils",
+)
+
+# %%
+mcpr.signature_genes
+
+# %%
+mcpr.signature_genes
 
 # %% [markdown]
 # ### Compute metrics
@@ -1163,8 +1196,123 @@ tmp_df
 # We don't find genes that are specific enough to detect the TAN/NAN subclusters from bulk RNA-seq data. 
 
 # %%
+adata_primary_train.obs["cell_type_major_tan_nan"].value_counts()
+
+# %%
+results_tan_hierarch = sh.signatures.grid_search_cv(
+    adata_primary_train,
+    replicate_col="patient",
+    label_col="cell_type_major",
+    positive_class="Neutrophils",
+    label_col_fine="cell_type_major_tan_nan",
+    positive_class_fine="TAN-",
+    label_col_eval="cell_type_major_tan_nan",
+    positive_class_eval="TAN-",
+    model_class=sh.signatures.HierarchicalMCPSignatureRegressor,
+    param_grid={
+        "min_fc_coarse": list(np.arange(0.5, 3, 0.5)),
+        "min_sfc_coarse": list(np.arange(0.5, 3, 0.5)),
+        "min_auroc_coarse": [0.7, 0.8, 0.9, 0.95, 0.97],
+        "min_fc_fine": list(np.arange(0.5, 3, 0.5)),
+        "min_sfc_fine": [0],
+        "min_auroc_fine": [0.7, 0.8, 0.9, 0.95, 0.97],
+    },
+)
+
+# %%
+pd.DataFrame(results_tan_hierarch).drop(columns="fold").groupby(
+    [
+        "min_fc_coarse",
+        "min_sfc_coarse",
+        "min_auroc_coarse",
+        "min_fc_fine",
+        "min_sfc_fine",
+        "min_auroc_fine",
+    ]
+).agg(lambda x: x.mean(skipna=False)).sort_values(
+    "score_pearson", ascending=False
+).head(
+    50
+)
+
+# %%
+results_tan = sh.signatures.grid_search_cv(
+    adata_primary_train,
+    replicate_col="patient",
+    label_col="cell_type_major_tan_nan",
+    positive_class="TAN-",
+    param_grid={
+        "min_fc": list(np.arange(0.5, 3, 0.1)),
+        "min_sfc": list(np.arange(0.5, 3, 0.1)),
+        "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
+    },
+)
+
+# %%
+pd.DataFrame(results_tan).drop(columns="fold").groupby(
+    ["min_fc", "min_sfc", "min_auroc"]
+).agg(lambda x: x.mean(skipna=False)).sort_values(
+    "score_pearson", ascending=False
+).head(
+    50
+)
+
+# %%
+results_nan = sh.signatures.grid_search_cv(
+    adata_primary_train,
+    replicate_col="patient",
+    label_col="cell_type_major_tan_nan",
+    positive_class="NAN-",
+    param_grid={
+        "min_fc": list(np.arange(0.5, 3, 0.1)),
+        "min_sfc": list(np.arange(0.5, 3, 0.1)),
+        "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
+    },
+)
+
+# %%
+pd.DataFrame(results_nan).drop(columns="fold").groupby(
+    ["min_fc", "min_sfc", "min_auroc"]
+).agg(lambda x: x.mean(skipna=False)).sort_values(
+    "score_pearson", ascending=False
+).head(
+    50
+)
+
+# %%
+mcpr_tan = sh.signatures.MCPSignatureRegressor(min_fc=2.8, min_sfc=0.5, min_auroc=0.97)
+sh.signatures.refit_and_evaluate(
+    mcpr_tan,
+    adata_primary_train,
+    adata_primary_test,
+    replicate_col="patient",
+    label_col="cell_type_major_tan_nan",
+    positive_class="TAN-",
+)
+
+# %%
+mcpr_nan = sh.signatures.MCPSignatureRegressor(min_fc=2.7, min_sfc=1.7, min_auroc=0.85)
+sh.signatures.refit_and_evaluate(
+    mcpr_nan,
+    adata_primary_train,
+    adata_primary_test,
+    replicate_col="patient",
+    label_col="cell_type_major_tan_nan",
+    positive_class="NAN-",
+)
+
+# %%
+neutro_sigs = {"NAN": mcpr_nan.signature_genes, "TAN": mcpr_tan.signature_genes}
+
+# %%
+mcpr_nan.signature_genes
+
+# %%
+mcpr_tan.signature_genes
+
+# %%
 signature_genes_tan_nan = marker_res_tan_nan.loc[
-    itertools.chain.from_iterable(markers_tan_nan.values())
+    itertools.chain.from_iterable(maarkers_tan_nan.values())
 ]
 
 # %% [markdown]
@@ -1243,8 +1391,19 @@ fig.savefig(f"{artifact_dir}/umap_signature_scores.pdf", dpi=1200, bbox_inches="
 
 # %%
 for sig, genes in tqdm(neutro_sigs.items()):
-    sc.tl.score_genes(pb_primary, genes, score_name=sig)
+    # sc.tl.score_genes(pb_primary, genes, score_name=sig)
     sc.tl.score_genes(adata, genes, score_name=sig)
+
+# %%
+fig = sc.pl.umap(
+    adata,
+    color=sig_keys,
+    cmap="inferno",
+    size=20,
+    ncols=3,
+    frameon=False,
+    return_fig=True,
+)
 
 # %%
 pb_primary.obs["tan_nan_sig"] = (
