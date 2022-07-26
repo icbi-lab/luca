@@ -26,6 +26,23 @@ import gtfparse
 #  * output documentation
 
 # %%
+ad_test = sc.read_h5ad(
+    "../../data/20_build_atlas/annotate_datasets/31_cell_types_coarse/artifacts/adata_cell_type_coarse.h5ad"
+)
+
+# %%
+ad_test[ad_test.obs["dataset"].str.contains("Lambrechts"), :].X[:9, :9].A
+
+# %%
+ad_test[ad_test.obs["dataset"].str.contains("Lambrechts"), :].layers["raw_counts"][:9, :9].A
+
+# %%
+ad_test.X
+
+# %%
+ad_test.layers["raw_counts"]
+
+# %%
 path_core_atlas = nxfvars.get(
     "core_atlas",
     "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
@@ -188,6 +205,71 @@ def get_stage(age):
     else:
         raise NotImplementedError()
 
+
+# %% [markdown]
+# ### condition / disease_ontology_term_id
+#
+#  This MUST be a MONDO term or "PATO:0000461" for normal or healthy. 
+
+# %%
+extended_atlas.obs["condition"].value_counts()
+
+# %%
+condition_map = {
+    "LUAD": "MONDO:0005061",
+    "non-cancer": "PATO:0000461",
+    "LUSC": "MONDO:0005097",
+    "NSCLC NOS": "MONDO:0005233",
+    "COPD": "MONDO:0005002",
+}
+
+
+# %% [markdown]
+# ### ethnicity_ontology_term_id
+#
+# for Homo sapiens, this MUST be either a HANCESTRO term or "unknown" if unavailable. 
+
+# %% [markdown]
+# ### is_primary_data
+
+# %%
+def is_primary_data(dataset):
+    return "UKIM" in dataset
+
+
+# %% [markdown]
+# ### organism_ontology_term_id
+#
+# `NCBITaxon:9606` for human
+
+# %% [markdown]
+# ### sex_ontology_term_id
+# This MUST be a child of PATO:0001894 for phenotypic sex or "unknown" if unavailable.
+
+# %%
+extended_atlas.obs["sex"].value_counts()
+
+# %%
+sex_map = {
+    "male": "PATO_0000384",
+    "female": "PATO_0000383",
+}
+
+# %% [markdown]
+# ### tissue_ontology_term_id
+
+# %%
+extended_atlas.obs["tissue"].value_counts()
+
+# %%
+tissue_map = {
+    "lung": "UBERON:0002048",
+    "lymph_node": "UBERON:0000029",
+    "pleura/effusion": "UBERON:0000175",
+    "brain": "UBERON:0000955",
+    "liver": "UBERON:0002107",
+    "adrenal": "UBERON:0018303",
+}
 
 # %% [markdown]
 # ## Gene annotations
