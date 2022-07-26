@@ -16,7 +16,6 @@
 import scanpy as sc
 from nxfvars import nxfvars
 import pandas as pd
-import gtfparse
 
 # %% [markdown]
 # Export final atlas for sharing. 
@@ -34,7 +33,9 @@ ad_test = sc.read_h5ad(
 ad_test[ad_test.obs["dataset"].str.contains("Lambrechts"), :].X[:9, :9].A
 
 # %%
-ad_test[ad_test.obs["dataset"].str.contains("Lambrechts"), :].layers["raw_counts"][:9, :9].A
+ad_test[ad_test.obs["dataset"].str.contains("Lambrechts"), :].layers["raw_counts"][
+    :9, :9
+].A
 
 # %%
 ad_test.X
@@ -118,6 +119,8 @@ extended_atlas.obs = extended_atlas.obs.loc[:, lambda x: ~x.columns.str.startswi
 
 # %% [markdown]
 # ### Sequencing platform / assay_ontology_term_id
+#
+# If there is not an exact match for the assay, clarifying text MAY be enclosed in parentheses and appended to the most accurate term. For example, the sci-plex assay could be curated as "EFO:0010183 (sci-plex)".
 
 # %%
 extended_atlas.obs["platform_fine"].value_counts()
@@ -129,8 +132,8 @@ platform_map = {
     "10x_5p_v1": "EFO:0011025",
     "Smart-seq2": "EFO:0008931",
     "DropSeq": "EFO:0008722",
-    "Singleron": "EFO:0010183",  # single-cell library construction. Cannot find Singleron in ontology
-    "BD-Rhapsody": "EFO:0010183",  # single-cell library construction. Cannot find BD Rhapsody in ontology
+    "Singleron": "EFO:0030031",
+    "BD-Rhapsody": "EFO:0010183 (BD Rhapsody)",  # single-cell library construction. Cannot find BD Rhapsody in ontology
     "InDrop": "EFO:0008780",
 }
 
@@ -274,17 +277,42 @@ tissue_map = {
 # %% [markdown]
 # ## Gene annotations
 #  * GENCODE v38/Ensmbl 104
+#  
+# A gene symbol to ENSEMBL map was generated based on the gencode.v38 GTF file (see commented code below).
+# If an ensembl id was missing for a gene symbol, we manually complemented it with information from genecards.org. Duplicate entries were manually resolved using genecards.org. 
 
 # %%
-gtf = gtfparse.read_gtf(
-    "../../data/10_references/gencode.v38.primary_assembly.annotation.gtf.gz",
-    usecols=["gene_id", "gene_name"],
-).drop_duplicates()
+# gtf = gtfparse.read_gtf(
+#     "../../data/10_references/gencode.v38.primary_assembly.annotation.gtf.gz",
+#     usecols=["gene_id", "gene_name"],
+# ).drop_duplicates()
+# var2 = extended_atlas.var.join(gtf.set_index("gene_name"))
+# var2.loc[:, ["gene_id"]].reset_index().rename(columns={"index": "gene_symbol"}).to_csv("../../tables/symbol_to_ensembl.csv")
 
 # %%
-var2 = extended_atlas.var.join(gtf.set_index("gene_name"))
+gene2ensembl = pd.read_csv("../../tables/symbol_to_ensembl.csv", index_col=0)
+gene2ensembl["gene_id"] = (
+    gene2ensembl["gene_id"].str.strip().str.replace("\.\d+$", "", regex=True)
+)
+gene2ensembl["gene_id2"] = [
+    gene_id if not pd.isnull(gene_id) else gene_symbol
+    for gene_id, gene_symbol in zip(
+        gene2ensembl["gene_id"], gene2ensembl["gene_symbol"]
+    )
+]
+gene2ensembl = gene2ensembl.loc[lambda x: ~x["gene_id2"].str.contains("_PAR_Y"), :]
 
 # %%
+extended_atlas.var = extended_atlas.var.join(gene2ensembl.set_index("gene_symbol"), how="left")
+
+# %%
+extended_atlas.var.set_index("gene_id2", inplace=True, drop=False)
+
+# %%
+extended_atlas.var
+
+# %%
+pd.set_option("display.max_rows", 100)
 var2.loc[lambda x: x["gene_id"].isnull()]
 
 # %%
