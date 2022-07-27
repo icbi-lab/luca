@@ -38,24 +38,25 @@ path_neutrophil_atlas = nxfvars.get(
     "neutrophil_atlas",
     "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
 )
+artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
 # %%
-core_atlas = sc.read_h5ad(path_core_atlas)
+# core_atlas = sc.read_h5ad(path_core_atlas)
 
 # %%
 extended_atlas = sc.read_h5ad(path_extended_atlas)
 
 # %%
-neutrophil_atlas = sc.read_h5ad(path_neutrophil_atlas)
+# neutrophil_atlas = sc.read_h5ad(path_neutrophil_atlas)
 
 # %%
-core_atlas.shape
+# core_atlas.shape
 
 # %%
 extended_atlas.shape
 
 # %%
-neutrophil_atlas.shape
+# neutrophil_atlas.shape
 
 # %%
 pd.set_option("display.max_columns", None)
@@ -67,21 +68,57 @@ pd.set_option("display.max_columns", None)
 # ### Add Neutrophil annotations
 
 # %%
-neutrophil_atlas.obs["cell_type_neutro_coarse"]
-
-# %%
 # TODO currently not the case, but should be in the final version
-assert extended_atlas.shape == neutrophil_atlas.shape
 
-# TODO set with copy warning
-for c in ["cell_type_neutro", "cell_type_neutro_coarse"]:
-    extended_atlas.obs[c] = neutrophil_atlas.obs[c]
+# assert extended_atlas.shape == neutrophil_atlas.shape
+
+# # TODO set with copy warning
+# for c in ["cell_type_neutro", "cell_type_neutro_coarse"]:
+#     extended_atlas.obs[c] = neutrophil_atlas.obs[c]
 
 # %% [markdown]
 # ### Remove unnecessary columns
 
 # %%
 extended_atlas.obs = extended_atlas.obs.loc[:, lambda x: ~x.columns.str.startswith("_")]
+
+# %% [markdown]
+# ## Gene annotations
+#  * GENCODE v38/Ensmbl 104
+#  
+# A gene symbol to ENSEMBL map was generated based on the gencode.v38 GTF file (see commented code below).
+# If an ensembl id was missing for a gene symbol, we manually complemented it with information from genecards.org. Duplicate entries were manually resolved using genecards.org. 
+
+# %%
+# gtf = gtfparse.read_gtf(
+#     "../../data/10_references/gencode.v38.primary_assembly.annotation.gtf.gz",
+#     usecols=["gene_id", "gene_name"],
+# ).drop_duplicates()
+# var2 = extended_atlas.var.join(gtf.set_index("gene_name"))
+# var2.loc[:, ["gene_id"]].reset_index().rename(columns={"index": "gene_symbol"}).to_csv("../../tables/symbol_to_ensembl.csv")
+
+# %%
+gene2ensembl = pd.read_csv("../../tables/symbol_to_ensembl.csv", index_col=0)
+gene2ensembl["gene_id"] = (
+    gene2ensembl["gene_id"].str.strip().str.replace("\.\d+$", "", regex=True)
+)
+gene2ensembl["gene_id2"] = [
+    gene_id if not pd.isnull(gene_id) else gene_symbol
+    for gene_id, gene_symbol in zip(
+        gene2ensembl["gene_id"], gene2ensembl["gene_symbol"]
+    )
+]
+gene2ensembl = gene2ensembl.loc[lambda x: ~x["gene_id2"].str.contains("_PAR_Y"), :]
+
+# %%
+extended_atlas.var = extended_atlas.var.join(
+    gene2ensembl.set_index("gene_symbol"), how="left"
+)
+extended_atlas.var.set_index("gene_id2", inplace=True, drop=True)
+
+# %%
+pd.set_option("display.max_rows", 100)
+extended_atlas.var.loc[lambda x: x["gene_id"].isnull()]
 
 # %% [markdown]
 # ## Matrix layers
@@ -94,33 +131,55 @@ extended_atlas.obs = extended_atlas.obs.loc[:, lambda x: ~x.columns.str.startswi
 #
 
 # %%
-extended_atlas
+new_raw = sc.AnnData(
+    extended_atlas.layers["raw_counts"], var=extended_atlas.var, obs=extended_atlas.obs
+)
+extended_atlas.layers["counts_length_scaled"] = extended_atlas.X
+extended_atlas.X = extended_atlas.raw.X
+extended_atlas.raw = new_raw
+del extended_atlas.layers["raw_counts"]
 
 # %%
-new_raw = sc.AnnData(core_atlas.layers["raw_counts"], var=core_atlas.var)
-core_atlas.layers["counts_length_scaled"] = core_atlas.X
-core_atlas.X = core_atlas.raw.X
-core_atlas.raw = new_raw
-del core_atlas.layers["raw_counts"]
+extended_atlas.raw.obs_names[extended_atlas.obs_names.str.contains("SRR10777354")]
 
 # %%
 # small consistency check.
-for atlas in [core_atlas, extended_atlas]:
+for atlas in [
+    # core_atlas,
+    extended_atlas,
+]:
     npt.assert_array_equal(
-        atlas[
-            ["SRR10777354-13"], ["A1BG", "A2M", "AAK1", "AAMP", "ABCA1", "ABCD1"]
-        ].X.A,
+        atlas[["SRR10777354-13"], ["A1BG", "A2M", "AAK1", "AAMP", "ABCA1", "ABCD1"]]
+        .layers["counts_length_scaled"]
+        .A,
         [[20.0, 18.0, 20.0, 20.0, 93.0, 6.0]],
     )
     npt.assert_array_equal(
-        atlas[["SRR10777354-13"], ["A1BG", "A2M", "AAK1", "AAMP", "ABCA1", "ABCD1"]]
-        .layers["raw_counts"]
-        .A,
+        atlas.raw[
+            ["SRR10777354-13"], ["A1BG", "A2M", "AAK1", "AAMP", "ABCA1", "ABCD1"]
+        ].X.A,
         [[3.0, 66.0, 142.0, 12.0, 522.0, 15.0]],
     )
 
+
 # %% [markdown]
 # ## Reannotate with ontologies
+
+# %%
+def remap(adata, mapping, target_col, source_col):
+    """
+    Remap a column to a controlled vocabulary
+
+    mapping can be either a function or a dictionary
+    """
+    if not callable(mapping):
+        assert "" not in mapping.values()
+        mapping_fun = lambda x: mapping[x]
+    else:
+        mapping_fun = mapping
+
+    adata.obs[target_col] = [mapping_fun(x) for x in adata.obs[source_col]]
+
 
 # %% [markdown]
 # ### Sequencing platform / assay_ontology_term_id
@@ -134,13 +193,18 @@ extended_atlas.obs["platform_fine"].value_counts()
 platform_map = {
     "10x_3p_v2": "EFO:0009899",
     "10x_3p_v3": "EFO:0009922",
+    "10x_3p_v1": "EFO:0009901",
     "10x_5p_v1": "EFO:0011025",
+    "10x_5p": "EFO:0011025",
     "Smart-seq2": "EFO:0008931",
     "DropSeq": "EFO:0008722",
-    "Singleron": "EFO:0030031",
+    "Singleron": "EFO:00010183 (GEXSCOPE)", # EFO:0030031 is not yet included in the ontology version used by cellxgene schema
     "BD-Rhapsody": "EFO:0010183 (BD Rhapsody)",  # single-cell library construction. Cannot find BD Rhapsody in ontology
     "InDrop": "EFO:0008780",
 }
+
+# %%
+remap(extended_atlas, platform_map, "assay_ontology_term_id", "platform_fine")
 
 # %% [markdown]
 # ### cell types / cell_type_ontology_term_id
@@ -195,6 +259,9 @@ cell_type_map = {
 }
 assert "" not in cell_type_map.values()
 
+# %%
+remap(extended_atlas, cell_type_map, "cell_type_ontology_term_id", "cell_type")
+
 
 # %% [markdown]
 # ### age / development_stage_ontology_term_id
@@ -203,16 +270,22 @@ assert "" not in cell_type_map.values()
 
 # %%
 def get_stage(age):
+    if pd.isnull(age):
+        return "unknown"
+
     age = int(age)
     if age < 20:
         raise NotImplementedError()
     elif age <= 79:
-        return f"HsapDv_0000{age + 94}"
+        return f"HsapDv:0000{age + 94}"
     elif age <= 99:
-        return f"HsapDv_0000{age + 126}"
+        return f"HsapDv:0000{age + 126}"
     else:
         raise NotImplementedError()
 
+
+# %%
+remap(extended_atlas, get_stage, "development_stage_ontology_term_id", "age")
 
 # %% [markdown]
 # ### condition / disease_ontology_term_id
@@ -231,11 +304,17 @@ condition_map = {
     "COPD": "MONDO:0005002",
 }
 
+# %%
+remap(extended_atlas, condition_map, "disease_ontology_term_id", "condition")
 
 # %% [markdown]
 # ### ethnicity_ontology_term_id
 #
 # for Homo sapiens, this MUST be either a HANCESTRO term or "unknown" if unavailable. 
+
+# %%
+extended_atlas.obs["ethnicity_ontology_term_id"] = "unknown"
+
 
 # %% [markdown]
 # ### is_primary_data
@@ -245,10 +324,16 @@ def is_primary_data(dataset):
     return "UKIM" in dataset
 
 
+# %%
+remap(extended_atlas, is_primary_data, "is_primary_data", "dataset")
+
 # %% [markdown]
 # ### organism_ontology_term_id
 #
 # `NCBITaxon:9606` for human
+
+# %%
+extended_atlas.obs["organism_ontology_term_id"] = "NCBITaxon:9606"
 
 # %% [markdown]
 # ### sex_ontology_term_id
@@ -257,11 +342,19 @@ def is_primary_data(dataset):
 # %%
 extended_atlas.obs["sex"].value_counts()
 
+
 # %%
-sex_map = {
-    "male": "PATO_0000384",
-    "female": "PATO_0000383",
-}
+def sex_map(s):
+    if pd.isnull(s):
+        return "unknown"
+    return {
+        "male": "PATO:0000384",
+        "female": "PATO:0000383",
+    }[s]
+
+
+# %%
+remap(extended_atlas, sex_map, "sex_ontology_term_id", "sex")
 
 # %% [markdown]
 # ### tissue_ontology_term_id
@@ -279,45 +372,19 @@ tissue_map = {
     "adrenal": "UBERON:0018303",
 }
 
+# %%
+remap(extended_atlas, tissue_map, "tissue_ontology_term_id", "tissue")
+
 # %% [markdown]
-# ## Gene annotations
-#  * GENCODE v38/Ensmbl 104
-#  
-# A gene symbol to ENSEMBL map was generated based on the gencode.v38 GTF file (see commented code below).
-# If an ensembl id was missing for a gene symbol, we manually complemented it with information from genecards.org. Duplicate entries were manually resolved using genecards.org. 
+# ### Rename or remove old columns (some contain reserved names)
 
 # %%
-# gtf = gtfparse.read_gtf(
-#     "../../data/10_references/gencode.v38.primary_assembly.annotation.gtf.gz",
-#     usecols=["gene_id", "gene_name"],
-# ).drop_duplicates()
-# var2 = extended_atlas.var.join(gtf.set_index("gene_name"))
-# var2.loc[:, ["gene_id"]].reset_index().rename(columns={"index": "gene_symbol"}).to_csv("../../tables/symbol_to_ensembl.csv")
-
-# %%
-gene2ensembl = pd.read_csv("../../tables/symbol_to_ensembl.csv", index_col=0)
-gene2ensembl["gene_id"] = (
-    gene2ensembl["gene_id"].str.strip().str.replace("\.\d+$", "", regex=True)
+extended_atlas.obs = extended_atlas.obs.drop(["sex", "tissue"], axis="columns").rename(
+    columns={
+        "cell_type": "ann_fine",
+        "cell_type_coarse": "ann_coarse",
+    }
 )
-gene2ensembl["gene_id2"] = [
-    gene_id if not pd.isnull(gene_id) else gene_symbol
-    for gene_id, gene_symbol in zip(
-        gene2ensembl["gene_id"], gene2ensembl["gene_symbol"]
-    )
-]
-gene2ensembl = gene2ensembl.loc[lambda x: ~x["gene_id2"].str.contains("_PAR_Y"), :]
-
-# %%
-extended_atlas.var = extended_atlas.var.join(
-    gene2ensembl.set_index("gene_symbol"), how="left"
-)
-
-# %%
-extended_atlas.var.set_index("gene_id2", inplace=True, drop=False)
-
-# %%
-pd.set_option("display.max_rows", 100)
-extended_atlas.var.loc[lambda x: x["gene_id"].isnull()]
 
 # %% [markdown]
 # ## Gene metadata / var and raw.var
@@ -332,6 +399,7 @@ extended_atlas.var
 
 # %%
 extended_atlas.var["feature_biotype"] = "gene"
+extended_atlas.raw.var["feature_biotype"] = "gene"
 
 # %% [markdown]
 # ### Index
@@ -364,11 +432,16 @@ extended_atlas.uns["default_embedding"] = "X_umap"
 # %% [markdown]
 # ## Export h5ads
 
+# %%
+export_path = f"{artifact_dir}/extended_atlas_cellxgene_schema.h5ad"
+
+# %%
+extended_atlas.write_h5ad(export_path)
+
 # %% [markdown]
 # ## Validate h5ads
 
 # %%
-# TODO
-# !cellxgene-schema validate {path_core_atlas}
+# !cellxgene-schema validate {export_path}
 
 # %%
