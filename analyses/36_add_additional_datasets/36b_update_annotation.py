@@ -114,6 +114,8 @@ query_merged = anndata.concat(
     datasets.values(),
     index_unique="-",
 )
+# query doesn't have smartseq2 datasets, we can therefore just copy the raw counts. 
+query_merged.layers["raw_counts"] = query_merged.X.copy()
 
 # %%
 reference_atlas.obsm["X_scANVI"] = reference_scanvi.obsm["X_scANVI"]

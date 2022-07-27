@@ -16,6 +16,7 @@
 import scanpy as sc
 from nxfvars import nxfvars
 import pandas as pd
+import numpy.testing as npt
 
 # %% [markdown]
 # Export final atlas for sharing. 
@@ -23,25 +24,6 @@ import pandas as pd
 #  * Remove unnecessary data
 #  * make sure it passes the cellxgene schema
 #  * output documentation
-
-# %%
-ad_test = sc.read_h5ad(
-    "../../data/20_build_atlas/annotate_datasets/31_cell_types_coarse/artifacts/adata_cell_type_coarse.h5ad"
-)
-
-# %%
-ad_test[ad_test.obs["dataset"].str.contains("Lambrechts"), :].X[:9, :9].A
-
-# %%
-ad_test[ad_test.obs["dataset"].str.contains("Lambrechts"), :].layers["raw_counts"][
-    :9, :9
-].A
-
-# %%
-ad_test.X
-
-# %%
-ad_test.layers["raw_counts"]
 
 # %%
 path_core_atlas = nxfvars.get(
@@ -112,7 +94,30 @@ extended_atlas.obs = extended_atlas.obs.loc[:, lambda x: ~x.columns.str.startswi
 #
 
 # %%
-# TODO WIP add raw_counts layer at earlier point of the workflow
+extended_atlas
+
+# %%
+new_raw = sc.AnnData(core_atlas.layers["raw_counts"], var=core_atlas.var)
+core_atlas.layers["counts_length_scaled"] = core_atlas.X
+core_atlas.X = core_atlas.raw.X
+core_atlas.raw = new_raw
+del core_atlas.layers["raw_counts"]
+
+# %%
+# small consistency check.
+for atlas in [core_atlas, extended_atlas]:
+    npt.assert_array_equal(
+        atlas[
+            ["SRR10777354-13"], ["A1BG", "A2M", "AAK1", "AAMP", "ABCA1", "ABCD1"]
+        ].X.A,
+        [[20.0, 18.0, 20.0, 20.0, 93.0, 6.0]],
+    )
+    npt.assert_array_equal(
+        atlas[["SRR10777354-13"], ["A1BG", "A2M", "AAK1", "AAMP", "ABCA1", "ABCD1"]]
+        .layers["raw_counts"]
+        .A,
+        [[3.0, 66.0, 142.0, 12.0, 522.0, 15.0]],
+    )
 
 # %% [markdown]
 # ## Reannotate with ontologies
@@ -303,20 +308,58 @@ gene2ensembl["gene_id2"] = [
 gene2ensembl = gene2ensembl.loc[lambda x: ~x["gene_id2"].str.contains("_PAR_Y"), :]
 
 # %%
-extended_atlas.var = extended_atlas.var.join(gene2ensembl.set_index("gene_symbol"), how="left")
+extended_atlas.var = extended_atlas.var.join(
+    gene2ensembl.set_index("gene_symbol"), how="left"
+)
 
 # %%
 extended_atlas.var.set_index("gene_id2", inplace=True, drop=False)
 
 # %%
+pd.set_option("display.max_rows", 100)
+extended_atlas.var.loc[lambda x: x["gene_id"].isnull()]
+
+# %% [markdown]
+# ## Gene metadata / var and raw.var
+
+# %%
 extended_atlas.var
 
-# %%
-pd.set_option("display.max_rows", 100)
-var2.loc[lambda x: x["gene_id"].isnull()]
+# %% [markdown]
+# ### feature_biotype
+#
+# must be `gene` unless it's a spike-in
 
 # %%
-gtf.drop_duplicates()
+extended_atlas.var["feature_biotype"] = "gene"
+
+# %% [markdown]
+# ### Index
+#
+# must be set to ENSEMBL gene names
+
+# %% [markdown]
+# ### feature_is_filtered
+# * Curators MUST annotate the following column only in the var dataframe. This column MUST NOT be present in raw.var
+# * This MUST be True if the feature was filtered out in the final matrix (X) but is present in the raw matrix
+
+# %%
+extended_atlas.var["feature_is_filtered"] = False
+
+# %% [markdown]
+# ## Metadata / uns
+
+# %%
+extended_atlas.uns["schema_version"] = "2.0.0"
+extended_atlas.uns[
+    "title"
+] = "The single-cell lung cancer atlas (LuCA) -- extended atlas"
+extended_atlas.uns["X_normalization"] = (
+    "Log-normalized length-scaled counts (Smart-seq2) or UMI counts (other protocols). "
+    "Normalization was performed using sc.pp.normalize_total() followed by sc.pp.log1p()"
+)
+extended_atlas.uns["batch_condition"] = ["dataset", "patient", "sample"]
+extended_atlas.uns["default_embedding"] = "X_umap"
 
 # %% [markdown]
 # ## Export h5ads
