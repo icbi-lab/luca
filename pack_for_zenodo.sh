@@ -4,7 +4,7 @@
 tar cvf - --dereference containers | xz -T 32 -9 > data/zenodo/containers.tar.xz
 
 # # input data required to run all workflows from scratch
-tar cvf - --dereference data/10_references data/13_tcga/for_scissor data/12_input_adatas data/11_own_datasets/{batch1_3patients,batch2_5patients,velocyto} | xz -T 32 -9 > data/zenodo/input_data.tar.xz
+tar cvf - --dereference data/10_references data/13_tcga/for_scissor data/12_input_adatas data/11_own_datasets/{batch1_3patients,batch2,velocyto} | xz -T 32 -9 > data/zenodo/input_data.tar.xz
 
 # intermediate results (required to run the second part of the workflow that doesn't depend on specialized hardware)
 tar cvf - --dereference data/20_build_atlas | xz -T 32 -9 > data/zenodo/build_atlas_results.tar.xz

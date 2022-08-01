@@ -8,9 +8,9 @@
 #       format_version: '1.5'
 #       jupytext_version: 1.13.1
 #   kernelspec:
-#     display_name: Python [conda env:.conda-scanpy_2020-12]
+#     display_name: Python [conda env:.conda-pircher-sc-integrate2]
 #     language: python
-#     name: conda-env-.conda-scanpy_2020-12-py
+#     name: conda-env-.conda-pircher-sc-integrate2-py
 # ---
 
 import scanpy as sc
@@ -66,6 +66,6 @@ adata.obs.drop_duplicates()
 adata
 
 adata.write_h5ad(
-    "../../data/11_own_datasets/batch2_5patients/h5ad_raw/batch2_5patients.h5ad",
+    "../../data/11_own_datasets/batch2_5patients/h5ad_raw/ukim_v_batch2.h5ad",
     compression="lzf",
 )
