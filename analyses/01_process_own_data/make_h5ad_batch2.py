@@ -22,13 +22,9 @@ import scipy.sparse
 from multiprocessing import Pool
 import anndata
 
-filenames = glob("../../data/11_own_datasets/batch2_5patients/processed/*.csv")
-
-filenames
-
 meta = (
     pd.read_excel(
-        "../../tables/patient_table_batch2_5_patients.xlsx", engine="openpyxl"
+        "../../tables/patient_table_batch2.xlsx", engine="openpyxl"
     )
     .dropna(how="all")
     .dropna(axis="columns", how="all")
@@ -38,7 +34,7 @@ meta
 
 
 def load_counts(meta):
-    p = Path(f"../../data/11_own_datasets/batch2_5patients/processed/{meta['file_id']}_{'N' if meta['origin'] == 'normal_adjacent' else 'T'}.csv")
+    p = Path(f"../../data/11_own_datasets/batch2/processed/{meta['file_id']}_{'N' if meta['origin'] == 'normal_adjacent' else 'T'}.csv")
     expr = pd.read_csv(p, skiprows=5, index_col=0)
     gene_expr = expr.loc[
         (~expr.index.str.contains("\(Ab\)") & ~expr.index.str.startswith("Lex_")), :
@@ -63,9 +59,11 @@ adata.obs["platform_fine"] = "BD-Rhapsody"
 
 adata.obs.drop_duplicates()
 
-adata
+adata.obs.groupby(["patient", "origin"]).size()
 
 adata.write_h5ad(
-    "../../data/11_own_datasets/batch2_5patients/h5ad_raw/ukim_v_batch2.h5ad",
+    "../../data/11_own_datasets/batch2/h5ad_raw/ukim_v_batch2.h5ad",
     compression="lzf",
 )
+
+
