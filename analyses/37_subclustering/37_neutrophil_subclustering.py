@@ -42,7 +42,6 @@ adata_file = nxfvars.get(
     "adata_in",
     "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
-neutro_clustering = nxfvars.get("neutro_clustering", "../../tables/neutrophil_clustering.csv")
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
 # %%
@@ -50,6 +49,12 @@ adata = sc.read_h5ad(adata_file)
 
 # %%
 neutrophil_clustering = pd.read_csv(neutro_clustering, index_col=0)
+
+# %%
+adata[adata.obs["dataset"].str.contains("UKIM"), :].obs["patient"].value_counts().sort_index()
+
+# %%
+adata[adata.obs["dataset"].str.contains("UKIM"), :].obs.groupby(["patient", "origin"]).size()
 
 # %% [markdown]
 # # Neutrophil subset
@@ -66,18 +71,8 @@ adata_n.shape
 
 # %%
 ah.reprocess_adata_subset_scvi(
-    adata_n, use_rep="X_scANVI", leiden_res=0.5, n_neighbors=20
+    adata_n, use_rep="X_scANVI", leiden_res=0.5, n_neighbors=15
 )
-
-# %%
-# We use a predefined clustering for neutrophils here. 
-# 
-# It was generated using exactly this notebook, but using an earlier version of the atlas. 
-# After fixing an unrelated mistake in the atlas metadata, the scANVI embedding has changed slightly. 
-# While the clustering is qualitativly similar, the clusters don't match 1:1 with the previous version
-# and at this point, we didn't want to change downstream results anymore. 
-adata_n.obs["leiden"] = neutrophil_clustering["leiden"].astype(str)
-adata_n = adata_n[~adata_n.obs["leiden"].isnull(), :].copy()
 
 # %%
 adata_n.shape
@@ -160,7 +155,7 @@ alt.Chart(patient_fracs).mark_bar().encode(x="fraction", y="leiden", color="pati
 # ## Characterization of clusters
 
 # %%
-pb_n = sh.pseudobulk.pseudobulk(adata_n, groupby=["leiden", "patient"])
+pb_n = sh.pseudobulk.pseudobulk(adata_n[adata_n.obs["leiden"] != "7", :].copy(), groupby=["leiden", "patient"])
 
 # %%
 sc.pp.normalize_total(pb_n, target_sum=1e6)
@@ -205,12 +200,13 @@ sc.pl.umap(adata_n, color="leiden", legend_loc="on data", legend_fontoutline=2)
 ah.annotate_cell_types(
     adata_n,
     {
-        "NAN-1": [4],  # also in zillionis/klein, S100A12
+        "NAN-1": [6],  
         "NAN-2": [0],
         "TAN-1": [3], 
         "TAN-2": [2], 
         "TAN-3": [1],  
         "TAN-4": [5], 
+        "TAN-5": [4]
     },
 )
 
@@ -254,3 +250,5 @@ adata.obs.loc[
 # %%
 adata_n.write_h5ad(f"{artifact_dir}/adata_neutrophil_clusters.h5ad")
 adata.write_h5ad(f"{artifact_dir}/full_atlas_neutrophil_clusters.h5ad")
+
+# %%

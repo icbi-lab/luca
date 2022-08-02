@@ -51,7 +51,7 @@ ah = AnnotationHelper()
 # %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/0_backup/2022-06-18_as_sumitted/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+    "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
@@ -253,11 +253,12 @@ alt.Chart(
 # %%
 ad_immune.obs["immune_type"] = [
     {
-        "0": "T",
-        "1": "desert",
-        "2": "M",
-        "3": "B",
+        "0": "desert",
+        "1": "M",
+        "2": "T",
+        "3": "T",
         "4": "B",
+        "5": "B"
     }[x]
     for x in ad_immune.obs["leiden"]
 ]

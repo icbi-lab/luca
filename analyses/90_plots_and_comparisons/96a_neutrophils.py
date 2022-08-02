@@ -46,15 +46,18 @@ sc.settings.set_figure_params(figsize=(5, 5))
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 adata_n_path = nxfvars.get(
     "adata_n_path",
-    "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/adata_neutrophil_clusters.h5ad",
+    # "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/adata_neutrophil_clusters.h5ad",
+    "/home/sturm/Downloads/adata_neutrophil_clusters.h5ad"
 )
 adata_path = nxfvars.get(
     "adata_path",
-    "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
+    # "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
+    "/home/sturm/Downloads/full_atlas_neutrophil_clusters.h5ad"
 )
 patient_stratification_path = nxfvars.get(
     "patient_stratification_path",
-    "../../data/30_downstream_analyses/stratify_patients/stratification/artifacts/patient_stratification.csv",
+    "/home/sturm/Downloads/patient_stratification.csv"
+    # "../../data/30_downstream_analyses/stratify_patients/stratification/artifacts/patient_stratification.csv",
 )
 neutro_geneset_path = nxfvars.get(
     "neutro_geneset_path",
