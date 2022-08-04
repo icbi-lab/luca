@@ -48,9 +48,6 @@ artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 adata = sc.read_h5ad(adata_file)
 
 # %%
-neutrophil_clustering = pd.read_csv(neutro_clustering, index_col=0)
-
-# %%
 adata[adata.obs["dataset"].str.contains("UKIM"), :].obs["patient"].value_counts().sort_index()
 
 # %%

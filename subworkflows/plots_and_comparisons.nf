@@ -30,40 +30,40 @@ workflow plots_and_comparisons {
 
     main:
 
-    ch_neutrophil_analysis_input_files = extended_atlas.concat(
-        adata_neutrophil_clusters,
-        patient_stratification,
-        Channel.fromPath("${baseDir}/tables/gene_annotations/neutro_phenotype_genesets.xlsx"),
-        Channel.fromPath("${baseDir}/tables/gene_annotations/neutro_recruitment_chemokines.xlsx")
-    ).collect()
-    NEUTROPHIL_ANALYSIS(
-        Channel.value(
-            [[id: 'neutrophil_analysis'], file("${baseDir}/analyses/90_plots_and_comparisons/96a_neutrophils.py")]
-        ),
-        ch_neutrophil_analysis_input_files.map { adata, adata_n, patient_strat, genesets1, genesets2 -> [
-            "adata_n_path": adata_n.name,
-            "adata_path": adata.name,
-            "patient_stratification_path": patient_strat.name,
-            "neutro_geneset_path": genesets1.name,
-            "neutro_recruitment_geneset_path": genesets2.name
-        ]},
-        ch_neutrophil_analysis_input_files
-    )
-    ch_neutro_sigs = NEUTROPHIL_ANALYSIS.out.artifacts.flatten().filter{ it -> it.name.equals("neutro_sigs.csv") }
+    // ch_neutrophil_analysis_input_files = extended_atlas.concat(
+    //     adata_neutrophil_clusters,
+    //     patient_stratification,
+    //     Channel.fromPath("${baseDir}/tables/gene_annotations/neutro_phenotype_genesets.xlsx"),
+    //     Channel.fromPath("${baseDir}/tables/gene_annotations/neutro_recruitment_chemokines.xlsx")
+    // ).collect()
+    // NEUTROPHIL_ANALYSIS(
+    //     Channel.value(
+    //         [[id: 'neutrophil_analysis'], file("${baseDir}/analyses/90_plots_and_comparisons/96a_neutrophils.py")]
+    //     ),
+    //     ch_neutrophil_analysis_input_files.map { adata, adata_n, patient_strat, genesets1, genesets2 -> [
+    //         "adata_n_path": adata_n.name,
+    //         "adata_path": adata.name,
+    //         "patient_stratification_path": patient_strat.name,
+    //         "neutro_geneset_path": genesets1.name,
+    //         "neutro_recruitment_geneset_path": genesets2.name
+    //     ]},
+    //     ch_neutrophil_analysis_input_files
+    // )
+    // ch_neutro_sigs = NEUTROPHIL_ANALYSIS.out.artifacts.flatten().filter{ it -> it.name.equals("neutro_sigs.csv") }
 
-    ch_velocyto_input_files = adata_neutrophil_clusters.concat(
-        Channel.fromPath("${baseDir}/data/11_own_datasets/velocyto/")
-    ).collect()
-    NEUTROPHIL_ANALYSIS_VELOCYTO(
-        Channel.value(
-            [[id: 'neutrophil_analysis_velocyto'], file("${baseDir}/analyses/90_plots_and_comparisons/96b_neutrophils_velocyto.py")]
-        ),
-        ch_velocyto_input_files.map { adata_n, velocyto_dir -> [
-            "adata_n_path": adata_n.name,
-            "velocyto_dir": velocyto_dir.name
-        ]},
-        ch_velocyto_input_files
-    )
+    // ch_velocyto_input_files = adata_neutrophil_clusters.concat(
+    //     Channel.fromPath("${baseDir}/data/11_own_datasets/velocyto/")
+    // ).collect()
+    // NEUTROPHIL_ANALYSIS_VELOCYTO(
+    //     Channel.value(
+    //         [[id: 'neutrophil_analysis_velocyto'], file("${baseDir}/analyses/90_plots_and_comparisons/96b_neutrophils_velocyto.py")]
+    //     ),
+    //     ch_velocyto_input_files.map { adata_n, velocyto_dir -> [
+    //         "adata_n_path": adata_n.name,
+    //         "velocyto_dir": velocyto_dir.name
+    //     ]},
+    //     ch_velocyto_input_files
+    // )
 
 
     ch_patient_stratification_figures_input_files = patient_stratification.concat(
@@ -169,46 +169,46 @@ workflow plots_and_comparisons {
         extended_atlas
     )
 
-    ch_response_to_ici_input_files = ch_neutro_sigs.concat(
-        Channel.fromPath("${baseDir}/data/14_ici_treatment/Genentech_for_scissor/genentech.rds"),
-        Channel.fromPath("${baseDir}/data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv")
-    ).collect()
-    RESPONSE_TO_ICI(
-        Channel.value(
-            [[id: 'response_to_ici'], file("${baseDir}/analyses/90_plots_and_comparisons/97_response_to_icb.Rmd")]
-        ),
-        ch_response_to_ici_input_files.map{ sigs, tpm, meta -> [
-            "neutro_sigs": sigs.name,
-            "ici_tpm": tpm.name,
-            "ici_meta": meta.name
-        ]},
-        ch_response_to_ici_input_files
-    )
+    // ch_response_to_ici_input_files = ch_neutro_sigs.concat(
+    //     Channel.fromPath("${baseDir}/data/14_ici_treatment/Genentech_for_scissor/genentech.rds"),
+    //     Channel.fromPath("${baseDir}/data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv")
+    // ).collect()
+    // RESPONSE_TO_ICI(
+    //     Channel.value(
+    //         [[id: 'response_to_ici'], file("${baseDir}/analyses/90_plots_and_comparisons/97_response_to_icb.Rmd")]
+    //     ),
+    //     ch_response_to_ici_input_files.map{ sigs, tpm, meta -> [
+    //         "neutro_sigs": sigs.name,
+    //         "ici_tpm": tpm.name,
+    //         "ici_meta": meta.name
+    //     ]},
+    //     ch_response_to_ici_input_files
+    // )
 
-    ch_cpdb_analysis_input_files = extended_atlas.concat(
-        adata_neutrophil_clusters,
-        Channel.fromPath("${baseDir}/tables/cellphonedb_2022-04-06.tsv"),
-        deseq2_results,
-    ).collect()
-    CPDB_ANALYSIS(
-        Channel.value(
-            [[id: 'cell2cell'], file("${baseDir}/analyses/90_plots_and_comparisons/99_cpdb_analysis.py")]
-        ),
-        ch_cpdb_analysis_input_files.map{ it -> [
-            "main_adata": it[0].name,
-            "adata_n": it[1].name,
-            "path_cpdb": it[2].name,
-            "deseq2_path_prefix": "./"
-        ]},
-        ch_cpdb_analysis_input_files
-    )
-    CPDB_CIRCOS_PLOT(
-         Channel.value(
-            [[id: 'cell2cell_circos'], file("${baseDir}/analyses/90_plots_and_comparisons/99b_cpdb_circosplot.Rmd")]
-        ),
-        [],
-        CPDB_ANALYSIS.out.artifacts
-    )
+    // ch_cpdb_analysis_input_files = extended_atlas.concat(
+    //     adata_neutrophil_clusters,
+    //     Channel.fromPath("${baseDir}/tables/cellphonedb_2022-04-06.tsv"),
+    //     deseq2_results,
+    // ).collect()
+    // CPDB_ANALYSIS(
+    //     Channel.value(
+    //         [[id: 'cell2cell'], file("${baseDir}/analyses/90_plots_and_comparisons/99_cpdb_analysis.py")]
+    //     ),
+    //     ch_cpdb_analysis_input_files.map{ it -> [
+    //         "main_adata": it[0].name,
+    //         "adata_n": it[1].name,
+    //         "path_cpdb": it[2].name,
+    //         "deseq2_path_prefix": "./"
+    //     ]},
+    //     ch_cpdb_analysis_input_files
+    // )
+    // CPDB_CIRCOS_PLOT(
+    //      Channel.value(
+    //         [[id: 'cell2cell_circos'], file("${baseDir}/analyses/90_plots_and_comparisons/99b_cpdb_circosplot.Rmd")]
+    //     ),
+    //     [],
+    //     CPDB_ANALYSIS.out.artifacts
+    // )
 
 
     SCCODA_CONDITION(

@@ -46,15 +46,15 @@ import scanpy_helpers as sh
 # %%
 patient_stratification_path = nxfvars.get(
     "patient_stratification_path",
-    "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv",
+    "../../data/30_downstream_analyses/stratify_patients/stratification/artifacts/patient_stratification.csv",
 )
 ad_immune_path = nxfvars.get(
     "ad_immune_path",
-    "../../data/30_downstream_analyses/stratify_patients/artifacts/adata_immune.h5ad",
+    "../../data/30_downstream_analyses/stratify_patients/stratification/artifacts/adata_immune.h5ad",
 )
 ad_tumor_subtypes_path = nxfvars.get(
     "ad_tumor_subtypes_path",
-    "../../data/30_downstream_analyses/stratify_patients/artifacts/adata_tumor_subtypes.h5ad",
+    "../../data/30_downstream_analyses/stratify_patients/stratification/artifacts/adata_tumor_subtypes.h5ad",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
@@ -163,6 +163,9 @@ p2 = (
 # %%
 (p0 & p2).resolve_scale(x="shared")
 
+# %%
+plot_df.query("tumor_stage == 'unknown'")
+
 # %% [markdown]
 # ## groups by histological subtype
 
@@ -207,12 +210,13 @@ smf.glm(
 ).fit().summary()
 
 # %%
-smf.glm(
-    "tumor_stage ~ C(immune_infiltration, Treatment('desert')) + dataset",
-    data=plot_df.loc[lambda x: x["sex"] != "unknown"],
-    family=sm.families.Binomial(),
-).fit().summary()
+plot_df.loc[lambda x: x["sex"] != "unknown"]["tumor_stage"].value_counts()
 
 # %%
+smf.glm(
+    "tumor_stage ~ C(immune_infiltration, Treatment('desert')) + dataset",
+    data=plot_df.loc[lambda x: x["tumor_stage"] != "unknown"],
+    family=sm.families.Binomial(),
+).fit().summary()
 
 # %%

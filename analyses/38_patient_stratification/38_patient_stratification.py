@@ -184,10 +184,6 @@ sc.pl.matrixplot(
     dendrogram=False,
     swap_axes=True,
     cmap="viridis",
-    # vmin=-0.25,
-    # vmax=0.25
-    # # vmin=0,
-    # vmax=1,
     standard_scale="var",
 )
 
@@ -225,7 +221,7 @@ sc.pl.matrixplot(
 sc.pp.neighbors(ad_immune, use_rep="X", n_neighbors=15, metric="correlation")
 
 # %%
-sc.tl.leiden(ad_immune, resolution=0.75)
+sc.tl.leiden(ad_immune, resolution=.75)
 
 # %%
 sc.pl.heatmap(
@@ -234,7 +230,6 @@ sc.pl.heatmap(
     groupby="leiden",
     swap_axes=True,
     cmap="bwr",
-    vmin=-0.5,
     vmax=0.5,
     # # vmin=0,
     # vmax=1,
@@ -258,7 +253,7 @@ ad_immune.obs["immune_type"] = [
         "2": "T",
         "3": "T",
         "4": "B",
-        "5": "B"
+        "5": "B",
     }[x]
     for x in ad_immune.obs["leiden"]
 ]
