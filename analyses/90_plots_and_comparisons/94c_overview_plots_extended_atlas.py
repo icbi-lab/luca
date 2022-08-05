@@ -33,6 +33,7 @@ import itertools
 import progeny
 import dorothea
 from threadpoolctl import threadpool_limits
+from matplotlib_venn import venn3
 
 # %%
 alt.data_transformers.disable_max_rows()
@@ -257,6 +258,71 @@ s3 = (
 (
     c1.properties(width=200) | c2.properties(width=200) | c3.properties(width=200)
 ).resolve_scale(color="independent", y="shared")
+
+# %% [markdown]
+# ## Sample types per patient
+
+# %%
+data = (
+    adata.obs.groupby(["study", "patient", "origin"], observed=True)
+    .size()
+    .reset_index(name="n_cells")
+)
+
+# %%
+alt.Chart(data).mark_bar().encode(
+    x=alt.X("count(patient)", title="# patients"),
+    y="origin",
+    color=alt.Color(
+        "origin", scale=sh.colors.altair_scale("origin", data=data, data_col="origin")
+    ),
+)
+
+# %%
+venn_labels = {
+    "normal": ["normal_adjacent", "normal"],
+    "primary\ntumor": ["tumor_primary"],
+    "metastases": ["tumor_metastasis"],
+}
+venn_sets = {
+    key: set(data.loc[lambda x: x["origin"].isin(labels), "patient"].values)
+    for key, labels in venn_labels.items()
+}
+
+# %%
+with plt.rc_context({"font.size": 16, "figure.figsize": (10, 6)}):
+    venn3(
+        venn_sets.values(),
+        set_labels=venn_sets.keys(),
+        set_colors=[
+            sh.colors.COLORS.origin[x]
+            for x in ["normal", "tumor_primary", "tumor_metastasis"]
+        ],
+        alpha=0.6,
+    )
+    plt.show()
+
+
+# %% [markdown]
+# # Patients per cell-type
+
+# %%
+def get_patients_per_cell_type(
+    adata, cell_type_col="cell_type", *, cutoffs=[5, 10, 30], patient_col="patient"
+):
+    cell_type_matrix =  (
+        adata.obs.groupby([patient_col, cell_type_col], observed=False)
+        .size()
+        .reset_index(name="n_cells")
+        .pivot_table(values="n_cells", columns=cell_type_col, index=patient_col)
+    )
+    return pd.DataFrame({
+        cutoff: np.sum(cell_type_matrix >= cutoff, axis=0) for cutoff in cutoffs})
+
+
+# %%
+for cell_type_col in ["cell_type_tumor", "cell_type", "cell_type_major", "cell_type_coarse"]:
+    get_patients_per_cell_type(adata, cell_type_col).to_csv(f"{artifact_dir}/patients_per_{cell_type_col}.csv")
 
 # %% [markdown]
 # # UMAP plots
