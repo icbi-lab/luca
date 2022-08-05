@@ -72,20 +72,34 @@ adata_n.shape
 
 # %%
 ah.reprocess_adata_subset_scvi(
-    adata_n, use_rep="X_scANVI", leiden_res=0.75, n_neighbors=25
+    adata_n, use_rep="X_scANVI", leiden_res=0.75, n_neighbors=30
 )
 
 # %%
+sc.pl.umap(adata_n, color=["leiden", "FCGR3B", "dataset"], cmap="inferno", size=20)
+
+# %% [markdown]
+# Remove cluster with empty droplets or potential doublets (no FCGR3B expression)
+
+# %%
+adata_n = adata_n[adata_n.obs["leiden"] != "9", :].copy()
+
+# %%
 adata_n.shape
+
+# %% [markdown]
+# Rerun clustering with Neutrophil clusters only
+
+# %%
+ah.reprocess_adata_subset_scvi(
+    adata_n, use_rep="X_scANVI", leiden_res=1, n_neighbors=30
+)
 
 # %%
 # flip UMAP y axis to be visually consistent with previous iterations of the dataset
 adata_n.obsm["X_umap"][:, 1] = (
     np.max(adata_n.obsm["X_umap"][:, 1]) - adata_n.obsm["X_umap"][:, 1]
 )
-
-# %%
-sc.pl.umap(adata_n, color="dataset")
 
 # %%
 sc.pl.umap(
@@ -152,17 +166,11 @@ alt.Chart(dataset_fracs).mark_bar().encode(x="fraction", y="leiden", color="data
 # %%
 alt.Chart(patient_fracs).mark_bar().encode(x="fraction", y="leiden", color="patient")
 
-# %%
-# doublets or empty droplets, doesn't express FCGR3B
-adata_n = adata_n[adata_n.obs["leiden"] != "9", :].copy()
-
 # %% [markdown]
 # ## Characterization of clusters
 
 # %%
-pb_n = sh.pseudobulk.pseudobulk(
-    adata_n, groupby=["leiden", "patient"]
-)
+pb_n = sh.pseudobulk.pseudobulk(adata_n, groupby=["leiden", "patient"])
 
 # %%
 sc.pp.normalize_total(pb_n, target_sum=1e6)
@@ -210,13 +218,13 @@ sc.pl.umap(adata_n, color="leiden", legend_loc="on data", legend_fontoutline=2)
 ah.annotate_cell_types(
     adata_n,
     {
-        "NAN-1": [5],
-        "NAN-2": [6, 4],
-        "NAN-3": [7, 8],
-        "TAN-1": [1],
-        "TAN-2": [0],
-        "TAN-3": [2],
-        "TAN-4": [3],
+        "NAN-1": [6, 8],
+        "NAN-2": [4, 0],
+        "NAN-3": [7],
+        "TAN-1": [5],
+        "TAN-2": [1, 10],
+        "TAN-3": [2, 3],
+        "TAN-4": [9],
     },
 )
 

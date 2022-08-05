@@ -35,7 +35,7 @@ adata_n_path = nxfvars.get(
 )
 velocyto_dir = nxfvars.get("velocyto_dir", "../../data/11_own_datasets/velocyto/")
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
-cpus = nxfvars.get("cpus", 8)
+cpus = nxfvars.get("cpus", 16)
 
 # %%
 adata_n = sc.read_h5ad(adata_n_path)
@@ -119,7 +119,7 @@ adata_scvelo.shape
 scv.pp.filter_and_normalize(adata_scvelo)
 
 # %%
-scv.pp.moments(adata_scvelo, n_pcs=30, n_neighbors=30)
+scv.pp.moments(adata_scvelo, n_pcs=30, n_neighbors=35)
 
 # %%
 scv.tl.velocity(adata_scvelo)
@@ -227,7 +227,3 @@ ax = scv.pl.paga(
 ax.get_figure().savefig(
     f"{artifact_dir}/umap_paga_graph.pdf", bbox_inches="tight", dpi=1200
 )
-
-# %%
-
-# %%
