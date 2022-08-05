@@ -48,10 +48,14 @@ artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 adata = sc.read_h5ad(adata_file)
 
 # %%
-adata[adata.obs["dataset"].str.contains("UKIM"), :].obs["patient"].value_counts().sort_index()
+adata[adata.obs["dataset"].str.contains("UKIM"), :].obs[
+    "patient"
+].value_counts().sort_index()
 
 # %%
-adata[adata.obs["dataset"].str.contains("UKIM"), :].obs.groupby(["patient", "origin"]).size()
+adata[adata.obs["dataset"].str.contains("UKIM"), :].obs.groupby(
+    ["patient", "origin"]
+).size()
 
 # %% [markdown]
 # # Neutrophil subset
@@ -68,7 +72,7 @@ adata_n.shape
 
 # %%
 ah.reprocess_adata_subset_scvi(
-    adata_n, use_rep="X_scANVI", leiden_res=0.5, n_neighbors=15
+    adata_n, use_rep="X_scANVI", leiden_res=0.75, n_neighbors=25
 )
 
 # %%
@@ -76,7 +80,9 @@ adata_n.shape
 
 # %%
 # flip UMAP y axis to be visually consistent with previous iterations of the dataset
-adata_n.obsm["X_umap"][:, 1] = np.max(adata_n.obsm["X_umap"][:, 1]) - adata_n.obsm["X_umap"][:, 1]
+adata_n.obsm["X_umap"][:, 1] = (
+    np.max(adata_n.obsm["X_umap"][:, 1]) - adata_n.obsm["X_umap"][:, 1]
+)
 
 # %%
 sc.pl.umap(adata_n, color="dataset")
@@ -94,29 +100,27 @@ sc.pl.umap(
     ncols=2,
 )
 
-# %%
-sc.pl.umap(
-    adata_n,
-    color=[
-        "cell_type",
-        "leiden",
-        "origin",
-        "condition",
-        "tumor_stage",
-        "sex",
-        "dataset",
-    ],
-    wspace=0.5,
-    ncols=3,
-)
-
 # %% [markdown]
 # ## subclustering
 
 # %%
 sc.pl.umap(
     adata_n,
-    color=["FCGR3B", "CXCL2", "OLR1", "IFIT1", "CCL3", "CDK1"],
+    color=[
+        "FCGR3B",
+        "PADI4",
+        "S100A12",
+        "TNFSF13B",
+        "IL1A",
+        "IL1RN",
+        "CD74",
+        "HLA-DRA",
+        "ASAH1",
+        "PLPP3",
+        "RPL23",
+        "IFIT1",
+        "CDK1",
+    ],
     cmap="inferno",
     size=20,
     ncols=3,
@@ -148,11 +152,17 @@ alt.Chart(dataset_fracs).mark_bar().encode(x="fraction", y="leiden", color="data
 # %%
 alt.Chart(patient_fracs).mark_bar().encode(x="fraction", y="leiden", color="patient")
 
+# %%
+# doublets or empty droplets, doesn't express FCGR3B
+adata_n = adata_n[adata_n.obs["leiden"] != "9", :].copy()
+
 # %% [markdown]
 # ## Characterization of clusters
 
 # %%
-pb_n = sh.pseudobulk.pseudobulk(adata_n[adata_n.obs["leiden"] != "7", :].copy(), groupby=["leiden", "patient"])
+pb_n = sh.pseudobulk.pseudobulk(
+    adata_n, groupby=["leiden", "patient"]
+)
 
 # %%
 sc.pp.normalize_total(pb_n, target_sum=1e6)
@@ -173,7 +183,10 @@ marker_genes = pd.DataFrame(pb_n.uns["rank_genes_groups"]["names"])
 # %%
 # markers from zillionis/klein
 sc.pl.umap(
-    adata_n, color=["IFIT1", "MMP8", "PALD1", "CXCL3", "CTSC", "CCL3"], cmap="inferno"
+    adata_n,
+    color=["IFIT1", "MMP8", "PALD1", "CXCL3", "CTSC", "CCL3"],
+    cmap="inferno",
+    size=20,
 )
 
 # %%
@@ -197,13 +210,13 @@ sc.pl.umap(adata_n, color="leiden", legend_loc="on data", legend_fontoutline=2)
 ah.annotate_cell_types(
     adata_n,
     {
-        "NAN-1": [6],  
-        "NAN-2": [0],
-        "TAN-1": [3], 
-        "TAN-2": [2], 
-        "TAN-3": [1],  
-        "TAN-4": [5], 
-        "TAN-5": [4]
+        "NAN-1": [5],
+        "NAN-2": [6, 4],
+        "NAN-3": [7, 8],
+        "TAN-1": [1],
+        "TAN-2": [0],
+        "TAN-3": [2],
+        "TAN-4": [3],
     },
 )
 
@@ -226,7 +239,7 @@ with plt.rc_context({"figure.dpi": 150}):
 adata_n.obs["cell_type_neutro"] = adata_n.obs["cell_type"]
 adata.obs["cell_type_neutro"] = adata.obs["cell_type_major"]
 ah.integrate_back(adata, adata_n, variable="cell_type_neutro")
-# Get rid of the ~10 cells that don't have a neutrophil cluster assigned
+# Get rid of the ~40 cells that don't have a neutrophil cluster assigned
 adata = adata[adata.obs["cell_type_neutro"] != "Neutrophils", :]
 
 # %%

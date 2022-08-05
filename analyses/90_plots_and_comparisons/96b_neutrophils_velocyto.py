@@ -208,6 +208,7 @@ fig.savefig(f"{artifact_dir}/velocyto_paga_graph.pdf", bbox_inches="tight")
 
 # %%
 df = scv.get_df(adata_scvelo, "paga/transitions_confidence", precision=2).T
+df.index = df.columns = sorted(adata_scvelo.obs["cell_type"].unique())
 df.style.background_gradient(cmap="Blues").format("{:.2g}")
 
 # %%
@@ -226,5 +227,7 @@ ax = scv.pl.paga(
 ax.get_figure().savefig(
     f"{artifact_dir}/umap_paga_graph.pdf", bbox_inches="tight", dpi=1200
 )
+
+# %%
 
 # %%
