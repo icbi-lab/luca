@@ -47,12 +47,12 @@ artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 adata_n_path = nxfvars.get(
     "adata_n_path",
     # "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/adata_neutrophil_clusters.h5ad",
-    "/home/sturm/Downloads/adata_neutrophil_clusters.h5ad"
+    "/home/sturm/Downloads/adata_neutrophil_clusters.h5ad",
 )
 adata_path = nxfvars.get(
     "adata_path",
     # "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
-    "/home/sturm/Downloads/full_atlas_neutrophil_clusters.h5ad"
+    "/home/sturm/Downloads/full_atlas_neutrophil_clusters.h5ad",
 )
 patient_stratification_path = nxfvars.get(
     "patient_stratification_path",
@@ -409,7 +409,7 @@ patients_with_neutros = (
 patients_with_neutros.nunique()
 
 # %%
-frac_by_patient = (
+tan_nan_by_patient = (
     adata_n.obs.groupby(["patient", "condition", "origin_biopsy"], observed=True)
     .apply(lambda x: x["cell_type_tan_nan_label"].value_counts(normalize=True))
     .unstack()
@@ -419,35 +419,91 @@ frac_by_patient = (
 )
 
 # %%
-frac_by_patient
+clusters_by_patient = (
+    adata_n.obs.groupby(["patient", "condition", "origin_biopsy"], observed=True)
+    .apply(lambda x: x["cell_type"].value_counts(normalize=True))
+    .unstack()
+    .melt(ignore_index=False, var_name="cell_type", value_name="fraction")
+    .reset_index()
+    .loc[lambda x: x["patient"].isin(patients_with_neutros)]
+)
 
 # %%
-ch = (
-    alt.Chart(
-        frac_by_patient.loc[
-            lambda x: ~x["origin_biopsy"].isin(["nan", "tumor_metastasis"])
-        ]
-    )
-    .mark_boxplot()
-    .encode(x="cell_type", y="fraction", color="cell_type")
-    .facet(column="origin_biopsy")
+patient_meta = (
+    adata.obs.loc[:, ["patient", "condition", "study"]]
+    .drop_duplicates()
+    .set_index("patient")
 )
-ch.save(f"{artifact_dir}/tan_nan_by_origin.svg")
-ch.display()
+
+adata_tan_nan_by_patient = sc.AnnData(
+    tan_nan_by_patient.pivot_table(
+        values="fraction", index="patient", columns="cell_type"
+    )
+)
+adata_tan_nan_by_patient.obs = adata_tan_nan_by_patient.obs.join(patient_meta)
+
+adata_clusters_by_patient = sc.AnnData(
+    clusters_by_patient.pivot_table(
+        values="fraction", index="patient", columns="cell_type"
+    )
+)
+adata_clusters_by_patient.obs = adata_clusters_by_patient.obs.join(patient_meta)
 
 # %%
-ch = (
-    alt.Chart(
-        frac_by_patient.loc[
-            lambda x: ~x["origin_biopsy"].isin(["nan", "tumor_metastasis"])
-        ]
-    )
-    .mark_boxplot()
-    .encode(x="cell_type", y="fraction", color="cell_type")
-    .facet(column="condition")
+fig = sh.pairwise.plot_paired(
+    adata_tan_nan_by_patient[
+        adata_tan_nan_by_patient.obs["condition"].isin(["LUAD", "LUSC"]), :
+    ],
+    "condition",
+    hue="study",
+    n_cols=10,
+    size=6,
+    panel_size=(1.5, 4),
+    pvalue_template=lambda x: f"p={x:.2f}",
+    return_fig=True,
+    show=False,
+    ylabel="fraction",
+    boxplot_properties={
+        "boxprops": {"facecolor": "none", "edgecolor": "black"},
+        "medianprops": {"color": "black"},
+        "whiskerprops": {"color": "black"},
+        "capprops": {"color": "black"},
+    },
 )
-ch.save(f"{artifact_dir}/tan_nan_by_condition.svg")
-ch.display()
+for i, ax in enumerate(fig.axes):
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+    if i > 0:
+        ax.yaxis.set_ticklabels([])
+        ax.set_ylabel(None)
+
+# %%
+fig = sh.pairwise.plot_paired(
+    adata_clusters_by_patient[
+        adata_clusters_by_patient.obs["condition"].isin(["LUAD", "LUSC"]), :
+    ],
+    "condition",
+    hue="study",
+    n_cols=10,
+    size=6,
+    panel_size=(1.5, 4),
+    pvalue_template=lambda x: f"p={x:.2f}",
+    return_fig=True,
+    show=False,
+    ylabel="fraction",
+    boxplot_properties={
+        "boxprops": {"facecolor": "none", "edgecolor": "black"},
+        "medianprops": {"color": "black"},
+        "whiskerprops": {"color": "black"},
+        "capprops": {"color": "black"},
+    },
+)
+for i, ax in enumerate(fig.axes):
+    ax.set_ylim(-0.05, 1.05)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+    if i > 0:
+        ax.yaxis.set_ticklabels([])
+        ax.set_ylabel(None)
 
 # %% [markdown]
 # # Find marker genes for Neutrophil clusters
