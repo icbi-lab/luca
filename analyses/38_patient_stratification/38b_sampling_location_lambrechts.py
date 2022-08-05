@@ -43,15 +43,12 @@ from functools import reduce
 import scanpy_helpers as sh
 
 # %%
-threadpool_limits(32)
-
-# %%
 ah = AnnotationHelper()
 
 # %%
 path_adata = nxfvars.get(
     "adata_in",
-    "../../data/0_backup/2022-06-18_as_sumitted/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+    "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
@@ -87,18 +84,19 @@ EXCLUDE_CELL_TYPES = [
 adata.obs["dataset"] = adata.obs["dataset"].str.replace("UKIM-V-2", "UKIM-V")
 
 # %%
+patients_per_dataset = adata.obs.groupby("dataset").apply(
+    lambda x: x["patient"].nunique()
+)
+
+# %%
 adata_primary_tumor = adata[
-    adata.obs["origin"] == "tumor_primary",
+    adata.obs["dataset"].str.contains("Lambrechts")
+    & (adata.obs["origin_fine"] != "normal_adjacent"),
     :,
 ]
 
 # %% [markdown]
 # ## Infiltration patterns
-
-# %%
-adata_primary_tumor.obs.loc[
-    adata_primary_tumor.obs["origin_fine"].isnull(), "origin_fine"
-] = adata_primary_tumor.obs["origin"].astype(str)
 
 # %%
 ad_immune = sc.AnnData(
@@ -173,7 +171,7 @@ sc.pl.matrixplot(
 sc.pp.neighbors(ad_immune, use_rep="X", n_neighbors=15, metric="correlation")
 
 # %%
-sc.tl.leiden(ad_immune, resolution=0.75)
+sc.tl.leiden(ad_immune, resolution=1)
 
 # %%
 sc.pl.heatmap(
@@ -200,7 +198,13 @@ alt.Chart(
 
 # %%
 ad_immune.obs["immune_type"] = [
-    {"0": "T", "1": "M", "2": "desert", "3": "T", "4": "desert", "5": "B", "6": "T"}[x] for x in ad_immune.obs["leiden"]
+    {
+        "0": "T",
+        "1": "M",
+        "2": "desert",
+        "3": "B"
+    }[x]
+    for x in ad_immune.obs["leiden"]
 ]
 
 # %%
@@ -337,7 +341,7 @@ p0 = (
         # get_row("immune_infiltration"),
         get_row("immune_infiltration"),
         get_row("patient", False),
-        get_row("origin_fine", False),
+        get_row("origin_fine", False)
     ).resolve_scale(color="independent")
     # .resolve_legend("shared")
     .configure_concat(spacing=0)
@@ -398,5 +402,3 @@ p2 = (
 
 # %%
 (p0 & p2).resolve_scale(x="shared")
-
-# %%

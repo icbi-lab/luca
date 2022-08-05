@@ -7,6 +7,7 @@ include { scissor } from "../subworkflows/scissor.nf"
 include { infercnv } from "../subworkflows/infercnv.nf"
 include { plots_and_comparisons } from "../subworkflows/plots_and_comparisons.nf"
 include { JUPYTERNOTEBOOK as STRATIFY_PATIENTS } from "../modules/local/jupyternotebook/main.nf"
+include { JUPYTERNOTEBOOK as STRATIFY_PATIENTS_SAMPLING_LOCATION } from "../modules/local/jupyternotebook/main.nf"
 include { JUPYTERNOTEBOOK as NEUTROPHIL_SUBCLUSTERING } from "../modules/local/jupyternotebook/main.nf"
 
 workflow downstream_analyses {
@@ -53,6 +54,15 @@ workflow downstream_analyses {
     patient_stratification_table = STRATIFY_PATIENTS.out.artifacts.flatten().filter{ it -> it.name.equals("patient_stratification.csv") }
     patient_stratification_adata_immune = STRATIFY_PATIENTS.out.artifacts.flatten().filter{ it -> it.name.equals("adata_immune.h5ad") }
     patient_stratification_adata_tumor_subtypes = STRATIFY_PATIENTS.out.artifacts.flatten().filter{ it -> it.name.equals("adata_tumor_subtypes.h5ad") }
+
+    STRATIFY_PATIENTS_SAMPLING_LOCATION(
+        Channel.value([
+            [id: "stratify_patients_sampling_location"],
+            file("${baseDir}/analyses/38_patient_stratification/38b_sampling_location_lambrechts.py")
+        ]),
+        extended_atlas.map{ it -> ["adata_in": it.name]},
+        extended_atlas
+    )
 
     de_analysis(core_atlas, extended_atlas, patient_stratification_table)
     de_result_tumor_cells = de_analysis.out.immune_infiltration.mix(
