@@ -560,43 +560,6 @@ ah.plot_umap(adata_t_cd8, filter_cell_type=["T cell", "NK cell"])
 sc.pl.umap(adata_t_cd8, color=["CD1D", "KLRD1"])
 
 # %%
-# Oliviera, Wu et al, Nature (2021), Extended Data figure 2
-sc.pl.umap(
-    adata_t_cd8,
-    color=[
-        "LEF1",
-        "CCR7",
-        "IL7R",
-        "TCF7",
-        "GZMM",
-        "KLRC3",
-        "KLRB1",
-        "GNLY",
-        "HSPA1B",
-        "NR4A1",
-        "FOXP3",
-        "MKI67",
-        "TOX",
-        "PDCD1",
-        "HAVCR2",
-        "ENTPD1",
-    ],
-    cmap="inferno", 
-    size=2
-)
-
-# %%
-# Oliviera, Wu et al, Nature (2021), Extended Data figure 2
-sc.pl.umap(
-    adata_t_cd8,
-    color=[
-        "HLA-DRA",
-    ],
-    cmap="inferno", 
-    size=2
-)
-
-# %%
 ah_wu.score_cell_types(adata_t_cd8)
 
 # %%
@@ -617,7 +580,7 @@ ah.annotate_cell_types(
         "potentially empty droplets (T)": [7],
         "T cell CD8 terminally exhausted": [2],
         "T cell CD8 activated": [6],
-        "T cell CD8 effector memory": [1, 4, 5, 8],
+        "T cell CD8 effector memory": [1,4,5,8]
     },
 )
 
