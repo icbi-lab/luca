@@ -226,25 +226,25 @@ np.sum(adata_n.obs["dataset"].str.contains("UKIM-V")) / adata_n.shape[0]
 
 # %%
 neutro_counts = (
-    adata_n.obs.groupby(["cell_type", "dataset", "patient"], observed=True)
+    adata_n.obs.groupby(["cell_type", "dataset", "study", "patient"], observed=True)
     .size()
     .reset_index(name="n_cells")
     .groupby(["cell_type", "dataset"])
     .apply(lambda x: x.assign(n_cells_cell_type_dataset=lambda k: k["n_cells"].sum()))
     .groupby("patient")
     .apply(lambda x: x.assign(n_cells_patient=lambda k: k["n_cells"].sum()))
-).query("n_cells_patient >= 30")
+).query("n_cells_patient >= 10")
 
 # %%
 patient_cell_type_combs = (
-    neutro_counts.loc[:, ["dataset", "patient"]]
+    neutro_counts.loc[:, ["dataset", "study", "patient"]]
     .merge(neutro_counts.loc[:, ["cell_type"]], how="cross")
     .drop_duplicates()
 )
 
 # %%
 tmp_df = neutro_counts.merge(
-    patient_cell_type_combs, on=["dataset", "patient", "cell_type"], how="outer"
+    patient_cell_type_combs, on=["dataset", "study", "patient", "cell_type"], how="outer"
 )
 
 # %%
@@ -273,7 +273,7 @@ txt = (
     )
 )
 studies = (
-    alt.Chart(tmp_df.assign(study=lambda x: x["dataset"].str.replace("-2", "")))
+    alt.Chart(tmp_df)
     .mark_rect()
     .encode(
         y="patient",
@@ -289,18 +289,17 @@ studies = (
 
 # %%
 tmp_df2 = (
-    tmp_df.groupby(["dataset", "cell_type"], observed=True)
+    tmp_df.groupby(["study", "cell_type"], observed=True)
     .agg(n_cells=("n_cells", np.sum))
     .reset_index()
 )
 
 # %%
 tmp_df2_study = (
-    neutro_counts.groupby("dataset", observed=True)
-    .agg(n_patients_ge_30_cells=("patient", lambda x: x.nunique()))
+    neutro_counts.groupby("study", observed=True)
+    .agg(n_patients_ge_10_cells=("patient", lambda x: x.nunique()))
     .reset_index()
-    .assign(study=lambda x: x["dataset"].str.replace("-2", ""))
-    .assign(x="#patients with ≥ 30 Neutrophils")
+    .assign(x="#patients with ≥ 10 Neutrophils")
 )
 
 # %%
@@ -309,7 +308,7 @@ heatmp = (
     .mark_rect()
     .encode(
         x="cell_type",
-        y=alt.Y("dataset", axis=None),
+        y=alt.Y("study", axis=None),
         color=alt.Color("n_cells", scale=alt.Scale(scheme="inferno", reverse=True)),
     )
 )
@@ -318,7 +317,7 @@ txt = (
     .mark_text()
     .encode(
         x="cell_type",
-        y=alt.Y("dataset", axis=None),
+        y=alt.Y("study", axis=None),
         text="n_cells",
         color=alt.condition(
             alt.datum.n_cells < 600, alt.value("black"), alt.value("white")
@@ -329,7 +328,7 @@ studies = (
     alt.Chart(tmp_df2_study)
     .mark_rect()
     .encode(
-        y=alt.Y("dataset"),
+        y=alt.Y("study"),
         x=alt.X("x", title=None),
         color=alt.Color("study", scale=sh.colors.altair_scale("study"), legend=None),
     )
@@ -337,7 +336,7 @@ studies = (
 studies_txt = (
     alt.Chart(tmp_df2_study)
     .mark_text()
-    .encode(y="dataset", x=alt.X("x", title=None), text="n_patients_ge_30_cells")
+    .encode(y="study", x=alt.X("x", title=None), text="n_patients_ge_10_cells")
 )
 
 # %%
