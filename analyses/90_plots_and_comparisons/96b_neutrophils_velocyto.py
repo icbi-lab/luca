@@ -30,12 +30,11 @@ rcParams["axes.grid"] = False
 # %%
 adata_n_path = nxfvars.get(
     "adata_n_path",
-    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad",
+    "/home/sturm/Downloads/adata_neutrophil_clusters.h5ad"
+    # "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad",
 )
 velocyto_dir = nxfvars.get("velocyto_dir", "../../data/11_own_datasets/velocyto/")
-artifact_dir = nxfvars.get(
-    "artifact_dir", "../../data/30_downstream_analyses/neutrophils"
-)
+artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 cpus = nxfvars.get("cpus", 8)
 
 # %%
@@ -51,6 +50,15 @@ filename_map = {
     "UKIM-V-2_P6": "Combined_182808_final",
     "UKIM-V-2_P7": "Combined_182809_final",
     "UKIM-V-2_P8": "Combined_182810_final",
+    "UKIM-V-2_P9": "Combined_200144",
+    "UKIM-V-2_P10": "Combined_200146",
+    "UKIM-V-2_P11": "Combined_202833",
+    "UKIM-V-2_P12": "Combined_202834",
+    "UKIM-V-2_P13": "Combined_202831",
+    "UKIM-V-2_P14": "Combined_202832",
+    "UKIM-V-2_P15": "Combined_202829",
+    "UKIM-V-2_P16": "Combined_202830",
+    "UKIM-V-2_P17": "Combined_202835",
 }
 
 
@@ -65,7 +73,9 @@ def _read_scvelo(patient, filename):
     return adata
 
 
-adatas = process_map(_read_scvelo, filename_map.keys(), filename_map.values(), max_workers=cpus)
+adatas = process_map(
+    _read_scvelo, filename_map.keys(), filename_map.values(), max_workers=cpus
+)
 
 # %%
 adata_ukim = adata_n[adata_n.obs["dataset"].str.contains("UKIM"), :].copy()
