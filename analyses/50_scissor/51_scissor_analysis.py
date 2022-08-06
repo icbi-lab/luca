@@ -99,7 +99,6 @@ scissor_res_files = {
             # "any_kras_mutation",
             # "any_braf_mutation",
             # "any_egfr_mutation",
-            
             "any_tumor_type",
             "any_status_time",
             #
@@ -110,7 +109,6 @@ scissor_res_files = {
             "LUAD_stk11_mutation",
             "LUAD_random",
             "LUAD_status_time",
-            
             "LUSC_braf_mutation",
             "LUSC_egfr_mutation",
             "LUSC_tp53_mutation",
@@ -268,7 +266,7 @@ def plot_scissor_df(df, *, title="scissor"):
         .mark_bar()
         .encode(
             x=alt.X("cell_type_major", sort=order),
-            y=alt.Y(down, scale=alt.Scale(domain=[-1, 0]))
+            y=alt.Y(down, scale=alt.Scale(domain=[-1, 0])),
         )
         .properties(height=100),
         spacing=0,
@@ -288,11 +286,11 @@ def plot_scissor_df_ratio(
         alt.Chart(df)
         .mark_bar()
         .encode(
-            x=alt.X(groupby, sort=order),
+            x=alt.X(groupby, sort=order, axis=alt.Axis(labelLimit=400)),
             y=alt.Y("log2_ratio", scale=alt.Scale(domain=[-5.5, 5.5])),
             color=alt.Color(
                 "log2_ratio", scale=alt.Scale(scheme="redblue", domain=[-max_, max_])
-            )
+            ),
         )
         .properties(height=100, title=title)
     )
@@ -317,13 +315,52 @@ for col, df in scissor_dfs.items():
 # ## Only CD8+T cells
 
 # %%
-adata_primary.obs["cell_type_cd8"] = [ct if "CD8" in ct else np.nan for ct in adata_primary.obs["cell_type"]]
+adata_primary.obs["cell_type_cd8"] = [
+    ct if ("CD8" in ct or "NK-like" in ct) else np.nan
+    for ct in adata_primary.obs["cell_type"]
+]
 
 # %%
 scissor_dfs_cd8 = {
-    k: scissor_by_group(adata_primary, scissor_col=k, cell_cutoff=1, groupby=["cell_type_cd8", "patient"])
+    k: scissor_by_group(
+        adata_primary,
+        scissor_col=k,
+        cell_cutoff=1,
+        groupby=["cell_type_cd8", "patient"],
+    )
     for k in scissor_cols
 }
+
+# %%
+adata_cd8 = adata_primary[
+    ~adata_primary.obs["cell_type_cd8"].isnull(), :
+].copy()
+
+# %%
+sh.annotation.AnnotationHelper.reprocess_adata_subset_scvi(
+    adata_cd8, use_rep="X_scANVI"
+)
+
+# %%
+sc.pl.umap(
+    adata_cd8, color=["cell_type"], size=5, legend_loc="on data", legend_fontoutline=3, frameon=False
+)
+
+# %%
+adata_primary.obs["cell_type_cd8"].value_counts()
+
+# %%
+for var in scissor_cols:
+    with plt.rc_context({"figure.figsize": (6, 6), "figure.dpi": 300}):
+        fig = sc.pl.umap(
+            adata_cd8,
+            color=var,
+            size=6,
+            palette=["#ca0020", "#0571b0"][::-1],
+            frameon=False,
+            return_fig=True,
+        )
+        fig.savefig(f"{artifact_dir}/cd8_{var}.pdf", dpi=300, bbox_inches="tight")
 
 # %%
 for col, df in scissor_dfs_cd8.items():

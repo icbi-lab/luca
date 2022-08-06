@@ -69,7 +69,7 @@ workflow downstream_analyses {
         de_analysis.out.luad_lusc
     ).flatten().filter{ it -> it.baseName.contains("tumor_cells") }
 
-    // scissor(extended_atlas)
+    scissor(extended_atlas)
     infercnv(extended_atlas, patient_stratification_table)
     plots_and_comparisons(
         extended_atlas,
