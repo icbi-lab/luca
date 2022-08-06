@@ -28,13 +28,13 @@ kos <- function(x){
   return(data)
 }
 
-in_path <- "./data/"
+in_path <- "/home/sturm/Downloads/"
 
-low_fdr <- read.csv(paste0(in_path,"cnv_lm_res_filtered_abs_diff_gt_0.01_fdr_lt_0.1_adjusted.csv"))
+low_fdr <- read.csv(paste0(in_path,"cnv_lm_res_filtered_abs_diff_gt_0.05_fdr_lt_0.1.csv"))
 
 ## Create the DF fo rall groups
 circos_all_groups <- data.frame(
-  chromosome = low_fdr$chromosome,
+  chromosome = low_fdr$seqnames,
   start = low_fdr$start,
   end = low_fdr$end,
   ID_mean = low_fdr$segmean_desert,
@@ -53,26 +53,28 @@ circos_all_groups <- unique(circos_all_groups)
 # Get reference genomic positions from SCEVAN annotation files
 groups <- c("Immune_desert", "mixed", "M", "T")
 
-for(group in groups){
-  meta_files <- Sys.glob(paste0(in_path,group,"/ann_mtx/*"))
-  
-  cnMetadata <- lapply(meta_files, kos)
-  
-  cnMetadata <- do.call("rbind", cnMetadata)
-  
-  assign(paste("metaData_", group, sep = ""), data.frame(
-    "chromosome" = cnMetadata$seqnames, 
-    "start" = cnMetadata$start,
-    "end" = cnMetadata$end,
-    "gene_name" = cnMetadata$gene_name
-  ))
-}
+# for(group in groups){
+#   meta_files <- Sys.glob(paste0(in_path,group,"/ann_mtx/*"))
+#   
+#   cnMetadata <- lapply(meta_files, kos)
+#   
+#   cnMetadata <- do.call("rbind", cnMetadata)
+#   
+#   assign(paste("metaData_", group, sep = ""), data.frame(
+#     "chromosome" = cnMetadata$seqnames, 
+#     "start" = cnMetadata$start,
+#     "end" = cnMetadata$end,
+#     "gene_name" = cnMetadata$gene_name
+#   ))
+# }
+# 
+# meta_merged <- rbind(metaData_Immune_desert, metaData_mixed, metaData_M, metaData_T)
+# 
+# final_metaData <- unique(meta_merged)
+# 
+# SCEVAN_df_annotated = <- merge(circos_all_groups, final_metaData, by = c("chromosome", "start", "end"))
 
-meta_merged <- rbind(metaData_Immune_desert, metaData_mixed, metaData_M, metaData_T)
-
-final_metaData <- unique(meta_merged)
-
-SCEVAN_df_annotated <- merge(circos_all_groups, final_metaData, by = c("chromosome", "start", "end"))
+SCEVAN_df_annotated = circos_all_groups
 
 ################################### CIRCOS ######################
 # Build ref bed for ideogram
@@ -117,18 +119,19 @@ clean_circos_t <- data.frame(
 )
 
 ### Circos
-## Open file stream
-## PNG
-# png(file.path(paste0(in_path,"circos_SCEVAN_NSCLC.png")), 
-#     width = 2800, height = 1600, units = "px", bg = "white",  res = 300)
-# 
-## PDF
-# pdf(file.path(paste0(in_path,"circos_SCEVAN_NSCLC.pdf")), 
-#     width = 9.3, height = 5.3, bg = "white",  pointsize = 10)
+# ## Open file stream
+# # # PNG
+# # png(file.path(paste0(in_path,"circos_SCEVAN_NSCLC.png")),
+# #     width = 2800, height = 1600, units = "px", bg = "white",  res = 300)
+# # 
+# # # PDF
+# # pdf(file.path(paste0(in_path,"circos_SCEVAN_NSCLC.pdf")),
+# #     width = 9.3, height = 5.3, bg = "white",  pointsize = 10)
+
 
 ## SVG
-svglite(file.path(paste0(in_path,"circos_SCEVAN_NSCLC.svg")), 
-        width = 9.3, height = 5.3, bg = "white",  pointsize = 10)
+# svglite(file.path(paste0(in_path,"circos_SCEVAN_NSCLC.svg")), 
+#         width = 9.3, height = 5.3, bg = "white",  pointsize = 10)
 
 # Start ideogram
 circos.clear()
@@ -179,17 +182,18 @@ shared_goi <- data.frame(
                 "IGF2BP2", "SPON2", "PDCD10", "TNFSF10", "IL1RAP")
 )
 
-diff_genes <- merge(shared_cna, shared_goi, by = "gene_name")
-diff_genes$chromosome <- paste("chr", diff_genes$chromosome , sep="")
-
-diff_genes_final <- data.frame(
-  chromosome = diff_genes$chromosome,
-  start = as.numeric(diff_genes$start),
-  end = as.numeric(diff_genes$end),
-  gene_name = diff_genes$gene_name
-)
-
-circos.genomicLabels(diff_genes_final, labels.column = 4, side = "inside")
+# TODO add gene labels (shared_cna must be provided! )
+# diff_genes <- merge(shared_cna, shared_goi, by = "gene_name")
+# diff_genes$chromosome <- paste("chr", diff_genes$chromosome , sep="")
+# 
+# diff_genes_final <- data.frame(
+#   chromosome = diff_genes$chromosome,
+#   start = as.numeric(diff_genes$start),
+#   end = as.numeric(diff_genes$end),
+#   gene_name = diff_genes$gene_name
+# )
+# 
+# circos.genomicLabels(diff_genes_final, labels.column = 4, side = "inside")
 
 # Add legend
 lgd_points = Legend(at = c("Gain", "Loss"), type = "points", 
