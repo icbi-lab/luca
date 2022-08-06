@@ -28,8 +28,8 @@ registerDoParallel(cores=32)
 register(MulticoreParam(workers=32))
 
 ## result data and python script dirs
-data_dir = "/data/scratch/rieder/TCGA/NSCLC/CNA/data"
-bin_dir = "/data/scratch/rieder/TCGA/NSCLC/CNA/bin"
+data_dir = "./data"
+bin_dir = "./bin"
 
 ## circos plot output format
 circos_pdf = TRUE
@@ -94,6 +94,11 @@ immune_desert <- colnames(cell_types_NSCLC_z)[co[["1"]]]
 
 # clusters 2-4 are immune infiltrated
 immune_infiltrated <- colnames(cell_types_NSCLC_z)[c(co[["2"]], co[["3"]], co[["4"]])]
+
+# to_export = c(rep_len("desert", length(immune_desert)), rep_len("infiltrated", length(immune_infiltrated)))
+# names(to_export) = c(immune_desert, immune_infiltrated)
+# to_export_df = tibble(patient_strat = to_export, TCGA_patient_barcode=names(patient_strat))
+# write_tsv(to_export_df, "../../../tables/tcga/quantiseq_patient_stratification_didi.tsv")
 
 ## Download CNA data from GDC
 # segments
