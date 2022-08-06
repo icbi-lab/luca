@@ -44,6 +44,7 @@ import pickle
 import warnings
 import anndata
 import infercnvpy as cnv
+import pyreadr
 
 alt.data_transformers.disable_max_rows()
 
@@ -51,115 +52,142 @@ warnings.simplefilter(action="ignore", category=FutureWarning)
 warnings.simplefilter(action="ignore", category=anndata.ImplicitModificationWarning)
 
 # %%
-threadpool_limits(16)
-
-# %%
 ah = AnnotationHelper()
 
 # %%
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
-
-# %%
 path_adata = nxfvars.get(
     "adata_in",
     "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
-
-# %%
 patient_strat = pd.read_csv(
     nxfvars.get(
         "stratification_csv",
-        "../../data/30_downstream_analyses/stratify_patients/artifacts/patient_stratification.csv",
+        "../../data/30_downstream_analyses/stratify_patients/stratification/artifacts/patient_stratification.csv",
     ),
     index_col=0,
 )
+split_anndata_dir = Path(
+    nxfvars.get(
+        "split_anndata_dir", "../../data/30_downstream_analyses/infercnv/split_anndata/"
+    )
+)
+scevan_dir = Path(
+    nxfvars.get("scevan_dir", "../../data/30_downstream_analyses/infercnv/scevan/")
+)
 MIN_TUMOR_CELLS = 50
+cpus = nxfvars.get("cpus", 16)
+
+# %%
+threadpool_limits(cpus)
 
 # %%
 adata = sc.read_h5ad(path_adata)
 
 # %% [markdown]
-# # CNV
+# ## Read SCEVAN results
 
 # %%
-patient_strat = patient_strat.assign(
-    patient_lc=lambda x: x["patient"].str.lower()
-).set_index("patient_lc")
+scevan_dirs = [
+    x.name
+    for x in scevan_dir.glob("*")
+    if x.is_dir() and x.name.startswith("full_atlas_merged")
+]
 
 # %%
-obs_df
+list((scevan_dir / scevan_dirs[0]).glob("*"))
+
 
 # %%
-dfs = {}
-obs_list = []
-for group in ["ID", "M", "mixed", "T"]:
-    dfs[group] = pd.read_csv(
-        f"/home/sturm/Downloads/cnv/spread_{group}.tsv", sep="\t"
-    ).set_index(["chromosome", "start", "end"])
-    obs_list.extend(
-        [
-            [
-                p,
-                group,
-                p.replace("Immune_desert_", "")
-                .replace("T_", "")
-                .replace("M_", "")
-                .replace("mixed_", ""),
-            ]
-            for p in dfs[group].columns
-        ]
-    )
+def read_scevan(scevan_id):
+    tmp_ad = sc.read_h5ad(split_anndata_dir / f"{scevan_id}.h5ad")
+    scevan_res_table = scevan_dir / scevan_id / "scevan_result.csv"
+
+    if not scevan_res_table.exists():
+        print(f"It seems sceavan was not successful for {scevan_id}. Skipping!")
+        return None
+
+    anno = pyreadr.read_r(
+        scevan_dir / scevan_id / f"{scevan_id}_count_mtx_annot.RData"
+    )["count_mtx_annot"]
+
+    try:
+        cnv.io.read_scevan(tmp_ad, scevan_dir / scevan_id, scevan_res_table)
+    except KeyError as e:
+        if not "CNA_mtx_relat" in str(e):
+            raise
+        else:
+            print(f"Could not load CNA_mtx for {scevan_id}. Skipping!")
+            return None
+
+    return sc.AnnData(X=tmp_ad.obsm["X_scevan"], var=anno, obs=tmp_ad.obs)
+
 
 # %%
-cnv_df = (
-    dfs["ID"]
-    .join(dfs["M"], how="outer")
-    .join(dfs["mixed"], how="outer")
-    .join(dfs["T"], how="outer")
-    .fillna(0)
+cnv_adatas = process_map(read_scevan, scevan_dirs, max_workers=cpus)
+
+# %% [markdown]
+# ## Create combined CNV anndata object
+
+# %%
+cnv_adatas = [x for x in cnv_adatas if x is not None]
+
+# %%
+cnv_ad = anndata.concat(cnv_adatas, join="outer", fill_value=0)
+
+# %%
+# no idea why anndata.merge does not keep var columns
+unique_var = pd.concat([x.var for x in cnv_adatas]).drop_duplicates()
+
+# %%
+assert set(cnv_ad.var_names) == set(unique_var.index)
+
+# %%
+assert cnv_ad.obs_names.is_unique
+assert cnv_ad.var_names.is_unique
+
+# %%
+cnv_ad.var = unique_var.reindex(cnv_ad.var_names)
+
+# %%
+# sort by position
+cnv_ad = cnv_ad[:, cnv_ad.var.sort_values(["seqnames", "start"]).index].copy()
+
+# %%
+cnv_ad.obs["immune_infiltration"] = cnv_ad.obs.join(
+    patient_strat.loc[:, ["patient", "immune_infiltration"]].set_index("patient"),
+    on="patient",
+)["immune_infiltration"]
+
+# %%
+# nans are ok, as not every patient has a stratum assigned
+cnv_ad.obs["immune_infiltration"].value_counts(dropna=False)
+
+# %%
+cnv_ad_tumor = cnv_ad[
+    ~cnv_ad.obs["immune_infiltration"].isnull()
+    & (cnv_ad.obs["cell_type_major"] == "Tumor cells"),
+    :,
+].copy()
+
+# %%
+cnv_pseudobulk = sh.pseudobulk.pseudobulk(
+    cnv_ad_tumor,
+    groupby=["dataset", "condition", "tumor_stage", "immune_infiltration", "patient"],
+    aggr_fun=np.mean,
+    min_obs=MIN_TUMOR_CELLS,
 )
 
-# %%
-cnv_ad = sc.AnnData(cnv_df.T)
-
-# %%
-obs_df = pd.DataFrame(
-    obs_list, columns=["patient", "_group_george", "patient_lc"]
-).set_index("patient")
-
-# %%
-cnv_ad.obs["patient"] = obs_df["patient_lc"]
-cnv_ad.obs.set_index("patient", inplace=True)
-
-# %%
-cnv_ad.obs["dataset"] = patient_strat["dataset"]
-cnv_ad.obs["group"] = patient_strat["immune_infiltration"]
-cnv_ad.obs["condition"] = patient_strat["tumor_type_annotated"]
-cnv_ad.obs["tumor_stage"] = patient_strat["tumor_stage"]
-
-# %%
-cnv_ad.obs.loc[lambda x: x["dataset"].isnull()]
-
-# %%
-cnv_ad.obs
-
-# %%
-cnv_ad.var = (
-    cnv_ad.var.reset_index()
-    .assign(idx=lambda x: x["chromosome"].astype(str) + "_" + x["start"].astype(str))
-    .set_index("idx")
-)
-
-# %%
-cnv_ad.var
+# %% [markdown]
+# ## Run comparison
 
 # %%
 means_per_group = sh.pseudobulk.pseudobulk(
-    cnv_ad, groupby="group", aggr_fun=np.mean, min_obs=0
+    cnv_pseudobulk, groupby="immune_infiltration", aggr_fun=np.mean, min_obs=0
 )
 
 # %%
-means_per_group.obs.set_index("group", inplace=True)
+means_per_group.obs.set_index("immune_infiltration", inplace=True)
 
 # %%
 segments_passing_thres = means_per_group.var.index[
@@ -167,25 +195,26 @@ segments_passing_thres = means_per_group.var.index[
 ]
 
 # %%
-res_robust = sh.compare_groups.lm.test_lm(
-    cnv_ad[cnv_ad.obs["condition"].isin(["LUAD", "LUSC"]), :].copy(),
-    groupby="group",
-    formula="~ C(group, Treatment('desert')) + dataset + condition + tumor_stage",
-    contrasts="Treatment('desert')",
-    robust=True,
-)
+# res_robust = sh.compare_groups.lm.test_lm(
+#     cnv_pseudobulk[cnv_pseudobulk.obs["condition"].isin(["LUAD", "LUSC"]), :].copy(),
+#     groupby="immune_infiltration",
+#     formula="~ C(immune_infiltration, Treatment('desert')) + dataset + condition + tumor_stage",
+#     contrasts="Treatment('desert')",
+#     robust=True,
+#     n_jobs=cpus
+# )
 
 # %%
-res_robust = sh.compare_groups.lm.test_lm(
-    cnv_ad[cnv_ad.obs["condition"].isin(["LUAD", "LUSC"]), :].copy(),
-    groupby="group",
-    formula="~ C(group, Sum) + dataset + condition + tumor_stage",
-    contrasts="Sum",
-    robust=True,
-)
-
-# %%
-res_robust
+with warnings.catch_warnings():
+    warnings.filterwarnings(action='ignore')
+    res_robust = sh.compare_groups.lm.test_lm(
+        cnv_pseudobulk[cnv_pseudobulk.obs["condition"].isin(["LUAD", "LUSC"]), :].copy(),
+        groupby="immune_infiltration",
+        formula="~ C(immune_infiltration, Sum) + dataset + condition + tumor_stage",
+        contrasts="Sum",
+        robust=True,
+        n_jobs=cpus
+    )
 
 # %%
 segmeans = means_per_group.to_df().T
@@ -193,11 +222,11 @@ segmeans.columns = [f"segmean_{x}" for x in segmeans.columns]
 
 # %%
 res_robust = res_robust.merge(
-    cnv_ad.var.reset_index(), how="inner", left_on="variable", right_on="idx"
-).merge(segmeans.reset_index(), how="left", left_on="variable", right_on="idx")
+    cnv_pseudobulk.var, how="inner", left_on="variable", right_index=True
+).merge(segmeans, how="left", left_on="variable", right_index=True)
 
 # %%
-res_robust
+res_robust.sort_values("pvalue")
 
 # %%
 res_robust.to_csv("/home/sturm/Downloads/cnv_lm_res_unfiltered.csv")
@@ -230,7 +259,10 @@ res_co2
 # ## results from george
 
 # %%
-res_shared_tcga = pd.read_csv("/home/sturm/Downloads/lm_res_filtered_abs_diff_gt_0.01_fdr_lt_0.1_adjusted_Shared_TCGA_CNA.tsv", sep="\t")
+res_shared_tcga = pd.read_csv(
+    "/home/sturm/Downloads/lm_res_filtered_abs_diff_gt_0.01_fdr_lt_0.1_adjusted_Shared_TCGA_CNA.tsv",
+    sep="\t",
+)
 
 # %%
 res_shared_tcga
@@ -239,29 +271,11 @@ res_shared_tcga
 cpdb = pd.read_csv("../../tables/cellphonedb_2022-04-06.tsv", sep="\t")
 
 # %%
-res_shared_tcga.merge(cpdb, how="inner", left_on="gene_name", right_on="source_genesymbol")
-
-# %%
-res_shared_tcga.merge(cpdb, how="inner", left_on="gene_name", right_on="target_genesymbol")
-
-# %%
-de_res_tumor_cells_patient_strat = (
-    pd.concat(
-        [
-            pd.read_csv(
-                f"../../data/30_downstream_analyses/de_analysis/{k}_desert/de_deseq2/adata_primary_tumor_tumor_cells_DESeq2_result.tsv",
-                sep="\t",
-            ).assign(group=k.upper())
-            for k in "tmb"
-        ]
-    )
-    .fillna(1)
-    .pipe(sh.util.fdr_correction)
-    .drop("gene_id", axis="columns")
-    .rename(columns={"gene_id.1": "gene_id"})
+res_co2.merge(
+    cpdb, how="inner", left_on="gene_name", right_on="source_genesymbol"
 )
 
 # %%
-de_res_tumor_cells_patient_strat.loc[lambda x: x["gene_id"].isin(["TNFSF10"]), :].sort_values("gene_id")
-
-# %%
+res_co2.merge(
+    cpdb, how="inner", left_on="gene_name", right_on="target_genesymbol"
+)
