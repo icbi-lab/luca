@@ -6,7 +6,9 @@ params:
   meta: NULL
   ici_tpm: "../../data/14_ici_treatment/Genentech_for_scissor/genentech.rds"
   ici_meta: "../../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv"
-  neutro_sigs: "../../data/30_downstream_analyses/neutrophils/neutrophil_analysis/artifacts/neutro_sigs.csv"
+  # neutro_sigs: "../../data/30_downstream_analyses/neutrophils/neutrophil_analysis/artifacts/neutro_sigs.csv"
+  neutro_sigs: "/home/sturm/Downloads/neutro_sigs.csv"
+  net_sigs: "../../tables/gene_annotations/net_signatures.csv"
   input_dir: NULL
 ---
 
@@ -15,6 +17,7 @@ library(conflicted)
 library(dplyr)
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
+conflict_prefer("rename", "dplyr")
 library(survminer)
 library(survival)
 library(tidyr)
@@ -23,22 +26,48 @@ library(stringr)
 library(tibble)
 library(ggbeeswarm)
 library(cowplot)
+library(readxl)
 ```
 
 # Load data
 
+## ICI
+
 ```{r}
 ici_tpm = read_rds(params$ici_tpm)
-ici_meta = read_tsv(params$ici_meta) |> rename(dataset=study) |> mutate(response_to_ici=factor(response_to_ici), response_to_chemotherapy=factor(response_to_chemotherapy))
+ici_meta = read_tsv(params$ici_meta) |> rename(dataset=study)
 ```
 
-# Signature scoring
+## TCGA
+
+```{r}
+tcga_clinical_data = read_tsv("../../tables/tcga/clinical_data_for_scissor.tsv")
+tcga_tpm = read_rds("../../data/13_tcga/for_scissor/nsclc_primary_tumor.rds")
+tcga_age = suppressWarnings(read_excel("../../tables/tcga/mmc1.xlsx") %>% select(TCGA_patient_barcode=bcr_patient_barcode, age=age_at_initial_pathologic_diagnosis))
+tcga_treatment = read_tsv("../../tables/tcga/tcga_treatment.tsv")
+```
+
+```{r}
+# TODO move to other notebook
+tcga_patient_stratification = read_rds("../../tables/tcga/quantiseq_patient_stratification.rds")
+tcga_patient_stratification = data.frame(patient_strat = tcga_patient_stratification) |> as_tibble(rownames="TCGA_patient_barcode") |> mutate(TCGA_patient_barcode = TCGA_patient_barcode |> str_replace_all(".*TCGA\\.(.{2})\\.(.{4}).*", "TCGA-\\1-\\2"))
+```
+
+## Signatures 
 
 ```{r}
 neutro_sig_tab = read_csv(params$neutro_sigs)
+net_sig_tab = read_csv(params$net_sigs, comment="#")
+net_sig = sapply(unique(net_sig_tab$signature), function(sig) { net_sig_tab |> filter(signature == !!sig) |> pull(gene_symbol)}, USE.NAMES = TRUE, simplify = FALSE)
 neutro_sig = sapply(unique(neutro_sig_tab$signature), function(sig) { neutro_sig_tab |> filter(signature == !!sig) |> pull(gene_symbol)}, USE.NAMES = TRUE, simplify = FALSE)
 ```
 
+```{r}
+all_sigs = c(neutro_sig, net_sig)
+sig_names = names(all_sigs)
+```
+
+# Functions to compute signature scores
 
 ## Original LCAM scores
 This essentially computes a mean z score of marker gene expression. 
@@ -114,41 +143,8 @@ get_lcam_scores = function(mixture, genes) {
 scoring_function = get_lcam_scores 
 ```
 
-
-# ICI treatment data
-
-```{r, fig.width=9, fig.height=4}
-
-ici_lcam_scores = get_LCAM_scores(ici_tpm)
-ici_scores = data.frame(
-    sig_neutro2=scoring_function(ici_tpm, neutro_sig$neutro_sig2),
-    sig_lcam_hi=ici_lcam_scores[, 1],
-    sig_lcam_lo=ici_lcam_scores[, 2],
-    sig_lcam_consensus=ici_lcam_scores[, 3]
-) |> 
-  as_tibble(rownames="sample")
-
-ici_clin_and_scores = ici_meta |> 
-  rename(sample=sample_id) |>
-  inner_join(ici_scores) 
-
-ici_clin_and_scores |> select(type, starts_with("sig_")) |>
-  filter(!is.na(type)) |> 
-  pivot_longer(-type, names_to="signature", values_to="score") |>
-  ggplot(aes(x=type, y=score)) + 
-  geom_quasirandom(aes(color=type)) + 
-  geom_boxplot(outlier.alpha=0, width=.2) + 
-  stat_compare_means(method="wilcox.test") +
-  theme_cowplot() + 
-  background_grid() + 
-  facet_wrap(~signature, ncol = 5) + 
-  ggtitle(sprintf("Scoring function: %s", params$scoring_function))
-
-```
-
-## Survival analysis
-
-```{r, fig.width=6, fig.height=6}
+## Significance codes
+```{r}
 sig_codes = Vectorize(function(p) {
   if(p < 0.001) {
     "p < 0.001"
@@ -162,14 +158,130 @@ sig_codes = Vectorize(function(p) {
     "p >= 0.1"
   }
 })
+```
 
+
+# Prepare data
+## ICI treatment data
+
+```{r, fig.width=12, fig.height=7}
+
+ici_lcam_scores = get_LCAM_scores(ici_tpm)
+
+
+ici_scores = data.frame(sapply(names(all_sigs), function(sig) {
+  scoring_function(ici_tpm, all_sigs[[sig]])
+})) |> mutate(
+    sig_lcam_hi=ici_lcam_scores[, 1],
+    sig_lcam_lo=ici_lcam_scores[, 2],
+    sig_lcam_consensus=ici_lcam_scores[, 3]
+) |> 
+  as_tibble(rownames="sample")
+
+ici_clin_and_scores = ici_meta |> 
+  rename(sample=sample_id) |>
+  inner_join(ici_scores) |>
+  mutate(response_to_any = ifelse(study_arm == "Docetaxel", response_to_chemotherapy, response_to_ici), .before="response_to_chemotherapy") |>
+  mutate_at(vars(type, dataset, study_arm, response_to_chemotherapy, response_to_ici, response_to_any), factor)
+
+```
+
+## TCGA data
+
+```{r}
+tcga_lcam_scores = get_LCAM_scores(tcga_tpm)
+
+tcga_scores = data.frame(sapply(names(all_sigs), function(sig) {
+  scoring_function(tcga_tpm, all_sigs[[sig]])
+})) |> mutate( 
+  sig_lcam_hi=tcga_lcam_scores[, 1],
+  sig_lcam_lo=tcga_lcam_scores[, 2],
+  sig_lcam_consensus=tcga_lcam_scores[, 3]
+) |> 
+  as_tibble(rownames="TCGA_patient_barcode")
+
+selected_treatments = tcga_treatment |> 
+  filter(tumor %in% c("LUAD", "LUSC"), !is.na(bcr_drug_barcode)) |>
+  select(drug_name, measure_of_response, type=tumor, patient_barcode, therapy_type, treatment_n) |>
+  filter(treatment_n == 1) |> # only 1st line 
+  mutate(TCGA_patient_barcode = str_to_upper(patient_barcode)) |> 
+  filter(therapy_type == "chemotherapy", !is.na(measure_of_response))
+
+tcga_clin_and_scores = tcga_clinical_data %>% 
+  left_join(tcga_age) |>
+  inner_join(tcga_scores) |>
+  left_join(selected_treatments) |> 
+  left_join(tcga_patient_stratification) |>
+  mutate_at(vars(type, ajcc_pathologic_tumor_stage, gender, tumor_stage_ajcc, patient_strat), factor)
+```
+
+
+```{r}
+all_datasets = list("ICI"=ici_clin_and_scores, "TCGA"=tcga_clin_and_scores)
+```
+
+# LUAD vs LUSC
+
+```{r, fig.width=12, fig.height=7}
+lapply(names(all_datasets), function(dataset) {
+  all_datasets[[dataset]] |> select(type, starts_with("sig_")) |>
+    filter(!is.na(type)) |> 
+    pivot_longer(-type, names_to="signature", values_to="score") |>
+    ggplot(aes(x=type, y=score)) + 
+    geom_quasirandom(aes(color=type)) + 
+    geom_boxplot(outlier.alpha=0, width=.2) + 
+    theme_cowplot() + 
+    background_grid() + 
+    facet_wrap(~signature, ncol = 5) + 
+    ggtitle(dataset)
+})
+
+```
+
+```{r}
+# ICI
+lapply(sig_names, function(sig) {
+  res = summary(lm(as.formula(sprintf("`%s` ~ type + dataset + gender + study_arm", sig)), data=ici_clin_and_scores))
+  res$coefficients |> as_tibble(rownames="var") |> mutate(sig=sig, .before=1)
+}) |> bind_rows() |> filter(var == "typeLUSC")
+
+# TCGA
+lapply(sig_names, function(sig) {
+  res = summary(lm(as.formula(sprintf("`%s` ~ type + gender + age + tumor_stage_ajcc", sig)), data=tcga_clin_and_scores))
+  res$coefficients |> as_tibble(rownames="var") |> mutate(sig=sig, .before=1)
+}) |> bind_rows() |> arrange(var, sig)
+```
+
+---
+
+## Survival analysis with interaction terms
+
+This should answer the question if there's a different effect of Neutrophils
+in the different treatment arms
+
+```{r}
+res = summary(coxph(as.formula("Surv(time, status) ~ type + dataset + sig_neutro_top_0 * study_arm"), data = ici_clin_and_scores))
+res
+```
+
+## Response analysis with interaction terms
+
+```{r}
+res = summary(glm(as.formula("response_to_any ~ type + dataset + sig_neutro_top_0 * study_arm"), data=ici_clin_and_scores |> filter(!is.na(response_to_any)), family="binomial"))
+```
+
+
+
+## Survival analysis
+
+```{r, fig.width=6, fig.height=6}
 coxph_results = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
     lapply(c("all", "LUSC", "LUAD"), function(type) {
         filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
         filter_arm = if(arm == "any") {c("Docetaxel", "MPDL3280A")} else {arm}
         type_covar = ifelse(type == "all", "+ type ", "")
         arm_covar = ifelse(arm == "any", "+ study_arm", "")
-        coxph_res = lapply(colnames(select(ici_clin_and_scores, starts_with("sig_"))), function(col) {
+        coxph_res = lapply(sig_names, function(col) {
            res = summary(coxph(as.formula(sprintf("Surv(time, status) ~ `%s` %s %s + dataset", col, type_covar, arm_covar)), data=ici_clin_and_scores |> 
                                  filter(type %in% filter_type, study_arm %in% filter_arm)))
            res$coefficients |> 
@@ -211,7 +323,7 @@ lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
     lapply(c("LUAD", "LUSC", "all"), function(type) {
         filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
         filter_arm = if(arm == "any") {c("Docetaxel", "MPDL3280A")} else {arm}
-        lapply(c("sig_neutro2"), function(sig) {
+        lapply(c("sig_neutro_top_0"), function(sig) {
           p = plot_kaplan_meyer(
             ici_clin_and_scores |> filter(type %in% filter_type, study_arm %in% filter_arm),
             sig,
@@ -234,7 +346,7 @@ ici_data = ici_clin_and_scores |> filter(study_arm == "MPDL3280A")
 glm_res_ici = lapply(c("all", "LUSC", "LUAD"), function(type) {
     filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
     type_covar = ifelse(type == "all", "+ type ", "")
-    tmp_res = lapply(colnames(select(ici_clin_and_scores, starts_with("sig_"))), function(col) {
+    tmp_res = lapply(sig_names, function(col) {
       res = summary(glm(as.formula(sprintf("response_to_ici ~ `%s` %s + dataset", col, type_covar)), family="binomial", data=ici_data |> filter(type %in% filter_type)))
       res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
     }) |> 
@@ -255,8 +367,8 @@ glm_res_ici = lapply(c("all", "LUSC", "LUAD"), function(type) {
 }) |> bind_rows()
 ```
 
-```{r, fig.width=8, fig.height=4}
-pvalue_df = glm_res_ici |> filter(`Pr(>|z|)` < 0.1, type == "all") |> 
+```{r, fig.width=18, fig.height=7}
+pvalue_df = glm_res_ici |> filter(`Pr(>|z|)` < 0.5, type == "all") |> 
   select(signature=var, pvalue=`Pr(>|z|)`) |> 
   mutate(pvalue = sprintf("p=%*.3f", 3, pvalue)) |>
   distinct()
@@ -281,6 +393,47 @@ p
 
 ```{r}
 ici_clin_and_scores |> filter(!is.na(response_to_ici)) |> 
-  ggplot(aes(y=sig_lcam_consensus, x=sig_neutro2)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response_to_ici)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
+  ggplot(aes(y=sig_lcam_consensus, x=sig_neutro_top_0)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response_to_ici)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
 ggsave(file.path(params$artifact_dir, "corr_lcam_consensus_vs_neutro2.pdf"), width=6, height=4)
 ```
+
+
+---
+
+## patient stratification
+
+```{r}
+tcga_patient_strat_didi = read_tsv("../../tables/tcga/quantiseq_patient_stratification_didi.tsv") |> rename(patient_strat_didi = patient_strat)
+tcga_clin_and_scores = tcga_clin_and_scores |> left_join(tcga_patient_strat_didi)
+```
+
+```{r}
+deconv_res = read_tsv("../../data/13_tcga/immunedeconv/nsclc_deconvolution.tsv")
+```
+
+```{r}
+cell_type_group = c("uncharacterized cell" = "desert", "Macrophage M1" = "M", "Macrophage M2"="M", "T cell regulatory (Tregs)"="T", "B cell"= "B", "T cell CD8+"= "T", "T cell CD4+ (non-regulatory)" = "T", "Monocyte" = "M")
+```
+
+```{r}
+summary(coxph(as.formula("Surv(time, status) ~ patient_strat_didi + age + gender"), data=tcga_clin_and_scores))
+```
+
+```{r}
+summary(glm(as.formula("response_to_chemotherapy ~ patient_strat_didi"), family="binomial", data=tcga_clin_and_scores))
+```
+
+```{r}
+fit = survfit(Surv(time, status) ~ patient_strat_didi, data=tcga_clin_and_scores |> filter(time < 365 * 5))
+ggsurvplot(fit, data=tcga_clin_and_scores)
+```
+
+```{r}
+tmp_check = deconv_res |> pivot_longer(-c(cell_type, method), names_to="TCGA_patient_barcode", values_to="score") |> filter(method == "quantiseq") |> inner_join(tcga_patient_strat_didi)
+```
+
+```{r, fig.width=10, fig.height=10}
+tmp_check |> ggplot(aes(x=patient_strat_didi, y=score)) + geom_boxplot() + facet_wrap(~cell_type, scale="free_y")
+```
+
+---

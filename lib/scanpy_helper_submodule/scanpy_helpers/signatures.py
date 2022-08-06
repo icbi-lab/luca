@@ -20,6 +20,8 @@ import scipy.stats
 from .pseudobulk import pseudobulk
 import scanpy as sc
 from tqdm.auto import tqdm
+import altair as alt
+import pandas as pd
 
 
 def fold_change(
@@ -250,6 +252,18 @@ class MCPSignatureRegressor:
     def signature_df(self):
         """A dataframe with the signature genes and their associated scores"""
         return self._signature_genes
+
+    @staticmethod
+    def score_pearson(true_fractions, predicted_scores):
+        """Compute pearson correlaltion between true fractions and prediced cell-type scores"""
+        return scipy.stats.pearsonr(true_fractions, predicted_scores)[0]
+
+    # @staticmethod
+    # def score_lm_r2(true_fractions, predicted_scores, covaraite):
+    #     """Use r2 of a linear model to score the predictions. Covariate usually is a caregorical variable
+    #     for confounding factors such as dataset.
+    #     """
+    #     pass
 
 
 class HierarchicalMCPSignatureRegressor(MCPSignatureRegressor):
@@ -500,9 +514,9 @@ def grid_search_cv(
                 score_pearson = np.nan
             else:
                 y_pred = mcpr.predict(pb_test)
-                score_pearson = scipy.stats.pearsonr(
+                score_pearson = mcpr.score_pearson(
                     pb_test.obs["true_frac"].values, y_pred
-                )[0]
+                )
 
             results.append(
                 {
@@ -523,6 +537,7 @@ def refit_and_evaluate(
     *,
     replicate_col: str,
     label_col: str,
+    covariate_col: str,
     positive_class: str,
 ):
     """
@@ -550,7 +565,7 @@ def refit_and_evaluate(
         The final scores computed on the independent test dataset
     """
     pb_train = pseudobulk(adata_train, groupby=[replicate_col, label_col])
-    pb_test = pseudobulk(adata_test, groupby=[replicate_col])
+    pb_test = pseudobulk(adata_test, groupby=[replicate_col, covariate_col])
     pb_test.obs.set_index(replicate_col, inplace=True)
     pb_test.obs["true_frac"] = (
         adata_test.obs.groupby(replicate_col, observed=True)
@@ -571,6 +586,17 @@ def refit_and_evaluate(
     model.fit(pb_train)
 
     y_pred = model.predict(pb_test)
-    score_pearson = scipy.stats.pearsonr(pb_test.obs["true_frac"].values, y_pred)[0]
 
-    return {"n_genes": len(model.signature_genes), "score_pearson": score_pearson}
+    result_df = pd.DataFrame().assign(
+        true_frac=pb_test.obs["true_frac"],
+        predicted_score=y_pred,
+        dataset=pb_test.obs["dataset"].values,
+    )
+
+    score_pearson = model.score_pearson(pb_test.obs["true_frac"].values, y_pred)
+
+    return {
+        "n_genes": len(model.signature_genes),
+        "score_pearson": score_pearson,
+        "result_df": result_df,
+    }
