@@ -68,6 +68,9 @@ neutro_recruitment_geneset_path = nxfvars.get(
     "../../tables/gene_annotations/neutro_recruitment_chemokines.xlsx",
 )
 
+# %% [markdown]
+# # Load data
+
 # %%
 adata_n = sc.read_h5ad(adata_n_path)
 
@@ -111,6 +114,40 @@ adata.obs.loc[adata_n.obs_names, "cell_type_major_tan_nan"] = adata_n.obs[
 ]
 
 # %% [markdown]
+# ## Make Pseudobulk
+
+# %%
+pb_n = sh.pseudobulk.pseudobulk(
+    adata_n, groupby=["cell_type", "patient", "condition", "dataset", "tumor_stage"]
+)
+
+# %%
+sc.pp.normalize_total(pb_n, target_sum=1e6)
+sc.pp.log1p(pb_n, base=2)
+
+# %%
+pb_tan_nan = sh.pseudobulk.pseudobulk(
+    adata_n,
+    groupby=[
+        "cell_type_tan_nan_label",
+        "patient",
+        "condition",
+        "dataset",
+        "study",
+        "tumor_stage",
+    ],
+)
+
+# %%
+pb_tan_nan.obs["cell_type_tan_nan_label"] = pd.Categorical(
+    pb_tan_nan.obs["cell_type_tan_nan_label"], categories=["NAN", "TAN"]
+)
+
+# %%
+sc.pp.normalize_total(pb_tan_nan, target_sum=1e6)
+sc.pp.log1p(pb_tan_nan, base=2)
+
+# %% [markdown] tags=[] jp-MarkdownHeadingCollapsed=true
 # # UMAPs by covariate
 
 # %%
@@ -212,7 +249,7 @@ with plt.rc_context({"figure.dpi": 150}):
         groups="biopsy",
     )
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
 # # Clusters by patient and dataset
 
 # %%
@@ -287,7 +324,7 @@ studies = (
 (studies | (heatmp + txt).properties(width=300)).configure_concat(spacing=0)
 
 # %% [markdown]
-# ### more compact representation
+# ## more compact representation
 
 # %%
 tmp_df2 = (
@@ -350,7 +387,7 @@ studies + studies_txt
 )
 
 # %% [markdown]
-# ### bar charts
+# ## bar charts
 
 # %%
 patient_fracs = (
@@ -398,7 +435,7 @@ ch = (
 ch.save(f"{artifact_dir}/neutro_clusters_by_patient.svg")
 ch.display()
 
-# %% [markdown]
+# %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
 # # Quantify covariates by cluster
 
 # %%
@@ -506,30 +543,424 @@ for i, ax in enumerate(fig.axes):
         ax.yaxis.set_ticklabels([])
         ax.set_ylabel(None)
 
+# %% [markdown] tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[]
+# # UMAP and Heatmaps of selected gene sets
+
+# %% tags=[]
+for gene_set, genes in neutro_genesets.items():
+    display_html(f"<h2>Gene set of interest: {gene_set}</h2>", raw=True)
+    sc.settings.set_figure_params(figsize=(2, 2))
+    sc.pl.umap(
+        adata_n,
+        color=genes,
+        cmap="inferno",
+        size=10,
+        ncols=10,
+        frameon=False,
+    )
+    sc.pl.matrixplot(
+        pb_n, var_names=genes, groupby=["cell_type"], cmap="bwr", title=gene_set
+    )
+    sc.pl.dotplot(adata_n, var_names=genes, groupby=["cell_type"], title=gene_set)
+sc.settings.set_figure_params(figsize=(5, 5))
+
+# %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[] jp-MarkdownHeadingCollapsed=true
+# # LUAD vs. LUSC
+#
+# ## Neutro fractions
+
+# %%
+ct_fractions = (
+    adata[
+        (adata.obs["origin"] == "tumor_primary")
+        & ~adata.obs["dataset"].isin(["Guo_Zhang_2018"]),
+        :,
+    ]
+    .obs.groupby(["dataset", "patient", "condition", "study"])["cell_type_major"]
+    .value_counts(normalize=True)
+    .reset_index()
+)
+
+# %%
+ct_fractions = ct_fractions.rename(
+    columns={"level_4": "cell_type_major", "cell_type_major": "fraction"}
+)
+
+# %%
+ct_fractions = ct_fractions.merge(
+    patient_stratification, on=["patient", "study", "dataset"], how="left"
+)
+
+# %%
+neutro_fractions = ct_fractions.loc[lambda x: x["cell_type_major"] == "Neutrophils", :]
+
+# %%
+datasets_with_neutros = (
+    neutro_fractions.groupby("dataset")
+    .apply(lambda x: np.sum(x["fraction"]) > 0)
+    .where(lambda x: x)
+    .dropna()
+    .index.tolist()
+)
+
+# %% tags=[]
+neutro_subset = neutro_fractions.loc[
+    lambda x: (
+        x["dataset"].isin(datasets_with_neutros) & x["condition"].isin(["LUAD", "LUSC"])
+    ),
+    :,
+].sort_values("fraction", ascending=False)
+
+# %%
+mod = smf.ols("fraction ~ C(condition) + dataset", data=neutro_subset)
+res = mod.fit()
+
+# %%
+fig, ax = plt.subplots()
+
+neutro_subset["condition"] = neutro_subset["condition"].astype(str)
+neutro_subset["dataset"] = neutro_subset["dataset"].astype(str)
+
+sns.stripplot(
+    data=neutro_subset,
+    x="condition",
+    y="fraction",
+    hue="study",
+    palette=sh.colors.COLORS.study,
+    ax=ax,
+    size=7,
+    linewidth=2,
+)
+sns.boxplot(
+    data=neutro_subset, x="condition", y="fraction", ax=ax, width=0.5, fliersize=0
+)
+ax.legend(bbox_to_anchor=(1.9, 1.05))
+ax.set_title(
+    "Neutrophil fraction in LUSC vs LUAD\np={:.4f}, linear model".format(
+        res.pvalues["C(condition)[T.LUSC]"]
+    )
+)
+fig.savefig(f"{artifact_dir}/neutro_fraction_luad_lusc.pdf", bbox_inches="tight")
+plt.show()
+
+# %% [markdown]
+# ### Any differences between patient strata? 
+
+# %%
+neutro_subset2 = neutro_fractions.loc[
+    lambda x: (
+        x["dataset"].isin(datasets_with_neutros) & ~x["immune_infiltration"].isnull()
+    ),
+    :,
+].sort_values("fraction", ascending=False)
+
+# %%
+neutro_subset2
+
+# %%
+mod = smf.ols(
+    "fraction ~ C(immune_infiltration, Treatment('desert')) + dataset + tumor_type_annotated",
+    data=neutro_subset2,
+)
+res = mod.fit()
+
+# %%
+res.summary()
+
+# %%
+fig, ax = plt.subplots()
+
+neutro_subset2["immune_infiltration"] = neutro_subset2["immune_infiltration"].astype(
+    str
+)
+neutro_subset2["dataset"] = neutro_subset2["dataset"].astype(str)
+
+sns.stripplot(
+    data=neutro_subset2,
+    x="immune_infiltration",
+    y="fraction",
+    hue="study",
+    palette=sh.colors.COLORS.study,
+    ax=ax,
+    size=7,
+    linewidth=2,
+)
+ax.legend(bbox_to_anchor=(1.9, 1.05))
+sns.boxplot(
+    data=neutro_subset2,
+    x="immune_infiltration",
+    y="fraction",
+    ax=ax,
+    width=0.5,
+    fliersize=0,
+)
+plt.show()
+
+# %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
+# # VEGFA sources in NSCLC
+
+# %%
+pb_primary = sh.pseudobulk.pseudobulk(
+    adata[adata.obs["origin"] == "tumor_primary", :].copy(),
+    groupby=["cell_type_major", "patient", "study"],
+)
+
+# %%
+sc.pp.normalize_total(pb_primary, target_sum=1e6)
+sc.pp.log1p(pb_primary)
+
+# %%
+df = pb_primary.obs
+df["VEGFA"] = pb_primary[:, "VEGFA"].X
+
+# %%
+order = (
+    df.groupby("cell_type_major")
+    .agg("median")
+    .sort_values("VEGFA", ascending=False)
+    .index.values
+)
+
+# %%
+PROPS = {
+    "boxprops": {"facecolor": "none", "edgecolor": "black"},
+    "medianprops": {"color": "black"},
+    "whiskerprops": {"color": "black"},
+    "capprops": {"color": "black"},
+}
+
+fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+sns.stripplot(
+    x="cell_type_major",
+    y="VEGFA",
+    hue="study",
+    data=df,
+    ax=ax,
+    order=order,
+    palette=sh.colors.COLORS.study,
+)
+sns.boxplot(
+    x="cell_type_major",
+    y="VEGFA",
+    ax=ax,
+    data=df,
+    order=order,
+    color="white",
+    **PROPS,
+    showfliers=False,
+)
+ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+_ = plt.xticks(rotation=90)
+fig.savefig(f"{artifact_dir}/vegfa_fractions.pdf", bbox_inches="tight")
+
+# %% [markdown]
+# # Pairplot of candidate genes
+
+# %%
+PROPS = {
+    "boxprops": {"facecolor": "none", "edgecolor": "black"},
+    "medianprops": {"color": "black"},
+    "whiskerprops": {"color": "black"},
+    "capprops": {"color": "black"},
+}
+
+genes_of_interest = {
+    "TAN": ["OLR1", "VEGFA", "CD83", "ICAM1", "CXCR4"],
+    "NAN": ["CXCR1", "CXCR2", "PTGS2", "SELL", "CSF3R", "FCGR3B"],
+}
+fig = sh.pairwise.plot_paired(
+    pb_tan_nan,
+    "cell_type_tan_nan_label",
+    paired_by="patient",
+    var_names=list(itertools.chain.from_iterable(genes_of_interest.values())),
+    hue="study",
+    ylabel="log2(CPM+1)",
+    size=6,
+    n_cols=12,
+    panel_size=(1.5, 4),
+    show=False,
+    return_fig=True,
+    pvalue_template=lambda x: "FDR<0.01" if x < 0.01 else f"FDR={x:.2f}",
+    adjust_fdr=True,
+    boxplot_properties=PROPS,
+)
+for i, ax in enumerate(fig.axes):
+    ax.set_ylim(
+        -0.5,
+        np.max(
+            pb_tan_nan[
+                :, list(itertools.chain.from_iterable(genes_of_interest.values()))
+            ].X
+        )
+        + 0.5,
+    )
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+    if i > 0:
+        ax.yaxis.set_ticklabels([])
+        ax.set_ylabel(None)
+
+fig.savefig(f"{artifact_dir}/pairplot_candidate_genes.pdf", bbox_inches="tight")
+
+# %%
+fig = plot_markers(pb_n, "cell_type", genes_of_interest, top=10, return_fig=True)
+fig.savefig(f"{artifact_dir}/matrixplot_candidate_genes.pdf", bbox_inches="tight")
+
+# %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
+# # Transcription factors
+
+# %%
+adata_n_dorothea = sh.compare_groups.compute_scores.run_dorothea(adata_n)
+
+# %%
+tf_res_tan_nan = sh.compare_groups.lm.lm_test_all(
+    {"dorothea": adata_n_dorothea},
+    groupby=["patient", "dataset"],
+    column_to_test="cell_type_tan_nan",
+    contrasts="Treatment('TAN-')",
+    lm_covariate_str="+patient",
+)
+
+# %%
+ch = sh.compare_groups.pl.plot_lm_result_altair(
+    tf_res_tan_nan, cluster=True, p_cutoff=0.01
+)
+ch.save(f"{artifact_dir}/dorothea_tan_nan_heatmap_fdr_0.01.svg")
+ch.display()
+
+# %%
+ch = sh.pairwise.plot_paired_fc(
+    sh.pseudobulk.pseudobulk(
+        adata_n_dorothea, groupby=["patient", "cell_type_tan_nan"], aggr_fun=np.mean
+    ),
+    var_names=tf_res_tan_nan.loc[
+        lambda x: (x["fdr"] < 0.1) & (abs(x["coef"]) > 0.2), "variable"
+    ].tolist(),
+    metric="diff",
+    groupby="cell_type_tan_nan",
+    paired_by="patient",
+)
+ch.save(f"{artifact_dir}/dorothea_tan_nan_barchart.svg")
+ch.display()
+
+# %% [markdown]
+# # Neutrophil subcluster signatures
+
+# %%
+adata_n_train, adata_n_test = sh.signatures.train_test_split(
+    adata_n, replicate_col="patient"
+)
+
+# %% [markdown]
+# ## TAN vs NAN
+
+# %%
+deseq_tan_nan = pd.read_csv(
+    "../../data/30_downstream_analyses/de_analysis/tan_nan/de_deseq2/tan_nan_markers_adata_neutrophil_clusters_neutrophils_DESeq2_result.tsv",
+    sep="\t",
+)
+
+# %%
+deseq_tan_nan
+
+# %%
+markers_tan_nan = {
+    "TAN": deseq_tan_nan.loc[
+        lambda x: (x["log2FoldChange"] > 1) & (x["baseMean"] > 5), "gene_id"
+    ].tolist(),
+    "NAN": deseq_tan_nan.loc[
+        lambda x: (x["log2FoldChange"] < -1) & (x["baseMean"] > 5), "gene_id"
+    ].tolist(),
+}
+
+# %%
+fig = sh.signatures.plot_markers(
+    pb_tan_nan, "cell_type_tan_nan_label", markers_tan_nan, top=10, return_fig=True
+)
+fig.savefig(f"{artifact_dir}/matrixplot_tan_nan_top10.pdf", bbox_inches="tight")
+
+# %%
+fig = sh.signatures.plot_markers(
+    pb_n, "cell_type", markers_tan_nan, top=10, return_fig=True, standard_scale="var"
+)
+fig.savefig(
+    f"{artifact_dir}/matrixplot_tan_nan_top10_all_clusters.pdf", bbox_inches="tight"
+)
+
+# %%
+pb_tan_nan.var["TAN_log_fdr"] = pb_tan_nan.var["NAN_log_fdr"] = -np.log10(
+    deseq_tan_nan.set_index("gene_id")["padj"]
+)
+
+# %%
+ch = sh.signatures.plot_metric_strip(
+    pb_tan_nan,
+    markers_tan_nan,
+    metric_title="-log10(FDR)",
+    metric_key="log_fdr",
+    domain=[0, 30],
+)
+ch.save(f"{artifact_dir}/matrixplot_tan_nan_top10_log_fdr.svg")
+ch.display()
+
+# %%
+fig = sh.signatures.plot_markers(
+    pb_tan_nan, "cell_type_tan_nan_label", markers_tan_nan, top=30, return_fig=True
+)
+fig.savefig(f"{artifact_dir}/matrixplot_tan_nan_top30.pdf", bbox_inches="tight")
+
+# %%
+ch = sh.pairwise.plot_paired_fc(
+    pb_tan_nan,
+    "cell_type_tan_nan_label",
+    var_names=markers_tan_nan["TAN"][:30] + markers_tan_nan["NAN"][:30],
+    paired_by="patient",
+    metric="diff",
+    metric_name="log2 fold-change",
+)
+ch.save(f"{artifact_dir}/barchar_tan_nan_top30.svg")
+ch.display()
+
+# %% [markdown]
+# ## Neutrophil clusters
+
+# %%
+deseq_neutro_clusters = pd.read_csv(
+    "../../data/30_downstream_analyses/de_analysis/neutrophil_subclusters/de_deseq2/neutrophil_subclusters_adata_neutrophil_clusters_neutrophils_DESeq2_result.tsv",
+    sep="\t",
+)
+
+# %%
+deseq_neutro_clusters["log_fc_rank"] = deseq_neutro_clusters.groupby(["gene_id"])[
+    "log2FoldChange"
+].rank(ascending=False)
+
+# %%
+markers_neutro_clusters = {
+    group: deseq_neutro_clusters.loc[
+        lambda x: (x["log2FoldChange"] > 0)
+        & (x["log_fc_rank"] == 1)
+        & (x["baseMean"] > 5)
+        & (x["comparison"] == group),
+        "gene_id",
+    ].tolist()
+    for group in deseq_neutro_clusters["comparison"].unique()
+}
+
+# %%
+fig = sh.signatures.plot_markers(
+    pb_n,
+    "cell_type",
+    markers_neutro_clusters,
+    top=5,
+    return_fig=True,
+)
+fig.savefig(f"{artifact_dir}/matrixplot_neutro_clusters_top5.pdf", bbox_inches="tight")
+
+# %% [markdown]
+# ---
+
 # %% [markdown]
 # # Find marker genes for Neutrophil clusters
-
-# %%
-results = sh.signatures.grid_search_cv(
-    adata_n,
-    replicate_col="patient",
-    label_col="cell_type_tan_nan_label",
-    positive_class="TAN",
-    param_grid={
-        "min_fc": list(np.arange(0.5, 2.6, 0.1)),
-        "min_sfc": [0],
-        "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
-    },
-)
-
-# %%
-pd.DataFrame(results).drop(columns="fold").groupby(
-    ["min_fc", "min_sfc", "min_auroc"]
-).agg(lambda x: x.mean(skipna=False)).sort_values(
-    "score_pearson", ascending=False
-).head(
-    15
-)
 
 # %%
 pb_tan_nan = sh.pseudobulk.pseudobulk(
@@ -590,45 +1021,7 @@ for ct in tqdm(pb_n.obs["cell_type"].unique()):
         pb_n, obs_col="cell_type", positive_class=ct, key_added=f"{ct}_auroc"
     )
 
-
 # %%
-def metric_strip(
-    pb, markers, *, metric_key="auroc", metric_title="AUROC", domain=[0.5, 1], top=10
-):
-    metric = []
-    genes = []
-    cts = []
-    for ct, tmp_markers in markers.items():
-        for gene in tmp_markers[:top]:
-            metric.append(pb.var.loc[gene, f"{ct}_{metric_key}"])
-            genes.append(gene)
-            cts.append(ct)
-
-    tmp_df = pd.DataFrame().assign(marker=genes, cell_type=cts, metric=metric)
-
-    return (
-        alt.Chart(tmp_df)
-        .mark_rect()
-        .encode(
-            x=alt.X("marker", sort=None),
-            color=alt.Color(
-                "metric",
-                scale=alt.Scale(scheme="viridis", domain=domain),
-                title=metric_title,
-            ),
-        )
-    )
-
-
-def plot_markers(pb, groupby, markers, *, top=10, **kwargs):
-    return sc.pl.matrixplot(
-        pb,
-        groupby=groupby,
-        var_names={k: v[:top] for k, v in markers.items()},
-        cmap="bwr",
-        **kwargs,
-    )
-
 
 # %%
 markers_tan_nan = {
@@ -836,314 +1229,13 @@ pd.concat(
 )
 
 # %% [markdown]
-# # Pairplot of candidate genes
-
-# %%
-pb_tan_nan.obs["cell_type_tan_nan_label"] = pd.Categorical(
-    pb_tan_nan.obs["cell_type_tan_nan_label"], categories=["NAN", "TAN"]
-)
-
-# %%
-PROPS = {
-    "boxprops": {"facecolor": "none", "edgecolor": "black"},
-    "medianprops": {"color": "black"},
-    "whiskerprops": {"color": "black"},
-    "capprops": {"color": "black"},
-}
-
-genes_of_interest = {
-    "TAN": ["OLR1", "VEGFA", "CD83", "ICAM1", "CXCR4"],
-    "NAN": ["CXCR1", "CXCR2", "PTGS2", "SELL", "CSF3R", "FCGR3B"],
-}
-fig = sh.pairwise.plot_paired(
-    pb_tan_nan,
-    "cell_type_tan_nan_label",
-    paired_by="patient",
-    var_names=list(itertools.chain.from_iterable(genes_of_interest.values())),
-    hue="study",
-    ylabel="log2(CPM+1)",
-    size=6,
-    n_cols=12,
-    panel_size=(1.5, 4),
-    show=False,
-    return_fig=True,
-    pvalue_template=lambda x: "FDR<0.01" if x < 0.01 else f"FDR={x:.2f}",
-    adjust_fdr=True,
-    boxplot_properties=PROPS,
-)
-for i, ax in enumerate(fig.axes):
-    ax.set_ylim(
-        -0.5,
-        np.max(
-            pb_tan_nan[
-                :, list(itertools.chain.from_iterable(genes_of_interest.values()))
-            ].X
-        )
-        + 0.5,
-    )
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
-    if i > 0:
-        ax.yaxis.set_ticklabels([])
-        ax.set_ylabel(None)
-
-fig.savefig(f"{artifact_dir}/pairplot_candidate_genes.pdf", bbox_inches="tight")
-
-# %%
-fig = plot_markers(pb_n, "cell_type", genes_of_interest, top=10, return_fig=True)
-fig.savefig(f"{artifact_dir}/matrixplot_candidate_genes.pdf", bbox_inches="tight")
-
-# %% [markdown] tags=[] jp-MarkdownHeadingCollapsed=true
-# # UMAP and Heatmaps of selected gene sets
-
-# %% tags=[]
-for gene_set, genes in neutro_genesets.items():
-    display_html(f"<h2>Gene set of interest: {gene_set}</h2>", raw=True)
-    sc.settings.set_figure_params(figsize=(2, 2))
-    sc.pl.umap(
-        adata_n,
-        color=genes,
-        cmap="inferno",
-        size=10,
-        ncols=10,
-        frameon=False,
-    )
-    sc.pl.matrixplot(
-        pb_n, var_names=genes, groupby=["cell_type"], cmap="bwr", title=gene_set
-    )
-    sc.pl.dotplot(adata_n, var_names=genes, groupby=["cell_type"], title=gene_set)
-sc.settings.set_figure_params(figsize=(5, 5))
-
-# %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
-# # Transcription factors
-
-# %%
-adata_n_dorothea = sh.compare_groups.compute_scores.run_dorothea(adata_n)
-
-# %%
-tf_res_tan_nan = sh.compare_groups.lm.lm_test_all(
-    {"dorothea": adata_n_dorothea},
-    groupby=["patient", "dataset"],
-    column_to_test="cell_type_tan_nan",
-    contrasts="Treatment('TAN-')",
-    lm_covariate_str="+patient",
-)
-
-# %%
-ch = sh.compare_groups.pl.plot_lm_result_altair(
-    tf_res_tan_nan, cluster=True, p_cutoff=0.01
-)
-ch.save(f"{artifact_dir}/dorothea_tan_nan_heatmap_fdr_0.01.svg")
-ch.display()
-
-# %%
-ch = sh.pairwise.plot_paired_fc(
-    sh.pseudobulk.pseudobulk(
-        adata_n_dorothea, groupby=["patient", "cell_type_tan_nan"], aggr_fun=np.mean
-    ),
-    var_names=tf_res_tan_nan.loc[
-        lambda x: (x["fdr"] < 0.1) & (abs(x["coef"]) > 0.2), "variable"
-    ].tolist(),
-    metric="diff",
-    groupby="cell_type_tan_nan",
-    paired_by="patient",
-)
-ch.save(f"{artifact_dir}/dorothea_tan_nan_barchart.svg")
-ch.display()
-
-# %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
-# # LUAD vs. LUSC
-#
-# ## Neutro fractions
-
-# %%
-ct_fractions = (
-    adata[
-        (adata.obs["origin"] == "tumor_primary")
-        & ~adata.obs["dataset"].isin(["Guo_Zhang_2018"]),
-        :,
-    ]
-    .obs.groupby(["dataset", "patient", "condition", "study"])["cell_type_major"]
-    .value_counts(normalize=True)
-    .reset_index()
-)
-
-# %%
-ct_fractions = ct_fractions.rename(
-    columns={"level_4": "cell_type_major", "cell_type_major": "fraction"}
-)
-
-# %%
-ct_fractions = ct_fractions.merge(
-    patient_stratification, on=["patient", "study", "dataset"], how="left"
-)
-
-# %%
-neutro_fractions = ct_fractions.loc[lambda x: x["cell_type_major"] == "Neutrophils", :]
-
-# %%
-datasets_with_neutros = (
-    neutro_fractions.groupby("dataset")
-    .apply(lambda x: np.sum(x["fraction"]) > 0)
-    .where(lambda x: x)
-    .dropna()
-    .index.tolist()
-)
-
-# %% tags=[]
-neutro_subset = neutro_fractions.loc[
-    lambda x: (
-        x["dataset"].isin(datasets_with_neutros) & x["condition"].isin(["LUAD", "LUSC"])
-    ),
-    :,
-].sort_values("fraction", ascending=False)
-
-# %%
-mod = smf.ols("fraction ~ C(condition) + dataset", data=neutro_subset)
-res = mod.fit()
-
-# %%
-fig, ax = plt.subplots()
-
-neutro_subset["condition"] = neutro_subset["condition"].astype(str)
-neutro_subset["dataset"] = neutro_subset["dataset"].astype(str)
-
-sns.stripplot(
-    data=neutro_subset,
-    x="condition",
-    y="fraction",
-    hue="study",
-    palette=sh.colors.COLORS.study,
-    ax=ax,
-    size=7,
-    linewidth=2,
-)
-sns.boxplot(
-    data=neutro_subset, x="condition", y="fraction", ax=ax, width=0.5, fliersize=0
-)
-ax.legend(bbox_to_anchor=(1.9, 1.05))
-ax.set_title(
-    "Neutrophil fraction in LUSC vs LUAD\np={:.4f}, linear model".format(
-        res.pvalues["C(condition)[T.LUSC]"]
-    )
-)
-fig.savefig(f"{artifact_dir}/neutro_fraction_luad_lusc.pdf", bbox_inches="tight")
-plt.show()
-
-# %% [markdown]
-# ### Any differences between patient strata? 
-
-# %%
-neutro_subset2 = neutro_fractions.loc[
-    lambda x: (
-        x["dataset"].isin(datasets_with_neutros) & ~x["immune_infiltration"].isnull()
-    ),
-    :,
-].sort_values("fraction", ascending=False)
-
-# %%
-neutro_subset2
-
-# %%
-mod = smf.ols(
-    "fraction ~ C(immune_infiltration, Treatment('desert')) + dataset + tumor_type_annotated",
-    data=neutro_subset2,
-)
-res = mod.fit()
-
-# %%
-res.summary()
-
-# %%
-fig, ax = plt.subplots()
-
-neutro_subset2["immune_infiltration"] = neutro_subset2["immune_infiltration"].astype(
-    str
-)
-neutro_subset2["dataset"] = neutro_subset2["dataset"].astype(str)
-
-sns.stripplot(
-    data=neutro_subset2,
-    x="immune_infiltration",
-    y="fraction",
-    hue="study",
-    palette=sh.colors.COLORS.study,
-    ax=ax,
-    size=7,
-    linewidth=2,
-)
-ax.legend(bbox_to_anchor=(1.9, 1.05))
-sns.boxplot(
-    data=neutro_subset2,
-    x="immune_infiltration",
-    y="fraction",
-    ax=ax,
-    width=0.5,
-    fliersize=0,
-)
-plt.show()
-
-# %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
-# # VEGFA sources in NSCLC
-
-# %%
-pb_primary = sh.pseudobulk.pseudobulk(
-    adata[adata.obs["origin"] == "tumor_primary", :].copy(),
-    groupby=["cell_type_major", "patient", "study"],
-)
-
-# %%
-sc.pp.normalize_total(pb_primary, target_sum=1e6)
-sc.pp.log1p(pb_primary)
-
-# %%
-df = pb_primary.obs
-df["VEGFA"] = pb_primary[:, "VEGFA"].X
-
-# %%
-order = (
-    df.groupby("cell_type_major")
-    .agg("median")
-    .sort_values("VEGFA", ascending=False)
-    .index.values
-)
-
-# %%
-PROPS = {
-    "boxprops": {"facecolor": "none", "edgecolor": "black"},
-    "medianprops": {"color": "black"},
-    "whiskerprops": {"color": "black"},
-    "capprops": {"color": "black"},
-}
-
-fig, ax = plt.subplots(1, 1, figsize=(10, 5))
-sns.stripplot(
-    x="cell_type_major",
-    y="VEGFA",
-    hue="study",
-    data=df,
-    ax=ax,
-    order=order,
-    palette=sh.colors.COLORS.study,
-)
-sns.boxplot(
-    x="cell_type_major",
-    y="VEGFA",
-    ax=ax,
-    data=df,
-    order=order,
-    color="white",
-    **PROPS,
-    showfliers=False,
-)
-ax.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-_ = plt.xticks(rotation=90)
-fig.savefig(f"{artifact_dir}/vegfa_fractions.pdf", bbox_inches="tight")
-
-# %% [markdown]
 # # Neutrophil signatures
 #
 # Find marker genes that are specific for Neutrophils and specific for Neutrophil subclusters. 
 # The purpose of the signatures is to use them for scoring bulk RNA-seq samples. 
+
+# %%
+neutro_sigs = {}
 
 # %%
 adata_primary = adata[adata.obs["origin"] == "tumor_primary", :]
@@ -1167,17 +1259,7 @@ results_neutro = sh.signatures.grid_search_cv(
 )
 
 # %%
-scores = (
-    pd.DataFrame(results_neutro)
-    .drop(columns="fold")
-    .groupby(["min_fc", "min_sfc", "min_auroc"])
-    .agg(lambda x: x.mean(skipna=False))
-    .sort_values("score_pearson", ascending=False)
-    .reset_index()
-)
-
-# %%
-scores.iloc[
+results_neutro.iloc[
     [
         0,
         1,
@@ -1202,45 +1284,142 @@ scores.iloc[
     :,
 ]
 
-
-# %% [markdown]
-# ### Retrain on full train dataset with  optimal parameters
-
-# %%
-def get_signature(scores, i):
-    """Retrain based on the parameter of the i_th result in the scores data frame"""
-    params = {
-        k: v
-        for k, v in scores.iloc[i].items()
-        if k in ["min_fc", "min_sfc", "min_auroc"]
-    }
-    print(params)
-    mcpr = sh.signatures.MCPSignatureRegressor(**params)
-    res = sh.signatures.refit_and_evaluate(
-        mcpr,
-        adata_primary_train,
-        adata_primary_test,
-        replicate_col="patient",
-        label_col="cell_type_major",
-        positive_class="Neutrophils",
-        covariate_col="dataset",
-    )
-    print(f"n_genes: {res['n_genes']}, score_pearson: {res['score_pearson']}")
-    alt.Chart(res["result_df"]).mark_circle().encode(
-        x="true_frac", y="predicted_score", color="dataset"
-    ).display()
-    return mcpr.signature_genes
-
-
 # %%
 for i in [0, 1000, 2000, 3000]:
-    signatures[f"sig_neutro_top_{i}"] = get_signature(scores, i)
+    tmp_mcpr = sh.signatures.refit_evaluate_plot(
+        results_neutro,
+        adata_train=adata_primary_train,
+        adata_test=adata_primary_test,
+        i=i,
+    )
+    neutro_sigs[f"sig_neutro_top_{i}"] = tmp_mcpr.signature_genes
 
 # %%
-neutro_sigs = signatures
+for k, genes in list(neutro_sigs.items()):
+    for ct in ["TAN", "NAN"]:
+        if "sig_neutro" in k:
+            neutro_sigs[k.replace("sig_neutro", f"sig_neutro_{ct.lower()}")] = [
+                g for g in genes if g in markers_tan_nan[ct]
+            ]
+
+# %% [markdown]
+# ## constrained to TAN
+
+# %%
+results_neutro_constrained_tan = sh.signatures.grid_search_cv(
+    adata_primary_train[:, markers_tan_nan["TAN"]],
+    replicate_col="patient",
+    label_col="cell_type_major",
+    positive_class="Neutrophils",
+    param_grid={
+        "min_fc": list(np.arange(0.5, 3, 0.1)),
+        "min_sfc": list(np.arange(0.5, 3, 0.1)),
+        "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
+    },
+)
+
+# %%
+results_neutro_constrained_tan.iloc[[0, 50, 100, 200, 300, 500], :]
+
+# %%
+tmp_mcpr = sh.signatures.refit_evaluate_plot(
+    results_neutro_constrained_tan,
+    adata_train=adata_primary_train[:, markers_tan_nan["TAN"]],
+    adata_test=adata_primary_test[:, markers_tan_nan["TAN"]],
+    i=0
+)
+neutro_sigs[f"sig_neutro_constrained_tan"] = tmp_mcpr.signature_genes
+
+# %% [markdown]
+# ## constrained to NAN
+
+# %%
+results_neutro_constrained_nan = sh.signatures.grid_search_cv(
+    adata_primary_train[:, markers_tan_nan["NAN"]],
+    replicate_col="patient",
+    label_col="cell_type_major",
+    positive_class="Neutrophils",
+    param_grid={
+        "min_fc": list(np.arange(0.5, 3, 0.1)),
+        "min_sfc": list(np.arange(0.5, 3, 0.1)),
+        "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
+    },
+)
+
+# %%
+results_neutro_constrained_nan.iloc[[0, 50, 100, 200, 300, 500], :]
+
+# %%
+tmp_mcpr = sh.signatures.refit_evaluate_plot(
+    results_neutro_constrained_nan,
+    adata_train=adata_primary_train[:, markers_tan_nan["NAN"]],
+    adata_test=adata_primary_test[:, markers_tan_nan["NAN"]],
+    i=0
+)
+neutro_sigs[f"sig_neutro_constrained_nan"] = tmp_mcpr.signature_genes
+
+# %% [markdown]
+# # global TAN/NAN signatures
+
+# %%
+adata_primary_train.obs
+
+# %%
+results_tan = sh.signatures.grid_search_cv(
+    adata_primary_train,
+    replicate_col="patient",
+    label_col="cell_type_major_tan_nan",
+    positive_class="TAN-",
+    param_grid={
+        "min_fc": list(np.arange(0.5, 3, 0.1)),
+        "min_sfc": list(np.arange(0.5, 3, 0.1)),
+        "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
+    },
+)
+
+# %%
+results_tan
+
+# %%
+mcpr_tan = sh.signatures.refit_evaluate_plot(
+    results_tan, adata_train=adata_primary_train, adata_test=adata_primary_test
+)
+
+# %%
+neutro_sigs["sig_tan"] = mcpr_tan.signature_genes
+
+# %% [markdown]
+# ## NAN
+
+# %%
+results_nan = sh.signatures.grid_search_cv(
+    adata_primary_train,
+    replicate_col="patient",
+    label_col="cell_type_major_tan_nan",
+    positive_class="NAN-",
+    param_grid={
+        "min_fc": list(np.arange(0.5, 3, 0.1)),
+        "min_sfc": list(np.arange(0.5, 3, 0.1)),
+        "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
+    },
+)
+
+# %%
+results_nan
+
+# %%
+mcpr_nan = sh.signatures.refit_evaluate_plot(
+    results_nan, adata_train=adata_primary_train, adata_test=adata_primary_test
+)
+
+# %%
+neutro_sigs["sig_nan"] = mcpr_nan.signature_genes
 
 # %% [markdown]
 # ## Evaluate signatures
+
+# %%
+neutro_sigs = {k: v for k, v in neutro_sigs.items() if len(v)}
 
 # %%
 {sig: len(genes) for sig, genes in neutro_sigs.items()}
@@ -1248,7 +1427,7 @@ neutro_sigs = signatures
 # %%
 fig = sc.pl.matrixplot(
     pb_n,
-    var_names=neutro_sigs["top_0"],
+    var_names=neutro_sigs["sig_neutro_top_0"],
     groupby="cell_type",
     cmap="bwr",
     return_fig=True,
@@ -1523,7 +1702,7 @@ adata_primary_train.obs["cell_type_major_tan_nan"].value_counts()
 # ]
 
 # %% [markdown]
-# ### Only nan genes in specificity-level 1 and 2
+# ## Only nan genes in specificity-level 1 and 2
 
 # %%
 # tmp_df = signature_genes_tan_nan.loc[lambda x: x.index.isin(neutro_sigs["neutro_sig"])]

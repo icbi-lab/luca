@@ -219,6 +219,9 @@ ah.annotate_cell_types(
 )
 
 # %%
+adata_n.obs["cell_type_tan_nan"] = [x[:3] for x in adata_n.obs["cell_type"]]
+
+# %%
 with plt.rc_context({"figure.dpi": 150}):
     sc.pl.umap(
         adata_n,
