@@ -130,33 +130,33 @@ workflow plots_and_comparisons {
         ]},
         ch_core_atlas_input_files
     )
-    OVERVIEW_PLOTS_CORE_ATLAS(
-        Channel.value(
-            [[id: '94b_overview_plots_core_atlas'], file("${baseDir}/analyses/90_plots_and_comparisons/94b_overview_plots_core_atlas.py")]
-        ),
-        ch_core_atlas_input_files.map{ core, core_epi, core_tumor -> [
-            "main_adata": core.name,
-            "epithelial_adata": core_epi.name,
-            "tumor_adata": core_tumor.name
-        ]},
-        ch_core_atlas_input_files
-    )
+    // OVERVIEW_PLOTS_CORE_ATLAS(
+    //     Channel.value(
+    //         [[id: '94b_overview_plots_core_atlas'], file("${baseDir}/analyses/90_plots_and_comparisons/94b_overview_plots_core_atlas.py")]
+    //     ),
+    //     ch_core_atlas_input_files.map{ core, core_epi, core_tumor -> [
+    //         "main_adata": core.name,
+    //         "epithelial_adata": core_epi.name,
+    //         "tumor_adata": core_tumor.name
+    //     ]},
+    //     ch_core_atlas_input_files
+    // )
 
-    ch_extended_atlas_input_files = extended_atlas.concat(
-        // yes, this does need these two files from the *core* atlas. Check notebook for more details.
-        core_atlas_epithelial_cells, core_atlas_tumor_cells
-    ).collect()
-    OVERVIEW_PLOTS_EXTENDED_ATLAS(
-        Channel.value(
-            [[id: '94c_overview_plots_extended_atlas'], file("${baseDir}/analyses/90_plots_and_comparisons/94c_overview_plots_extended_atlas.py")]
-        ),
-        ch_extended_atlas_input_files.map{ extended, core_epi, core_tumor -> [
-            "main_adata": extended.name,
-            "epithelial_adata": core_epi.name,
-            "tumor_adata": core_tumor.name
-        ]},
-        ch_extended_atlas_input_files
-    )
+    // ch_extended_atlas_input_files = extended_atlas.concat(
+    //     // yes, this does need these two files from the *core* atlas. Check notebook for more details.
+    //     core_atlas_epithelial_cells, core_atlas_tumor_cells
+    // ).collect()
+    // OVERVIEW_PLOTS_EXTENDED_ATLAS(
+    //     Channel.value(
+    //         [[id: '94c_overview_plots_extended_atlas'], file("${baseDir}/analyses/90_plots_and_comparisons/94c_overview_plots_extended_atlas.py")]
+    //     ),
+    //     ch_extended_atlas_input_files.map{ extended, core_epi, core_tumor -> [
+    //         "main_adata": extended.name,
+    //         "epithelial_adata": core_epi.name,
+    //         "tumor_adata": core_tumor.name
+    //     ]},
+    //     ch_extended_atlas_input_files
+    // )
 
 
     COMPARE_PLATFORMS(
