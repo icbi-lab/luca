@@ -75,7 +75,7 @@ split_anndata_dir = Path(
 scevan_dir = Path(
     nxfvars.get("scevan_dir", "../../data/30_downstream_analyses/infercnv/scevan/")
 )
-MIN_TUMOR_CELLS = 50
+MIN_TUMOR_CELLS = 10
 cpus = nxfvars.get("cpus", 16)
 
 # %%
@@ -93,9 +93,6 @@ scevan_dirs = [
     for x in scevan_dir.glob("*")
     if x.is_dir() and x.name.startswith("full_atlas_merged")
 ]
-
-# %%
-list((scevan_dir / scevan_dirs[0]).glob("*"))
 
 
 # %%
@@ -164,10 +161,35 @@ cnv_ad.obs["immune_infiltration"] = cnv_ad.obs.join(
 cnv_ad.obs["immune_infiltration"].value_counts(dropna=False)
 
 # %%
+tumor_cells_per_patient = (
+    cnv_ad.obs.loc[lambda x: x["cell_type_major"] == "Tumor cells"]
+    .groupby("patient")
+    .size()
+)
+
+# %%
+selected_patients = tumor_cells_per_patient[
+    tumor_cells_per_patient > MIN_TUMOR_CELLS
+].index
+
+# %%
+# consensus method: only keep "buckets" that occur in at least 75% of patients
+all_var = pd.concat([x.var.assign(patient=x.obs["patient"][0]) for x in cnv_adatas])
+
+# %%
+patients_per_segment = (
+    all_var.loc[:, ["gene_id", "patient"]].drop_duplicates().groupby("gene_id").size()
+)
+keep_var = patients_per_segment[
+    patients_per_segment > 0.75 * len(selected_patients)
+].index
+
+# %%
 cnv_ad_tumor = cnv_ad[
     ~cnv_ad.obs["immune_infiltration"].isnull()
-    & (cnv_ad.obs["cell_type_major"] == "Tumor cells"),
-    :,
+    & (cnv_ad.obs["cell_type_major"] == "Tumor cells")
+    & (cnv_ad.obs["patient"].isin(selected_patients)),
+    keep_var,
 ].copy()
 
 # %%
@@ -175,8 +197,11 @@ cnv_pseudobulk = sh.pseudobulk.pseudobulk(
     cnv_ad_tumor,
     groupby=["dataset", "condition", "tumor_stage", "immune_infiltration", "patient"],
     aggr_fun=np.mean,
-    min_obs=MIN_TUMOR_CELLS,
+    min_obs=0,  # already filtered in previous step ("selected_patients")
 )
+
+# %%
+cnv_pseudobulk
 
 # %% [markdown]
 # ## Run comparison
@@ -195,25 +220,17 @@ segments_passing_thres = means_per_group.var.index[
 ]
 
 # %%
-# res_robust = sh.compare_groups.lm.test_lm(
-#     cnv_pseudobulk[cnv_pseudobulk.obs["condition"].isin(["LUAD", "LUSC"]), :].copy(),
-#     groupby="immune_infiltration",
-#     formula="~ C(immune_infiltration, Treatment('desert')) + dataset + condition + tumor_stage",
-#     contrasts="Treatment('desert')",
-#     robust=True,
-#     n_jobs=cpus
-# )
-
-# %%
 with warnings.catch_warnings():
-    warnings.filterwarnings(action='ignore')
+    warnings.filterwarnings(action="ignore")
     res_robust = sh.compare_groups.lm.test_lm(
-        cnv_pseudobulk[cnv_pseudobulk.obs["condition"].isin(["LUAD", "LUSC"]), :].copy(),
+        cnv_pseudobulk[
+            cnv_pseudobulk.obs["condition"].isin(["LUAD", "LUSC"]), segments_passing_thres
+        ].copy(),
         groupby="immune_infiltration",
         formula="~ C(immune_infiltration, Sum) + dataset + condition + tumor_stage",
         contrasts="Sum",
         robust=True,
-        n_jobs=cpus
+        n_jobs=cpus,
     )
 
 # %%
@@ -226,7 +243,7 @@ res_robust = res_robust.merge(
 ).merge(segmeans, how="left", left_on="variable", right_index=True)
 
 # %%
-res_robust.sort_values("pvalue")
+res_robust.sort_values("coef")
 
 # %%
 res_robust.to_csv("/home/sturm/Downloads/cnv_lm_res_unfiltered.csv")
@@ -256,26 +273,15 @@ res_co2.to_csv(
 res_co2
 
 # %% [markdown]
-# ## results from george
-
-# %%
-res_shared_tcga = pd.read_csv(
-    "/home/sturm/Downloads/lm_res_filtered_abs_diff_gt_0.01_fdr_lt_0.1_adjusted_Shared_TCGA_CNA.tsv",
-    sep="\t",
-)
-
-# %%
-res_shared_tcga
+# ## cellphonedb genes
 
 # %%
 cpdb = pd.read_csv("../../tables/cellphonedb_2022-04-06.tsv", sep="\t")
 
 # %%
-res_co2.merge(
-    cpdb, how="inner", left_on="gene_name", right_on="source_genesymbol"
-)
+res_co2.merge(cpdb, how="inner", left_on="gene_name", right_on="source_genesymbol")
 
 # %%
-res_co2.merge(
-    cpdb, how="inner", left_on="gene_name", right_on="target_genesymbol"
-)
+res_co2.merge(cpdb, how="inner", left_on="gene_name", right_on="target_genesymbol")
+
+# %%
