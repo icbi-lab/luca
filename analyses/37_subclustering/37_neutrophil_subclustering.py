@@ -47,16 +47,6 @@ artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 # %%
 adata = sc.read_h5ad(adata_file)
 
-# %%
-adata[adata.obs["dataset"].str.contains("UKIM"), :].obs[
-    "patient"
-].value_counts().sort_index()
-
-# %%
-adata[adata.obs["dataset"].str.contains("UKIM"), :].obs.groupby(
-    ["patient", "origin"]
-).size()
-
 # %% [markdown]
 # # Neutrophil subset
 
