@@ -215,16 +215,21 @@ means_per_group = sh.pseudobulk.pseudobulk(
 means_per_group.obs.set_index("immune_infiltration", inplace=True)
 
 # %%
-segments_passing_thres = means_per_group.var.index[
-    np.max(np.abs(means_per_group.X), axis=0) > 0.05
-]
+# find segments that have means in opposing directions in at least one group
+segments_opposing_directions = (np.sum(means_per_group.X > 0, axis=0) > 0) & (
+    np.sum(means_per_group.X < 0, axis=0) > 0
+)
+
+# %%
+segments_passing_thres =     np.max(np.abs(means_per_group.X), axis=0) > 0.01
 
 # %%
 with warnings.catch_warnings():
     warnings.filterwarnings(action="ignore")
     res_robust = sh.compare_groups.lm.test_lm(
         cnv_pseudobulk[
-            cnv_pseudobulk.obs["condition"].isin(["LUAD", "LUSC"]), segments_passing_thres
+            cnv_pseudobulk.obs["condition"].isin(["LUAD", "LUSC"]),
+            segments_passing_thres & segments_opposing_directions,
         ].copy(),
         groupby="immune_infiltration",
         formula="~ C(immune_infiltration, Sum) + dataset + condition + tumor_stage",
