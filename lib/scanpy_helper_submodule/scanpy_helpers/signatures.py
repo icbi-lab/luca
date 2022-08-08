@@ -22,6 +22,7 @@ import scanpy as sc
 from tqdm.auto import tqdm
 import altair as alt
 import pandas as pd
+from tqdm.contrib.concurrent import process_map
 
 
 def fold_change(
@@ -311,6 +312,53 @@ def _get_grid(param_grid):
         yield {k: v for k, v in zip(keys, values)}
 
 
+def _grid_search_cv_execute_fold(
+    i,
+    reps_train_labels,
+    reps_test_labels,
+    pb_train,
+    pb_test,
+    replicate_col,
+    label_col,
+    positive_class,
+    grid,
+):
+    """Execute a single fold for the grid search. Used for parallelization"""
+    results = []  # tuples (fold, params, score, n_genes)
+
+    pb_train = pb_train[pb_train.obs[replicate_col].isin(reps_train_labels), :]
+    pb_test = pb_test[pb_test.obs_names.isin(reps_test_labels), :]
+
+    print("Computing per-gene metrics")
+    pb_train = MCPSignatureRegressor.prepare_anndata(
+        pb_train,
+        label_col=label_col,
+        positive_class=positive_class,
+    )
+
+    print("Evaluating grid")
+    for params in grid:
+        mcpr = MCPSignatureRegressor(**params)
+        mcpr.fit(pb_train)
+        n_genes = len(mcpr.signature_genes)
+        if not n_genes:
+            score_pearson = np.nan
+        else:
+            y_pred = mcpr.predict(pb_test)
+            score_pearson = mcpr.score_pearson(pb_test.obs["true_frac"].values, y_pred)
+
+        results.append(
+            {
+                "fold": i,
+                **params,
+                "score_pearson": score_pearson,
+                "n_genes": n_genes,
+            }
+        )
+
+    return results
+
+
 def grid_search_cv(
     adata: AnnData,
     *,
@@ -320,6 +368,7 @@ def grid_search_cv(
     n_splits: int = 5,
     param_grid: dict,
     raw_results: bool = False,
+    n_jobs=None,
 ):
     """Perform a cross-validation grid search with an MCPSignature regressor.
 
@@ -354,70 +403,60 @@ def grid_search_cv(
     """
     replicates = np.unique(adata.obs[replicate_col])
     skf = sklearn.model_selection.KFold(n_splits=n_splits, shuffle=True, random_state=0)
+    reps_train_labels, reps_test_labels = zip(
+        *[
+            (replicates[train_idx], replicates[test_idx])
+            for train_idx, test_idx in skf.split(replicates)
+        ]
+    )
 
     grid = list(_get_grid(param_grid))
 
-    results = []  # tuples (fold, params, score, n_genes)
-    for i, (reps_train_idx, reps_test_idx) in tqdm(
-        enumerate(skf.split(replicates)), total=n_splits
-    ):
-        reps_train, reps_test = replicates[reps_train_idx], replicates[reps_test_idx]
-        print("Generating Pseudobulk")
-        pb_train = pseudobulk(
-            adata[adata.obs[replicate_col].isin(reps_train), :],
-            groupby=[replicate_col, label_col],
-        )
-        pb_test = pseudobulk(
-            adata[adata.obs[replicate_col].isin(reps_test), :],
-            groupby=[replicate_col],  # do not include label column here
-        )
-        pb_test.obs.set_index(replicate_col, inplace=True)
-        pb_test.obs["true_frac"] = (
-            adata.obs.groupby(replicate_col, observed=True)
-            .apply(lambda x: x[label_col].value_counts(normalize=True, dropna=False))
-            .unstack()[positive_class]
-            .fillna(0)
-        )
+    # pb train, test are both grouped by patient (they will be split in test/train patients later)
+    # The train pseudobulk is additionally split into the cell types, while the test pseudobulk
+    # has all cell-types mixed bet has the original cell-type fractions annotated for validation.
+    print("Generating Pseudobulk")
+    pb_train = pseudobulk(
+        adata,
+        groupby=[replicate_col, label_col],
+    )
+    pb_test = pseudobulk(
+        adata,
+        groupby=[replicate_col],  # do not include label column here
+    )
+    pb_test.obs.set_index(replicate_col, inplace=True)
+    pb_test.obs["true_frac"] = (
+        adata.obs.groupby(replicate_col, observed=True)
+        .apply(lambda x: x[label_col].value_counts(normalize=True, dropna=False))
+        .unstack()[positive_class]
+        .fillna(0)
+    )
 
-        # renormalize
-        for ad in [pb_train, pb_test]:
-            sc.pp.normalize_total(ad, target_sum=1e6)
-            sc.pp.log1p(ad, base=2)
+    # renormalize
+    for ad in [pb_train, pb_test]:
+        sc.pp.normalize_total(ad, target_sum=1e6)
+        sc.pp.log1p(ad, base=2)
 
-        print("Computing per-gene metrics")
-        pb_train = MCPSignatureRegressor.prepare_anndata(
-            pb_train,
-            label_col=label_col,
-            positive_class=positive_class,
-        )
-
-        print("Evaluating grid")
-        for params in grid:
-            mcpr = MCPSignatureRegressor(**params)
-            mcpr.fit(pb_train)
-            n_genes = len(mcpr.signature_genes)
-            if not n_genes:
-                score_pearson = np.nan
-            else:
-                y_pred = mcpr.predict(pb_test)
-                score_pearson = mcpr.score_pearson(
-                    pb_test.obs["true_frac"].values, y_pred
-                )
-
-            results.append(
-                {
-                    "fold": i,
-                    **params,
-                    "score_pearson": score_pearson,
-                    "n_genes": n_genes,
-                }
-            )
+    all_results = process_map(
+        _grid_search_cv_execute_fold,
+        list(enumerate(reps_train_labels)),
+        reps_train_labels,
+        reps_test_labels,
+        itertools.repeat(pb_train),
+        itertools.repeat(pb_test),
+        itertools.repeat(replicate_col),
+        itertools.repeat(label_col),
+        itertools.repeat(positive_class),
+        itertools.repeat(grid),
+        max_workers=n_jobs,
+    )
+    all_results = list(itertools.chain.from_iterable(all_results))
 
     if raw_results:
-        return results
+        return all_results
     else:
         return results_to_df(
-            results,
+            all_results,
             attrs={
                 "replicate_col": replicate_col,
                 "label_col": label_col,

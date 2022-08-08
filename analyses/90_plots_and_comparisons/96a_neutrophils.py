@@ -67,6 +67,7 @@ neutro_recruitment_geneset_path = nxfvars.get(
     "neutro_recruitment_geneset_path",
     "../../tables/gene_annotations/neutro_recruitment_chemokines.xlsx",
 )
+cpus = nxfvars.get("cpus", 8)
 
 # %% [markdown]
 # # Load data
@@ -1241,6 +1242,14 @@ neutro_sigs = {}
 adata_primary = adata[adata.obs["origin"] == "tumor_primary", :]
 
 # %%
+adata_primary.var["marker"] = [
+    "TAN"
+    if g in markers_tan_nan["TAN"]
+    else ("NAN" if g in markers_tan_nan["NAN"] else np.nan)
+    for g in adata_primary.var.index
+]
+
+# %%
 adata_primary_train, adata_primary_test = sh.signatures.train_test_split(
     adata_primary, replicate_col="patient"
 )
@@ -1302,12 +1311,22 @@ for k, genes in list(neutro_sigs.items()):
                 g for g in genes if g in markers_tan_nan[ct]
             ]
 
+
 # %% [markdown]
-# ## constrained to TAN
+# ## constrained to balanced
 
 # %%
-results_neutro_constrained_tan = sh.signatures.grid_search_cv(
-    adata_primary_train[:, markers_tan_nan["TAN"]],
+def balanced_constraint(var_df):
+    var_df.sort_values("roc_auc", ascending=False, inplace=True)
+    tan_genes = var_df.loc[lambda x: x["marker"] == "TAN"]
+    nan_genes = var_df.loc[lambda x: x["marker"] == "NAN"]
+    n = min(tan_genes.shape[0], nan_genes.shape[0])
+    return pd.concat([tan_genes.iloc[:n, :], nan_genes.iloc[:n, :]])
+
+
+# %%
+results_neutro_balanced = sh.signatures.grid_search_cv(
+    adata_primary_train,
     replicate_col="patient",
     label_col="cell_type_major",
     positive_class="Neutrophils",
@@ -1315,6 +1334,36 @@ results_neutro_constrained_tan = sh.signatures.grid_search_cv(
         "min_fc": list(np.arange(0.5, 3, 0.1)),
         "min_sfc": list(np.arange(0.5, 3, 0.1)),
         "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
+        "constraint": [balanced_constraint]
+    },
+)
+
+# %%
+results_neutro_balanced.drop_duplicates(subset=["score_pearson", "n_genes"]).head(20)
+
+ # %%
+ tmp_mcpr = sh.signatures.refit_evaluate_plot(
+    results_neutro_balanced,
+    adata_train=adata_primary_train,
+    adata_test=adata_primary_test,
+    i=0,
+)
+neutro_sigs[f"sig_neutro_balanced"] = tmp_mcpr.signature_genes
+
+# %% [markdown]
+# ## constrained to TAN
+
+# %%
+results_neutro_constrained_tan = sh.signatures.grid_search_cv(
+    adata_primary_train,
+    replicate_col="patient",
+    label_col="cell_type_major",
+    positive_class="Neutrophils",
+    param_grid={
+        "min_fc": list(np.arange(0.5, 3, 0.1)),
+        "min_sfc": list(np.arange(0.5, 3, 0.1)),
+        "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
+        "constraint": [lambda df: df.loc[lambda x: x["marker"] == "TAN"]]
     },
 )
 
@@ -1324,18 +1373,22 @@ results_neutro_constrained_tan.iloc[[0, 50, 100, 200, 300, 500], :]
 # %%
 tmp_mcpr = sh.signatures.refit_evaluate_plot(
     results_neutro_constrained_tan,
-    adata_train=adata_primary_train[:, markers_tan_nan["TAN"]],
-    adata_test=adata_primary_test[:, markers_tan_nan["TAN"]],
-    i=0
+    adata_train=adata_primary_train,
+    adata_test=adata_primary_test,
+    i=0,
 )
 neutro_sigs[f"sig_neutro_constrained_tan"] = tmp_mcpr.signature_genes
+
 
 # %% [markdown]
 # ## constrained to NAN
 
 # %%
+def constraint_nan(df):
+    return df.loc[lambda x: x["marker"] == "NAN"]
+    
 results_neutro_constrained_nan = sh.signatures.grid_search_cv(
-    adata_primary_train[:, markers_tan_nan["NAN"]],
+    adata_primary_train,
     replicate_col="patient",
     label_col="cell_type_major",
     positive_class="Neutrophils",
@@ -1343,7 +1396,9 @@ results_neutro_constrained_nan = sh.signatures.grid_search_cv(
         "min_fc": list(np.arange(0.5, 3, 0.1)),
         "min_sfc": list(np.arange(0.5, 3, 0.1)),
         "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
+        "constraint": [constraint_nan]
     },
+    n_jobs=cpus
 )
 
 # %%
@@ -1352,9 +1407,9 @@ results_neutro_constrained_nan.iloc[[0, 50, 100, 200, 300, 500], :]
 # %%
 tmp_mcpr = sh.signatures.refit_evaluate_plot(
     results_neutro_constrained_nan,
-    adata_train=adata_primary_train[:, markers_tan_nan["NAN"]],
-    adata_test=adata_primary_test[:, markers_tan_nan["NAN"]],
-    i=0
+    adata_train=adata_primary_train,
+    adata_test=adata_primary_test,
+    i=0,
 )
 neutro_sigs[f"sig_neutro_constrained_nan"] = tmp_mcpr.signature_genes
 
@@ -1423,6 +1478,9 @@ neutro_sigs = {k: v for k, v in neutro_sigs.items() if len(v)}
 
 # %%
 {sig: len(genes) for sig, genes in neutro_sigs.items()}
+
+# %%
+neutro_sigs["sig_trn"] = neutro_sigs["sig_tan"] + neutro_sigs["sig_nan"]
 
 # %%
 fig = sc.pl.matrixplot(
@@ -1498,9 +1556,9 @@ fig = sc.pl.umap(
     frameon=False,
     return_fig=True,
 )
-fig.savefig(
-    f"{artifact_dir}/umap_atlas_signature_scores.pdf", dpi=1200, bbox_inches="tight"
-)
+# fig.savefig(
+#     f"{artifact_dir}/umap_atlas_signature_scores.pdf", dpi=1200, bbox_inches="tight"
+# )
 
 # %% [markdown]
 # ## Export signatures
