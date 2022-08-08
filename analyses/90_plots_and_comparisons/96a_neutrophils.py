@@ -803,7 +803,7 @@ for i, ax in enumerate(fig.axes):
 fig.savefig(f"{artifact_dir}/pairplot_candidate_genes.pdf", bbox_inches="tight")
 
 # %%
-fig = plot_markers(pb_n, "cell_type", genes_of_interest, top=10, return_fig=True)
+fig = sh.signatures.plot_markers(pb_n, "cell_type", genes_of_interest, top=10, return_fig=True)
 fig.savefig(f"{artifact_dir}/matrixplot_candidate_genes.pdf", bbox_inches="tight")
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
@@ -1306,7 +1306,7 @@ for i in [0, 1000, 2000, 3000]:
 # %%
 for k, genes in list(neutro_sigs.items()):
     for ct in ["TAN", "NAN"]:
-        if "sig_neutro" in k:
+        if "sig_neutro_top_0" in k:
             neutro_sigs[k.replace("sig_neutro", f"sig_neutro_{ct.lower()}")] = [
                 g for g in genes if g in markers_tan_nan[ct]
             ]
@@ -1350,10 +1350,14 @@ results_neutro_balanced.drop_duplicates(subset=["score_pearson", "n_genes"]).hea
 )
 neutro_sigs[f"sig_neutro_balanced"] = tmp_mcpr.signature_genes
 
+
 # %% [markdown]
 # ## constrained to TAN
 
 # %%
+def constraint_tan(df):
+    return df.loc[lambda x: x["marker"] == "TAN"]
+
 results_neutro_constrained_tan = sh.signatures.grid_search_cv(
     adata_primary_train,
     replicate_col="patient",
@@ -1363,7 +1367,7 @@ results_neutro_constrained_tan = sh.signatures.grid_search_cv(
         "min_fc": list(np.arange(0.5, 3, 0.1)),
         "min_sfc": list(np.arange(0.5, 3, 0.1)),
         "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
-        "constraint": [lambda df: df.loc[lambda x: x["marker"] == "TAN"]]
+        "constraint": [constraint_tan]
     },
 )
 

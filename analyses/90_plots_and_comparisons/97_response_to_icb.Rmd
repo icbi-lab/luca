@@ -222,18 +222,16 @@ all_datasets = list("ICI"=ici_clin_and_scores, "TCGA"=tcga_clin_and_scores)
 
 # LUAD vs LUSC
 
-```{r, fig.width=12, fig.height=7}
+```{r, fig.width=12, fig.height=5}
 lapply(names(all_datasets), function(dataset) {
   all_datasets[[dataset]] |> select(type, starts_with("sig_")) |>
     filter(!is.na(type)) |> 
     pivot_longer(-type, names_to="signature", values_to="score") |>
-    ggplot(aes(x=type, y=score)) + 
-    geom_quasirandom(aes(color=type)) + 
-    geom_boxplot(outlier.alpha=0, width=.2) + 
+    ggplot(aes(x=signature, y=score, color=type)) + 
     theme_cowplot() + 
     background_grid() + 
-    facet_wrap(~signature, ncol = 5) + 
-    ggtitle(dataset)
+    geom_boxplot() + 
+    ggtitle(dataset) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 })
 
 ```
@@ -249,7 +247,7 @@ lapply(sig_names, function(sig) {
 lapply(sig_names, function(sig) {
   res = summary(lm(as.formula(sprintf("`%s` ~ type + gender + age + tumor_stage_ajcc", sig)), data=tcga_clin_and_scores))
   res$coefficients |> as_tibble(rownames="var") |> mutate(sig=sig, .before=1)
-}) |> bind_rows() |> arrange(var, sig)
+}) |> bind_rows() |> arrange(var, sig) |> filter(var == "typeLUSC")
 ```
 
 ---
@@ -260,12 +258,12 @@ This should answer the question if there's a different effect of Neutrophils
 in the different treatment arms
 
 ```{r}
-res = summary(coxph(as.formula("Surv(time, status) ~ type + dataset + sig_nan * study_arm"), data = ici_clin_and_scores))
+res = summary(coxph(as.formula("Surv(time, status) ~ sig_neutro_balanced * study_arm + dataset + gender"), data = ici_clin_and_scores |> filter(type == "LUSC")))
 res
 ```
 
 ```{r}
-res = summary(coxph(as.formula("Surv(time, status) ~ sig_tan * type + dataset + sig_tan * study_arm + sig_nan * type + sig_nan * study_arm"), data = ici_clin_and_scores))
+res = summary(coxph(as.formula("Surv(time, status) ~ dataset + type + sig_neutro_balanced * study_arm + gender"), data = ici_clin_and_scores))
 res
 ```
 
@@ -273,7 +271,7 @@ res
 
 
 ```{r}
-summary(glm(as.formula("response_to_any ~ sig_tan * type + sig_tan * study_arm + sig_nan * type + dataset + sig_nan * study_arm"), data=ici_clin_and_scores |> filter(!is.na(response_to_any)), family="binomial"))
+summary(glm(as.formula("response_to_any ~ dataset + sig_neutro_balanced * study_arm + gender"), data=ici_clin_and_scores |> filter(!is.na(response_to_any), type == "LUAD"), family="binomial"))
 ```
 ```{r}
 summary(glm(as.formula("response_to_any ~ sig_tan * type + dataset + sig_tan * study_arm"), data=ici_clin_and_scores |> filter(!is.na(response_to_any)), family="binomial"))
@@ -344,7 +342,35 @@ lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
     })
 })
 ```
+### Multi-KM plot
 
+Neutro-lo Neutro-hi + study arms in same plot. 
+```{r, fig.width=8, fig.height=4}
+plot_kaplan_meyer_multi = function(clinical_data, column, q=c(0.25, .75), pvalue=TRUE, ...) {
+  tmp_col = clinical_data[[column]]
+  cutoffs = quantile(tmp_col, q)
+  group = rep(NA, length(tmp_col))
+  group[tmp_col < cutoffs[1]] = "bottom 25%"
+  group[tmp_col > cutoffs[2]] = "top 25%"
+  clinical_data$group = group
+  # clinical_data = clinical_data |> filter(time < 365 * 5) |>
+    # mutate(group_multi = sprintf("%s %s"))
+  fit = survfit(Surv(time, status) ~ group + study_arm, data=clinical_data)
+  ggsurvplot(fit, data=clinical_data, pval=pvalue, risk.table = FALSE, xlab="time in days",legend="right", ...)
+}
+
+lapply(c("sig_neutro_balanced", "sig_tan", "sig_nan"), function(sig) {
+  lapply(c("all", "LUAD", "LUSC"), function(tmp_type) {
+    if(tmp_type == "all") {
+      filter_type = c("LUAD", "LUSC")
+    } else {
+      filter_type = tmp_type
+    }
+    plot_kaplan_meyer_multi(ici_clin_and_scores |> filter(type %in% filter_type), sig, title=sprintf("%s (%s)", sig, tmp_type))
+  })
+})
+
+```
 
 ## Responder vs. Non-responder
 
@@ -355,7 +381,7 @@ glm_res_ici = lapply(c("all", "LUSC", "LUAD"), function(type) {
     filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
     type_covar = ifelse(type == "all", "+ type ", "")
     tmp_res = lapply(sig_names, function(col) {
-      res = summary(glm(as.formula(sprintf("response_to_ici ~ `%s` %s + dataset", col, type_covar)), family="binomial", data=ici_data |> filter(type %in% filter_type)))
+      res = summary(glm(as.formula(sprintf("response_to_any ~ `%s` %s + dataset", col, type_covar)), family="binomial", data=ici_data |> filter(type %in% filter_type)))
       res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
     }) |> 
       bind_rows() |> 

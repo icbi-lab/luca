@@ -13,13 +13,11 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence
 import numpy as np
 from sklearn.metrics import roc_auc_score
 import sklearn.model_selection
-from numba import njit
 from anndata import AnnData
 import itertools
 import scipy.stats
 from .pseudobulk import pseudobulk
 import scanpy as sc
-from tqdm.auto import tqdm
 import altair as alt
 import pandas as pd
 from tqdm.contrib.concurrent import process_map
@@ -467,10 +465,12 @@ def grid_search_cv(
 
 def results_to_df(results: List[Dict], attrs: Optional[Mapping] = None):
     """Make result dataframe from dictionaries. Optionally stores attributes in df.attrs."""
+    df = pd.DataFrame(results).drop(columns="fold")
+
+    groupby_cols = [x for x in df.columns if x not in ["n_genes", "score_pearson"]]
+
     df = (
-        pd.DataFrame(results)
-        .drop(columns="fold")
-        .groupby(["min_fc", "min_sfc", "min_auroc"])
+        df.groupby(groupby_cols)
         .agg(lambda x: x.mean(skipna=False))
         .sort_values("score_pearson", ascending=False)
         .reset_index()
