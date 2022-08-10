@@ -100,3 +100,25 @@ process SPLIT_ANNDATA {
         tmp_adata.write_h5ad(f"./${id}_{v_sanitized}.h5ad")
     """
 }
+
+process FILTER_ANNDATA {
+    container "${baseDir}/containers/pircher-sc-integrate2_2021-11-27_patched_annotation_helper.sif"
+    input:
+        tuple val(id), path(input_adata)
+        val(query) // this is a labmda expression, e.g. lambda x: x["origin"] == "tumor_primary"
+
+    output:
+        tuple val(id), path("*.h5ad"), emit: adata
+
+    script:
+    """
+    #!/usr/bin/env python
+
+    import scanpy as sc
+
+    adata = sc.read_h5ad("${input_adata}")
+    index = adata.obs.loc[${query}].index
+    adata = adata[index, :]
+    adata.write_h5ad("./${id}_filtered.h5ad")
+    """
+}
