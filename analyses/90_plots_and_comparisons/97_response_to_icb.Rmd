@@ -65,6 +65,7 @@ neutro_sig = sapply(unique(neutro_sig_tab$signature), function(sig) { neutro_sig
 ```{r}
 all_sigs = c(neutro_sig, net_sig)
 sig_names = names(all_sigs)
+sig_names = c(sig_names, "sig_trn_mean")
 ```
 
 # Functions to compute signature scores
@@ -174,7 +175,8 @@ ici_scores = data.frame(sapply(names(all_sigs), function(sig) {
 })) |> mutate(
     sig_lcam_hi=ici_lcam_scores[, 1],
     sig_lcam_lo=ici_lcam_scores[, 2],
-    sig_lcam_consensus=ici_lcam_scores[, 3]
+    sig_lcam_consensus=ici_lcam_scores[, 3],
+    sig_trn_mean=(sig_tan+sig_nan)/2
 ) |> 
   as_tibble(rownames="sample")
 
@@ -196,7 +198,8 @@ tcga_scores = data.frame(sapply(names(all_sigs), function(sig) {
 })) |> mutate( 
   sig_lcam_hi=tcga_lcam_scores[, 1],
   sig_lcam_lo=tcga_lcam_scores[, 2],
-  sig_lcam_consensus=tcga_lcam_scores[, 3]
+  sig_lcam_consensus=tcga_lcam_scores[, 3],
+  sig_trn_mean=(sig_tan+sig_nan)/2
 ) |> 
   as_tibble(rownames="TCGA_patient_barcode")
 
@@ -298,13 +301,15 @@ coxph_results = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
         }) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> arrange(-coef) |> mutate(var=factor(var, levels=unique(var)))
         
         print(coxph_res |> ggplot(aes(x=var, y=coef)) +
-                geom_bar(aes(fill=sig_code), stat="identity") + 
+                geom_bar(aes(fill=sig_code), stat="identity", color="black") + 
                 scale_fill_brewer(palette= "Blues", direction=-1) + 
                 theme_cowplot()+ 
                 theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
                 geom_hline(yintercept = 0, color="black") +
                 facet_wrap(~type, ncol=1)+ 
                 ggtitle(sprintf("Study arm: %s", arm)))
+        
+        ggsave2(sprintf("/home/sturm/Downloads/coxph_%s_%s.pdf", arm, type))
         
         coxph_res |> mutate(type=type)
     }) |> bind_rows() |> mutate(study_arm=arm)
@@ -359,7 +364,7 @@ plot_kaplan_meyer_multi = function(clinical_data, column, q=c(0.25, .75), pvalue
   ggsurvplot(fit, data=clinical_data, pval=pvalue, risk.table = FALSE, xlab="time in days",legend="right", ...)
 }
 
-lapply(c("sig_neutro_balanced", "sig_tan", "sig_nan"), function(sig) {
+lapply(c("sig_neutro_balanced", "sig_tan", "sig_nan", "sig_neutro_balanced_fc"), function(sig) {
   lapply(c("all", "LUAD", "LUSC"), function(tmp_type) {
     if(tmp_type == "all") {
       filter_type = c("LUAD", "LUSC")

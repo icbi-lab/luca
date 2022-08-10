@@ -1248,6 +1248,7 @@ adata_primary.var["marker"] = [
     else ("NAN" if g in markers_tan_nan["NAN"] else np.nan)
     for g in adata_primary.var.index
 ]
+adata_primary.var["tan_nan_fold_change"] = deseq_tan_nan.set_index("gene_id")["log2FoldChange"]
 
 # %%
 adata_primary_train, adata_primary_test = sh.signatures.train_test_split(
@@ -1339,16 +1340,59 @@ results_neutro_balanced = sh.signatures.grid_search_cv(
 )
 
 # %%
-results_neutro_balanced.drop_duplicates(subset=["score_pearson", "n_genes"]).head(20)
+results_neutro_balanced.drop_duplicates(subset=["score_pearson", "n_genes"]).head(40)
 
- # %%
- tmp_mcpr = sh.signatures.refit_evaluate_plot(
+# %%
+tmp_mcpr = sh.signatures.refit_evaluate_plot(
     results_neutro_balanced,
     adata_train=adata_primary_train,
     adata_test=adata_primary_test,
     i=0,
 )
 neutro_sigs[f"sig_neutro_balanced"] = tmp_mcpr.signature_genes
+
+
+# %% [markdown]
+# ### constrained to balanced fold change
+
+# %%
+def balanced_constraint_fold_change(var_df):
+    var_df = var_df.copy()
+    var_df["abs_fc"] = np.abs(var_df["tan_nan_fold_change"])
+    var_df.sort_values("abs_fc", inplace=True)
+    tan_genes = var_df.loc[lambda x: x["tan_nan_fold_change"] > 0].copy()
+    nan_genes = var_df.loc[lambda x: x["tan_nan_fold_change"] < 0].copy()
+    min_sum = min(np.sum(tan_genes["abs_fc"]), np.sum(nan_genes["abs_fc"]))
+    tan_genes["cumsum"] = np.cumsum(tan_genes["abs_fc"])
+    nan_genes["cumsum"] = np.cumsum(nan_genes["abs_fc"])
+    return pd.concat([tan_genes.loc[tan_genes["cumsum"] <= min_sum], nan_genes.loc[nan_genes["cumsum"] <= min_sum]])
+
+
+# %%
+results_neutro_balanced_fc = sh.signatures.grid_search_cv(
+    adata_primary_train,
+    replicate_col="patient",
+    label_col="cell_type_major",
+    positive_class="Neutrophils",
+    param_grid={
+        "min_fc": list(np.arange(0.5, 3, 0.1)),
+        "min_sfc": list(np.arange(0.5, 3, 0.1)),
+        "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
+        "constraint": [balanced_constraint_fold_change]
+    },
+)
+
+# %%
+results_neutro_balanced_fc.drop_duplicates(subset=["score_pearson", "n_genes"]).head(20)
+
+# %%
+tmp_mcpr = sh.signatures.refit_evaluate_plot(
+    results_neutro_balanced_fc,
+    adata_train=adata_primary_train,
+    adata_test=adata_primary_test,
+    i=0,
+)
+neutro_sigs[f"sig_neutro_balanced_fc"] = tmp_mcpr.signature_genes
 
 
 # %% [markdown]
@@ -1525,6 +1569,39 @@ fig.savefig(
 # %%
 fig = sc.pl.umap(
     adata_n,
+    color=["sig_tan", "sig_nan", "sig_neutro_balanced_fc"],
+    cmap="inferno",
+    size=20,
+    ncols=3,
+    frameon=False,
+    return_fig=True,
+)
+
+# %%
+fig = sc.pl.umap(
+    adata_n[adata_n.obs["condition"] == "LUSC", :],
+    color=["sig_tan", "sig_nan", "sig_neutro_balanced_fc"],
+    cmap="inferno",
+    size=20,
+    ncols=3,
+    frameon=False,
+    return_fig=True,
+)
+
+# %%
+fig = sc.pl.umap(
+    adata_n[adata_n.obs["condition"] == "LUAD", :],
+    color=["sig_tan", "sig_nan", "sig_neutro_balanced_fc"],
+    cmap="inferno",
+    size=20,
+    ncols=3,
+    frameon=False,
+    return_fig=True,
+)
+
+# %%
+fig = sc.pl.umap(
+    adata_n,
     color=sig_keys,
     cmap="inferno",
     size=20,
@@ -1564,6 +1641,15 @@ fig = sc.pl.umap(
 #     f"{artifact_dir}/umap_atlas_signature_scores.pdf", dpi=1200, bbox_inches="tight"
 # )
 
+# %%
+sh.signatures.plot_markers(
+    pb_n, "cell_type", markers_tan_nan, top=30, return_fig=False, standard_scale="var"
+)
+
+# %%
+neutro_sigs["sig_tan_functional_program"] = markers_tan_nan["TAN"][:30]
+neutro_sigs["sig_nan_functional_program"] = markers_tan_nan["NAN"][:30]
+
 # %% [markdown]
 # ## Export signatures
 
@@ -1576,6 +1662,12 @@ with open(f"{artifact_dir}/neutro_sigs.csv", "w") as f:
 
 # %%
 assert False
+
+# %%
+neutro_sigs["sig_neutro_balanced_fc"]
+
+# %%
+neutro_sigs["sig_neutro_balanced"]
 
 # %% [markdown]
 # ---
