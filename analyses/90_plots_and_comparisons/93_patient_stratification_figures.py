@@ -167,6 +167,31 @@ p2 = (
 plot_df.query("tumor_stage == 'unknown'")
 
 # %% [markdown]
+# ### tumor cluster fractions
+
+# %%
+alt.vconcat(
+    get_row("tumor_type_annotated", "tumor_type").properties(width=1600),
+    (
+        ad_tumor_subtypes.to_df()
+        .reindex(plot_df["patient"])
+        .reset_index()
+        .melt(id_vars="patient", value_name="fraction")
+        .pipe(
+            lambda x: alt.Chart(x)
+            .mark_bar()
+            .encode(
+                x=alt.X("patient", sort=plot_df["patient"].tolist()),
+                y=alt.Y("fraction", scale=alt.Scale(domain=[0, 1])),
+                color=alt.Color(
+                    "cell_type_tumor", scale=sh.colors.altair_scale("tumor_type")
+                ),
+            )
+        )
+    ).properties(height=150),
+).resolve_scale(x="shared")
+
+# %% [markdown]
 # ## groups by histological subtype
 
 # %%
