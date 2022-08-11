@@ -14,6 +14,7 @@ library(cowplot)
 library(ggplot2)
 library(tidyr)
 conflict_prefer("filter", "dplyr")
+conflict_prefer("rename", "dplyr")
 ```
 
 ```{r}
@@ -32,26 +33,35 @@ tcga_clinical_data = tcga_clinical_data %>%
 sce = read_rds("/home/sturm/Downloads/sce/adata_primary_downsampled.rds")
 ```
 
-```{r}
-# no singularity in singularity available... anyway need to run the web version :(
-omnideconv::set_cibersortx_credentials(email="gregor.sturm@cs.tum.edu", "ff8654e50920b8d181f9086f5ae66db7")
 
+```{r}
+cibersortx_results = read_csv("../../tables/cibersortx/tcga_nsclc/CIBERSORTx_Job2_Results.csv")
+cibersortx_results_tidy = cibersortx_results |> select(-c(`P-value`, `Correlation`, `RMSE`, `Absolute score (sig.score)`)) |> separate(Mixture, into=c(NA, "TCGA_patient_barcode", "origin"), sep="_") |> filter(origin == "T") |> select(-origin) |> pivot_longer(-TCGA_patient_barcode, names_to="cell_type", values_to="estimate") |> inner_join(tcga_clinical_data)
 ```
+
+```{r, fig.width=12, fig.height=}
+cibersortx_results_tidy |> filter(type == "LUAD") |> ggplot(aes(x=cell_type, y=estimate, color=as.factor(egfr_mutation))) + geom_boxplot() + theme_cowplot() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + background_grid()
+```
+
+other methods
 
 
 ```{r}
 # dwls, bisque, cibersortx
+model = omnideconv::build_model(sce, cell_type_column_name="cell_type_major", method="bisque")
+results_bisque = omnideconv::deconvolute(tcga_tpm, model, method="bisque", single_cell_object=sce, cell_type_column_name="cell_type_major", batch_ids=colData(sce)$dataset)
+```
+
+```{r}
+# dwls, bisque, cibersortx
 # TODO exclude "other" cells
-model = omnideconv::build_model(sce, cell_type_column_name="cell_type_major", method="cibersortx", container="singularity")
+model = omnideconv::build_model(sce, cell_type_column_name="cell_type_major", method="dwls")
+results_dwls = omnideconv::deconvolute(tcga_tpm, model, method="dwls", single_cell_object=sce, cell_type_column_name="cell_type_major", batch_ids=colData(sce)$dataset)
 ```
 
 ```{r}
-results = omnideconv::deconvolute(tcga_tpm, model, method="bisque", single_cell_object=sce, cell_type_column_name="cell_type_major", batch_ids=colData(sce)$dataset)
-
-```
-
-```{r}
-results_tidy = results |>  as_tibble(rownames="TCGA_patient_barcode") |> pivot_longer(-TCGA_patient_barcode, names_to="cell_type", values_to="estimate") |> inner_join(tcga_clinical_data)
+results_tidy_bisque = results_bisque |>  as_tibble(rownames="TCGA_patient_barcode") |> pivot_longer(-TCGA_patient_barcode, names_to="cell_type", values_to="estimate") |> inner_join(tcga_clinical_data)
 ```
 
 ```{r, fig.width=12, fig.height=}
