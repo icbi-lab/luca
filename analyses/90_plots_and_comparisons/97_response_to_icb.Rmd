@@ -266,7 +266,7 @@ res
 ```
 
 ```{r}
-res = summary(coxph(as.formula("Surv(time, status) ~ dataset + type + sig_neutro_balanced * study_arm + gender"), data = ici_clin_and_scores))
+res = summary(coxph(as.formula("Surv(time, status) ~ dataset + type + sig_neutro_balanced_fc * study_arm + gender"), data = ici_clin_and_scores))
 res
 ```
 
@@ -284,13 +284,15 @@ summary(glm(as.formula("response_to_any ~ sig_tan * type + dataset + sig_tan * s
 ## Survival analysis
 
 ```{r, fig.width=6, fig.height=6}
+tmp_sig_names = sig_names
+tmp_sig_names = c("sig_tan_functional_program", "sig_nan_functional_program", "sig_tan", "sig_nan", "sig_neutro_balanced_fc", "sig_trn")
 coxph_results = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
     lapply(c("all", "LUSC", "LUAD"), function(type) {
         filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
         filter_arm = if(arm == "any") {c("Docetaxel", "MPDL3280A")} else {arm}
         type_covar = ifelse(type == "all", "+ type ", "")
         arm_covar = ifelse(arm == "any", "+ study_arm", "")
-        coxph_res = lapply(sig_names, function(col) {
+        coxph_res = lapply(tmp_sig_names, function(col) {
            res = summary(coxph(as.formula(sprintf("Surv(time, status) ~ `%s` %s %s + dataset", col, type_covar, arm_covar)), data=ici_clin_and_scores |> 
                                  filter(type %in% filter_type, study_arm %in% filter_arm)))
            res$coefficients |> 
@@ -298,7 +300,9 @@ coxph_results = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
              filter(grepl( col, var)) |> 
              mutate(var=col, type=type)
            
-        }) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> arrange(-coef) |> mutate(var=factor(var, levels=unique(var)))
+        }) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> 
+          # arrange(-coef) |> 
+          mutate(var=factor(var, levels=unique(var)))
         
         print(coxph_res |> ggplot(aes(x=var, y=coef)) +
                 geom_bar(aes(fill=sig_code), stat="identity", color="black") + 
@@ -314,6 +318,7 @@ coxph_results = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
         coxph_res |> mutate(type=type)
     }) |> bind_rows() |> mutate(study_arm=arm)
 }) |> bind_rows()
+
 ```
 
 
@@ -364,7 +369,7 @@ plot_kaplan_meyer_multi = function(clinical_data, column, q=c(0.25, .75), pvalue
   ggsurvplot(fit, data=clinical_data, pval=pvalue, risk.table = FALSE, xlab="time in days",legend="right", ...)
 }
 
-lapply(c("sig_neutro_balanced", "sig_tan", "sig_nan", "sig_neutro_balanced_fc"), function(sig) {
+lapply(c("sig_neutro_balanced", "sig_tan", "sig_nan", "sig_neutro_balanced_fc", "sig_trn"), function(sig) {
   lapply(c("all", "LUAD", "LUSC"), function(tmp_type) {
     if(tmp_type == "all") {
       filter_type = c("LUAD", "LUSC")
@@ -381,33 +386,41 @@ lapply(c("sig_neutro_balanced", "sig_tan", "sig_nan", "sig_neutro_balanced_fc"),
 
 ### Response to ICI
 ```{r, fig.width=6, fig.height=6}
-ici_data = ici_clin_and_scores |> filter(study_arm == "MPDL3280A") 
-glm_res_ici = lapply(c("all", "LUSC", "LUAD"), function(type) {
-    filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
-    type_covar = ifelse(type == "all", "+ type ", "")
-    tmp_res = lapply(sig_names, function(col) {
-      res = summary(glm(as.formula(sprintf("response_to_any ~ `%s` %s + dataset", col, type_covar)), family="binomial", data=ici_data |> filter(type %in% filter_type)))
-      res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
-    }) |> 
-      bind_rows() |> 
-      mutate(sig_code = sig_codes(`Pr(>|z|)`)) |>
-      arrange(-Estimate) |> 
-      mutate(var=factor(var, levels=unique(var)))
-    
-    print(tmp_res |> ggplot(aes(x=var, y=Estimate)) + 
-            geom_bar(aes(fill=sig_code), stat="identity") +
-            scale_fill_brewer(palette= "Blues", direction=-1)  + 
-            theme_cowplot()+
-            theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-            geom_hline(yintercept = 0, color="black") + 
-            ggtitle(type))
-    
-    tmp_res |> mutate(type=type)
+tmp_sig_names = sig_names
+tmp_sig_names = c("sig_tan_functional_program", "sig_nan_functional_program", "sig_tan", "sig_nan", "sig_neutro_balanced_fc", "sig_trn")
+ici_data = ici_clin_and_scores
+glm_res = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
+  lapply(c("all", "LUSC", "LUAD"), function(type) {
+      filter_arm = if(arm == "any") {c("Docetaxel", "MPDL3280A")} else {arm}
+      filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
+      type_covar = ifelse(type == "all", "+ type ", "")
+      tmp_res = lapply(tmp_sig_names, function(col) {
+        res = summary(glm(as.formula(sprintf("response_to_any ~ `%s` %s + dataset", col, type_covar)), family="binomial", data=ici_data |> filter(type %in% filter_type, study_arm %in% filter_arm)))
+        res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
+      }) |> 
+        bind_rows() |> 
+        mutate(sig_code = sig_codes(`Pr(>|z|)`)) |>
+        # arrange(-Estimate) |> 
+        mutate(var=factor(var, levels=unique(var)))
+      
+      tmp_res = tmp_res |> mutate(type=type, arm=arm)
+      print(tmp_res |> ggplot(aes(x=var, y=Estimate)) + 
+              geom_bar(aes(fill=sig_code), stat="identity") +
+              scale_fill_brewer(palette= "Blues", direction=-1)  + 
+              theme_cowplot()+
+              theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+              geom_hline(yintercept = 0, color="black") + 
+              ggtitle(sprintf("Study arm: %s", arm)) +
+              facet_wrap(~type, ncol=1))
+      
+      tmp_res
+      
+  }) |> bind_rows()
 }) |> bind_rows()
 ```
 
 ```{r, fig.width=18, fig.height=7}
-pvalue_df = glm_res_ici |> filter(`Pr(>|z|)` < 0.5, type == "all") |> 
+pvalue_df = glm_res |> filter(`Pr(>|z|)` < 1, type == "all", arm=="MPDL3280A") |> 
   select(signature=var, pvalue=`Pr(>|z|)`) |> 
   mutate(pvalue = sprintf("p=%*.3f", 3, pvalue)) |>
   distinct()

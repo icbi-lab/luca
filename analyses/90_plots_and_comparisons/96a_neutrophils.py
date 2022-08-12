@@ -803,7 +803,9 @@ for i, ax in enumerate(fig.axes):
 fig.savefig(f"{artifact_dir}/pairplot_candidate_genes.pdf", bbox_inches="tight")
 
 # %%
-fig = sh.signatures.plot_markers(pb_n, "cell_type", genes_of_interest, top=10, return_fig=True)
+fig = sh.signatures.plot_markers(
+    pb_n, "cell_type", genes_of_interest, top=10, return_fig=True
+)
 fig.savefig(f"{artifact_dir}/matrixplot_candidate_genes.pdf", bbox_inches="tight")
 
 # %% [markdown] jp-MarkdownHeadingCollapsed=true tags=[]
@@ -1248,7 +1250,9 @@ adata_primary.var["marker"] = [
     else ("NAN" if g in markers_tan_nan["NAN"] else np.nan)
     for g in adata_primary.var.index
 ]
-adata_primary.var["tan_nan_fold_change"] = deseq_tan_nan.set_index("gene_id")["log2FoldChange"]
+adata_primary.var["tan_nan_fold_change"] = deseq_tan_nan.set_index("gene_id")[
+    "log2FoldChange"
+]
 
 # %%
 adata_primary_train, adata_primary_test = sh.signatures.train_test_split(
@@ -1335,7 +1339,7 @@ results_neutro_balanced = sh.signatures.grid_search_cv(
         "min_fc": list(np.arange(0.5, 3, 0.1)),
         "min_sfc": list(np.arange(0.5, 3, 0.1)),
         "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
-        "constraint": [balanced_constraint]
+        "constraint": [balanced_constraint],
     },
 )
 
@@ -1365,7 +1369,12 @@ def balanced_constraint_fold_change(var_df):
     min_sum = min(np.sum(tan_genes["abs_fc"]), np.sum(nan_genes["abs_fc"]))
     tan_genes["cumsum"] = np.cumsum(tan_genes["abs_fc"])
     nan_genes["cumsum"] = np.cumsum(nan_genes["abs_fc"])
-    return pd.concat([tan_genes.loc[tan_genes["cumsum"] <= min_sum], nan_genes.loc[nan_genes["cumsum"] <= min_sum]])
+    return pd.concat(
+        [
+            tan_genes.loc[tan_genes["cumsum"] <= min_sum],
+            nan_genes.loc[nan_genes["cumsum"] <= min_sum],
+        ]
+    )
 
 
 # %%
@@ -1378,7 +1387,7 @@ results_neutro_balanced_fc = sh.signatures.grid_search_cv(
         "min_fc": list(np.arange(0.5, 3, 0.1)),
         "min_sfc": list(np.arange(0.5, 3, 0.1)),
         "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
-        "constraint": [balanced_constraint_fold_change]
+        "constraint": [balanced_constraint_fold_change],
     },
 )
 
@@ -1402,6 +1411,7 @@ neutro_sigs[f"sig_neutro_balanced_fc"] = tmp_mcpr.signature_genes
 def constraint_tan(df):
     return df.loc[lambda x: x["marker"] == "TAN"]
 
+
 results_neutro_constrained_tan = sh.signatures.grid_search_cv(
     adata_primary_train,
     replicate_col="patient",
@@ -1411,7 +1421,7 @@ results_neutro_constrained_tan = sh.signatures.grid_search_cv(
         "min_fc": list(np.arange(0.5, 3, 0.1)),
         "min_sfc": list(np.arange(0.5, 3, 0.1)),
         "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
-        "constraint": [constraint_tan]
+        "constraint": [constraint_tan],
     },
 )
 
@@ -1434,7 +1444,8 @@ neutro_sigs[f"sig_neutro_constrained_tan"] = tmp_mcpr.signature_genes
 # %%
 def constraint_nan(df):
     return df.loc[lambda x: x["marker"] == "NAN"]
-    
+
+
 results_neutro_constrained_nan = sh.signatures.grid_search_cv(
     adata_primary_train,
     replicate_col="patient",
@@ -1444,9 +1455,9 @@ results_neutro_constrained_nan = sh.signatures.grid_search_cv(
         "min_fc": list(np.arange(0.5, 3, 0.1)),
         "min_sfc": list(np.arange(0.5, 3, 0.1)),
         "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
-        "constraint": [constraint_nan]
+        "constraint": [constraint_nan],
     },
-    n_jobs=cpus
+    n_jobs=cpus,
 )
 
 # %%
@@ -1517,6 +1528,18 @@ mcpr_nan = sh.signatures.refit_evaluate_plot(
 
 # %%
 neutro_sigs["sig_nan"] = mcpr_nan.signature_genes
+
+# %% [markdown]
+# ## "Biological program" signatures
+
+# %%
+sh.signatures.plot_markers(
+    pb_n, "cell_type", markers_tan_nan, top=30, return_fig=False, standard_scale="var"
+)
+
+# %%
+neutro_sigs["sig_tan_functional_program"] = markers_tan_nan["TAN"][:30]
+neutro_sigs["sig_nan_functional_program"] = markers_tan_nan["NAN"][:30]
 
 # %% [markdown]
 # ## Evaluate signatures
@@ -1641,14 +1664,64 @@ fig = sc.pl.umap(
 #     f"{artifact_dir}/umap_atlas_signature_scores.pdf", dpi=1200, bbox_inches="tight"
 # )
 
+# %% [markdown]
+# ### which myeloid subcluster score in the signatures
+
 # %%
-sh.signatures.plot_markers(
-    pb_n, "cell_type", markers_tan_nan, top=30, return_fig=False, standard_scale="var"
+pb_myeloid = sh.pseudobulk.pseudobulk(
+    adata_primary[
+        adata_primary.obs["cell_type_coarse"].isin(
+            ["cDC", "Macrophage/Monocyte", "pDC"]
+        ),
+        :,
+    ],
+    groupby=["patient", "cell_type"],
 )
 
 # %%
-neutro_sigs["sig_tan_functional_program"] = markers_tan_nan["TAN"][:30]
-neutro_sigs["sig_nan_functional_program"] = markers_tan_nan["NAN"][:30]
+sc.pp.normalize_total(pb_myeloid, target_sum=1e6)
+sc.pp.log1p(pb_myeloid)
+
+# %%
+for sig, genes in tqdm(neutro_sigs.items()):
+    sc.tl.score_genes(pb_myeloid, genes, score_name=sig)
+
+# %%
+sc.pl.matrixplot(
+    pb_myeloid,
+    var_names=["sig_tan_functional_program", "sig_nan_functional_program"],
+    cmap="bwr",
+    groupby="cell_type",
+    swap_axes=True,
+)
+
+# %% [markdown]
+# tumor vs normal
+
+# %%
+pb_tumor_normal = sh.pseudobulk.pseudobulk(
+    adata, groupby=["patient", "origin", "cell_type_major"]
+)
+
+# %%
+sc.pp.normalize_total(pb_tumor_normal, target_sum=1e6)
+sc.pp.log1p(pb_tumor_normal)
+
+# %%
+for sig, genes in tqdm(neutro_sigs.items()):
+    sc.tl.score_genes(pb_tumor_normal, genes, score_name=sig)
+
+# %%
+pb_tumor_normal.obs["origin"] = pb_tumor_normal.obs["origin"].str.replace(
+    "_adjacent", ""
+)
+
+# %%
+alt.Chart(
+    pb_tumor_normal.obs.loc[lambda x: x["origin"].isin(["normal", "tumor_primary"])]
+).encode(
+    x="origin", y="sig_tan_functional_program", color="origin", column="cell_type_major"
+).mark_boxplot()
 
 # %% [markdown]
 # ## Export signatures
