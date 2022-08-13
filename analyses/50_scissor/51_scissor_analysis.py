@@ -69,6 +69,12 @@ adata = sc.read_h5ad(path_adata)
 # %%
 sc.pl.umap(adata, color=["cell_type_coarse", "origin"], wspace=0.8)
 
+# %%
+adata_primary = adata[
+    (adata.obs["origin"] == "tumor_primary"),
+    :,
+].copy()
+
 # %% [markdown]
 # # Overview clinical data
 
@@ -145,15 +151,15 @@ scissor_obs = {
 # %%
 for colname, series in scissor_obs.items():
     print(colname)
-    adata.obs[colname] = series
-    assert adata.obs[colname].value_counts().tolist() == series.value_counts().tolist()
+    adata_primary.obs[colname] = series
+    assert adata_primary.obs[colname].value_counts().tolist() == series.value_counts().tolist()
 
 # %%
 sc.settings.set_figure_params(figsize=(8, 8))
 
 # %%
 sc.pl.umap(
-    adata,
+    adata_primary,
     color=[
         "scissor_any_status_time",
         "scissor_luad_status_time",
@@ -165,13 +171,6 @@ sc.pl.umap(
 
 # %% [markdown]
 # Scissor+ cells are associated with late stage or with having the corresponding mutation.
-
-# %%
-adata_primary = adata[
-    (adata.obs["origin"] == "tumor_primary"),
-    # & ~adata.obs["dataset"].str.startswith("UKIM"),
-    :,
-].copy()
 
 # %%
 sc.pl.umap(adata_primary, color=["dataset", "condition", "origin"], size=1)
@@ -370,5 +369,7 @@ for col, df in scissor_dfs_cd8.items():
     except JSONDecodeError:
         warnings.warn(f"Failed to save plot {col} to svg!")
     ch.display()
+
+# %%
 
 # %%
