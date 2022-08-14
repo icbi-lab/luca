@@ -369,7 +369,3 @@ for col, df in scissor_dfs_cd8.items():
     except JSONDecodeError:
         warnings.warn(f"Failed to save plot {col} to svg!")
     ch.display()
-
-# %%
-
-# %%

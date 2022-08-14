@@ -67,6 +67,10 @@ neutro_recruitment_geneset_path = nxfvars.get(
     "neutro_recruitment_geneset_path",
     "../../tables/gene_annotations/neutro_recruitment_chemokines.xlsx",
 )
+deseq_tan_nan_path = nxfvars.get(
+    "deseq_tan_nan_path",
+    "../../data/30_downstream_analyses/de_analysis/tan_nan/de_deseq2/tan_nan_markers_adata_neutrophil_clusters_neutrophils_DESeq2_result.tsv",
+)
 cpus = nxfvars.get("cpus", 8)
 
 # %% [markdown]
@@ -322,7 +326,9 @@ studies = (
 )
 
 # %%
-(studies | (heatmp + txt).properties(width=300)).configure_concat(spacing=0)
+ch = (studies | (heatmp + txt).properties(width=300)).configure_concat(spacing=0)
+ch.save(f"{artifact_dir}/neutro_count_by_patient.svg")
+ch.display()
 
 # %% [markdown]
 # ## more compact representation
@@ -383,9 +389,11 @@ studies_txt = (
 studies + studies_txt
 
 # %%
-((studies + studies_txt) | (heatmp + txt).properties(width=300)).configure_concat(
+ch = ((studies + studies_txt) | (heatmp + txt).properties(width=300)).configure_concat(
     spacing=0
 )
+ch.save(f"{artifact_dir}/neutro_count_by_study.svg")
+ch.display()
 
 # %% [markdown]
 # ## bar charts
@@ -516,6 +524,8 @@ for i, ax in enumerate(fig.axes):
         ax.yaxis.set_ticklabels([])
         ax.set_ylabel(None)
 
+fig.savefig(f"{artifact_dir}/luad_lusc_tan_nan_fractions.pdf", bbox_inches="tight")
+
 # %%
 fig = sh.pairwise.plot_paired(
     adata_clusters_by_patient[
@@ -543,6 +553,9 @@ for i, ax in enumerate(fig.axes):
     if i > 0:
         ax.yaxis.set_ticklabels([])
         ax.set_ylabel(None)
+fig.savefig(
+    f"{artifact_dir}/luad_lusc_neutro_cluster_fractions.pdf", bbox_inches="tight"
+)
 
 # %% [markdown] tags=[] jp-MarkdownHeadingCollapsed=true jp-MarkdownHeadingCollapsed=true tags=[]
 # # UMAP and Heatmaps of selected gene sets
@@ -846,21 +859,12 @@ ch.save(f"{artifact_dir}/dorothea_tan_nan_barchart.svg")
 ch.display()
 
 # %% [markdown]
-# # Neutrophil subcluster signatures
+# # TAN vs NAN
+#
+# based on DESeq2 results
 
 # %%
-adata_n_train, adata_n_test = sh.signatures.train_test_split(
-    adata_n, replicate_col="patient"
-)
-
-# %% [markdown]
-# ## TAN vs NAN
-
-# %%
-deseq_tan_nan = pd.read_csv(
-    "../../data/30_downstream_analyses/de_analysis/tan_nan/de_deseq2/tan_nan_markers_adata_neutrophil_clusters_neutrophils_DESeq2_result.tsv",
-    sep="\t",
-)
+deseq_tan_nan = pd.read_csv(deseq_tan_nan_path, sep="\t")
 
 # %%
 deseq_tan_nan
@@ -868,10 +872,10 @@ deseq_tan_nan
 # %%
 markers_tan_nan = {
     "TAN": deseq_tan_nan.loc[
-        lambda x: (x["log2FoldChange"] > 1) & (x["baseMean"] > 5), "gene_id"
+        lambda x: (x["log2FoldChange"] > 1) & (x["baseMean"] > 10), "gene_id"
     ].tolist(),
     "NAN": deseq_tan_nan.loc[
-        lambda x: (x["log2FoldChange"] < -1) & (x["baseMean"] > 5), "gene_id"
+        lambda x: (x["log2FoldChange"] < -1) & (x["baseMean"] > 10), "gene_id"
     ].tolist(),
 }
 
@@ -906,12 +910,6 @@ ch.save(f"{artifact_dir}/matrixplot_tan_nan_top10_log_fdr.svg")
 ch.display()
 
 # %%
-fig = sh.signatures.plot_markers(
-    pb_tan_nan, "cell_type_tan_nan_label", markers_tan_nan, top=30, return_fig=True
-)
-fig.savefig(f"{artifact_dir}/matrixplot_tan_nan_top30.pdf", bbox_inches="tight")
-
-# %%
 ch = sh.pairwise.plot_paired_fc(
     pb_tan_nan,
     "cell_type_tan_nan_label",
@@ -924,84 +922,9 @@ ch.save(f"{artifact_dir}/barchar_tan_nan_top30.svg")
 ch.display()
 
 # %% [markdown]
-# ## Neutrophil clusters
-
-# %%
-deseq_neutro_clusters = pd.read_csv(
-    "../../data/30_downstream_analyses/de_analysis/neutrophil_subclusters/de_deseq2/neutrophil_subclusters_adata_neutrophil_clusters_neutrophils_DESeq2_result.tsv",
-    sep="\t",
-)
-
-# %%
-deseq_neutro_clusters["log_fc_rank"] = deseq_neutro_clusters.groupby(["gene_id"])[
-    "log2FoldChange"
-].rank(ascending=False)
-
-# %%
-markers_neutro_clusters = {
-    group: deseq_neutro_clusters.loc[
-        lambda x: (x["log2FoldChange"] > 0)
-        & (x["log_fc_rank"] == 1)
-        & (x["baseMean"] > 5)
-        & (x["comparison"] == group),
-        "gene_id",
-    ].tolist()
-    for group in deseq_neutro_clusters["comparison"].unique()
-}
-
-# %%
-fig = sh.signatures.plot_markers(
-    pb_n,
-    "cell_type",
-    markers_neutro_clusters,
-    top=5,
-    return_fig=True,
-)
-fig.savefig(f"{artifact_dir}/matrixplot_neutro_clusters_top5.pdf", bbox_inches="tight")
-
-# %% [markdown]
-# ---
-
-# %% [markdown]
-# # Find marker genes for Neutrophil clusters
-
-# %%
-pb_tan_nan = sh.pseudobulk.pseudobulk(
-    adata_n,
-    groupby=[
-        "cell_type_tan_nan_label",
-        "patient",
-        "condition",
-        "dataset",
-        "study",
-        "tumor_stage",
-    ],
-)
-
-# %%
-sc.pp.normalize_total(pb_tan_nan, target_sum=1e6)
-sc.pp.log1p(pb_tan_nan, base=2)
-
-# %%
-for ct in tqdm(pb_tan_nan.obs["cell_type_tan_nan_label"].unique()):
-    sh.signatures.fold_change(
-        pb_tan_nan,
-        obs_col="cell_type_tan_nan_label",
-        positive_class=ct,
-        key_added=f"{ct}_fc",
-    )
-    sh.signatures.specific_fold_change(
-        pb_tan_nan,
-        obs_col="cell_type_tan_nan_label",
-        positive_class=ct,
-        key_added=f"{ct}_sfc",
-    )
-    sh.signatures.roc_auc(
-        pb_tan_nan,
-        obs_col="cell_type_tan_nan_label",
-        positive_class=ct,
-        key_added=f"{ct}_auroc",
-    )
+# # Neutrophil clusters
+#
+# based on FC/sFC/AUROC
 
 # %%
 pb_n = sh.pseudobulk.pseudobulk(
@@ -1025,19 +948,9 @@ for ct in tqdm(pb_n.obs["cell_type"].unique()):
     )
 
 # %%
-
-# %%
-markers_tan_nan = {
-    ct: pb_tan_nan.var.loc[lambda x: (x[f"{ct}_auroc"] >= 0.75) & (x[f"{ct}_fc"] > 1.5)]
-    .sort_values(f"{ct}_auroc", ascending=False)
-    .index.tolist()
-    for ct in sorted(pb_tan_nan.obs["cell_type_tan_nan_label"].unique())
-}
-
-# %%
 markers = {
     ct: pb_n.var.loc[
-        lambda x: (x[f"{ct}_auroc"] >= 0.75)
+        lambda x: (x[f"{ct}_auroc"] >= 0.70)
         & (x[f"{ct}_fc"] > 1.5)
         & (x[f"{ct}_sfc"] > 1)
     ]
@@ -1047,59 +960,18 @@ markers = {
 }
 
 # %%
-fig = plot_markers(
-    pb_tan_nan, "cell_type_tan_nan_label", markers_tan_nan, top=10, return_fig=True
-)
-fig.savefig(f"{artifact_dir}/matrixplot_tan_nan_top10.pdf", bbox_inches="tight")
-
-# %%
-fig = plot_markers(
-    pb_tan_nan, "cell_type_tan_nan_label", markers_tan_nan, top=30, return_fig=True
-)
-fig.savefig(f"{artifact_dir}/matrixplot_tan_nan_top30.pdf", bbox_inches="tight")
-
-# %%
-ch = sh.pairwise.plot_paired_fc(
-    pb_tan_nan,
-    "cell_type_tan_nan_label",
-    var_names=markers_tan_nan["TAN"][:30] + markers_tan_nan["NAN"][:30],
-    paired_by="patient",
-    metric="diff",
-    metric_name="log2 fold-change",
-)
-ch.save(f"{artifact_dir}/barchar_tan_nan_top30.svg")
-ch.display()
-
-# %%
-fig = plot_markers(pb_n, "cell_type", markers_tan_nan, top=10, return_fig=True)
+fig = sh.signatures.plot_markers(pb_n, "cell_type", markers_tan_nan, top=10, return_fig=True)
 fig.savefig(
     f"{artifact_dir}/matrixplot_tan_nan_top10_all_clusters.pdf", bbox_inches="tight"
 )
 
 # %%
-ch = metric_strip(pb_tan_nan, markers_tan_nan)
-ch.save(f"{artifact_dir}/matrixplot_tan_nan_top10_auroc.svg")
-ch.display()
-
-# %%
-np.max(pb_tan_nan.var.loc[:, pb_tan_nan.var.columns.str.contains("auroc")])
-
-# %%
-fig = plot_markers(pb_n, "cell_type", markers, top=5, return_fig=True)
+fig = sh.signatures.plot_markers(pb_n, "cell_type", markers, top=5, return_fig=True)
 fig.savefig(f"{artifact_dir}/matrixplot_neutro_clusters_top5.pdf", bbox_inches="tight")
 
 # %%
-ch = metric_strip(pb_n, markers, top=5)
+ch = sh.signatures.plot_metric_strip(pb_n, markers, top=5)
 ch.save(f"{artifact_dir}/matrixplot_neutro_clusters_top5_auroc.svg")
-ch.display()
-
-# %%
-fig = plot_markers(pb_n, "cell_type", markers, top=10, return_fig=True)
-fig.savefig(f"{artifact_dir}/matrixplot_neutro_clusters_top10.pdf", bbox_inches="tight")
-
-# %%
-ch = metric_strip(pb_n, markers, top=10)
-ch.save(f"{artifact_dir}/matrixplot_neutro_clusters_top10_auroc.svg")
 ch.display()
 
 # %%
@@ -1113,11 +985,12 @@ selected_top_markers = {
     "NAN": ["CST7", "TMX4"],
     "TAN": ["CCL4", "CCL3"],
     "NAN-1": ["PADI4", "MMP9"],
-    "NAN-2": ["CXCR2", "TNFSF13B"],
-    "TAN-1": ["IL1A", "RHOH"],
-    "TAN-2": ["CD74", "IFIT1"],
-    "TAN-3": ["PLIN2", "PLPP3"],
-    "TAN-4": ["RPL27", "RPS12"],
+    "NAN-2": ["ATG16L2", "ARHGEF40"],
+    "NAN-3": ["GBP1", "IFIT2"],
+    "TAN-1": ["IL1RN", "RHOH"],
+    "TAN-2": ["CD74", "HLA-DRA"],
+    "TAN-3": ["CTSB", "LGALS3"],
+    "TAN-4": ["RPL3", "RPS12"],
 }
 selected_markers_of_interest = {
     "NAN-1": ["S100A12", "PADI4", "PROK2", "MMP9"],
@@ -1193,23 +1066,6 @@ fig.savefig(
     bbox_inches="tight",
     dpi=300,
 )
-
-# %%
-marker_res_tan_nan = (
-    pd.concat(
-        [
-            pb_tan_nan.var.loc[lambda x: x["TAN_auroc"] > 0.5]
-            .assign(group="TAN")
-            .rename(columns={"TAN_fc": "fold-change", "TAN_auroc": "AUROC"}),
-            pb_tan_nan.var.loc[lambda x: x["NAN_auroc"] > 0.5]
-            .assign(group="NAN")
-            .rename(columns={"NAN_fc": "fold-change", "NAN_auroc": "AUROC"}),
-        ]
-    )
-    .loc[:, ["group", "fold-change", "AUROC"]]
-    .sort_values("AUROC", ascending=False)
-)
-marker_res_tan_nan.to_csv(f"{artifact_dir}/tan_vs_nan_markers.csv")
 
 # %%
 pd.concat(
@@ -1732,220 +1588,3 @@ with open(f"{artifact_dir}/neutro_sigs.csv", "w") as f:
     for sig, genes in neutro_sigs.items():
         for gene in genes:
             f.write(sig + "," + gene + "\n")
-
-# %%
-assert False
-
-# %%
-neutro_sigs["sig_neutro_balanced_fc"]
-
-# %%
-neutro_sigs["sig_neutro_balanced"]
-
-# %% [markdown]
-# ---
-
-# %% [markdown]
-# ### Compute metrics
-#
-# fold change, specific fold change and AUROC for each gene. This approach is defined in the MCP counter paper. 
-
-# %%
-sh.signatures.fold_change(
-    pb_primary, obs_col="cell_type_major", positive_class="Neutrophils"
-)
-
-# %%
-sh.signatures.specific_fold_change(
-    pb_primary, obs_col="cell_type_major", positive_class="Neutrophils"
-)
-
-# %%
-sh.signatures.roc_auc(
-    pb_primary, obs_col="cell_type_major", positive_class="Neutrophils"
-)
-
-# %% [markdown]
-# ## Neutrophil signatures
-# Genes that are specific for the Neutrophil cluster as a whole
-
-# %%
-neutro_sigs = {}
-
-# %%
-# Same principle as MCP counter, but even more specific!
-# This is a subset of neutro_sig
-tmp_df = (
-    pb_primary.var.query("roc_auc >=0.97")
-    .query("fold_change > 3")
-    .query("specific_fold_change > 2")
-)
-neutro_sigs["neutro_sig"] = tmp_df.index.tolist()
-tmp_df
-
-# %%
-# These are the original filtering criteria used by MCP counter
-tmp_df = (
-    pb_primary.var.query("roc_auc >=0.97")
-    .query("fold_change >=2")
-    .query("specific_fold_change >= 1.5")
-)
-neutro_sigs["neutro_sig2"] = tmp_df.index.tolist()
-tmp_df
-
-# %%
-# Relaxed criteria to increase the number of genes, such that we can build TAN/NAN signatures.
-tmp_df = (
-    pb_primary.var.query("roc_auc >=0.90")
-    .query("fold_change >=2")
-    .query("specific_fold_change >= 1.5")
-)
-neutro_sigs["neutro_sig3"] = tmp_df.index.tolist()
-tmp_df
-
-# %% [markdown]
-# ## TAN/NAN signatures
-# Signature genes that are specific to Neutrophils *and* TANs or NANs. 
-# We don't find genes that are specific enough to detect the TAN/NAN subclusters from bulk RNA-seq data. 
-
-# %%
-adata_primary_train.obs["cell_type_major_tan_nan"].value_counts()
-
-# %%
-# results_tan_hierarch = sh.signatures.grid_search_cv(
-#     adata_primary_train,
-#     replicate_col="patient",
-#     label_col="cell_type_major",
-#     positive_class="Neutrophils",
-#     label_col_fine="cell_type_major_tan_nan",
-#     positive_class_fine="TAN-",
-#     label_col_eval="cell_type_major_tan_nan",
-#     positive_class_eval="TAN-",
-#     model_class=sh.signatures.HierarchicalMCPSignatureRegressor,
-#     param_grid={
-#         "min_fc_coarse": list(np.arange(0.5, 3, 0.5)),
-#         "min_sfc_coarse": list(np.arange(0.5, 3, 0.5)),
-#         "min_auroc_coarse": [0.7, 0.8, 0.9, 0.95, 0.97],
-#         "min_fc_fine": list(np.arange(0.5, 3, 0.5)),
-#         "min_sfc_fine": [0],
-#         "min_auroc_fine": [0.7, 0.8, 0.9, 0.95, 0.97],
-#     },
-# )
-
-# %%
-# pd.DataFrame(results_tan_hierarch).drop(columns="fold").groupby(
-#     [
-#         "min_fc_coarse",
-#         "min_sfc_coarse",
-#         "min_auroc_coarse",
-#         "min_fc_fine",
-#         "min_sfc_fine",
-#         "min_auroc_fine",
-#     ]
-# ).agg(lambda x: x.mean(skipna=False)).sort_values(
-#     "score_pearson", ascending=False
-# ).head(
-#     50
-# )
-
-# %%
-# results_tan = sh.signatures.grid_search_cv(
-#     adata_primary_train,
-#     replicate_col="patient",
-#     label_col="cell_type_major_tan_nan",
-#     positive_class="TAN-",
-#     param_grid={
-#         "min_fc": list(np.arange(0.5, 3, 0.1)),
-#         "min_sfc": list(np.arange(0.5, 3, 0.1)),
-#         "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
-#     },
-# )
-
-# %%
-# pd.DataFrame(results_tan).drop(columns="fold").groupby(
-#     ["min_fc", "min_sfc", "min_auroc"]
-# ).agg(lambda x: x.mean(skipna=False)).sort_values(
-#     "score_pearson", ascending=False
-# ).head(
-#     50
-# )
-
-# %%
-# results_nan = sh.signatures.grid_search_cv(
-#     adata_primary_train,
-#     replicate_col="patient",
-#     label_col="cell_type_major_tan_nan",
-#     positive_class="NAN-",
-#     param_grid={
-#         "min_fc": list(np.arange(0.5, 3, 0.1)),
-#         "min_sfc": list(np.arange(0.5, 3, 0.1)),
-#         "min_auroc": [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.96, 0.97],
-#     },
-# )
-
-# %%
-# pd.DataFrame(results_nan).drop(columns="fold").groupby(
-#     ["min_fc", "min_sfc", "min_auroc"]
-# ).agg(lambda x: x.mean(skipna=False)).sort_values(
-#     "score_pearson", ascending=False
-# ).head(
-#     50
-# )
-
-# %%
-# mcpr_tan = sh.signatures.MCPSignatureRegressor(min_fc=2.8, min_sfc=0.5, min_auroc=0.97)
-# sh.signatures.refit_and_evaluate(
-#     mcpr_tan,
-#     adata_primary_train,
-#     adata_primary_test,
-#     replicate_col="patient",
-#     label_col="cell_type_major_tan_nan",
-#     positive_class="TAN-",
-# )
-
-# %%
-# mcpr_nan = sh.signatures.MCPSignatureRegressor(min_fc=2.7, min_sfc=1.7, min_auroc=0.85)
-# sh.signatures.refit_and_evaluate(
-#     mcpr_nan,
-#     adata_primary_train,
-#     adata_primary_test,
-#     replicate_col="patient",
-#     label_col="cell_type_major_tan_nan",
-#     positive_class="NAN-",
-# )
-
-# %%
-# neutro_sigs = {"NAN": mcpr_nan.signature_genes, "TAN": mcpr_tan.signature_genes}
-
-# %%
-# mcpr_nan.signature_genes
-
-# %%
-# mcpr_tan.signature_genes
-
-# %%
-# signature_genes_tan_nan = marker_res_tan_nan.loc[
-#     itertools.chain.from_iterable(maarkers_tan_nan.values())
-# ]
-
-# %% [markdown]
-# ## Only nan genes in specificity-level 1 and 2
-
-# %%
-# tmp_df = signature_genes_tan_nan.loc[lambda x: x.index.isin(neutro_sigs["neutro_sig"])]
-# tmp_df
-
-# %%
-# tmp_df = signature_genes_tan_nan.loc[lambda x: x.index.isin(neutro_sigs["neutro_sig2"])]
-# neutro_sigs["nan_sig"] = tmp_df.loc[lambda x: x["group"] == "NAN"].index.tolist()
-# # neutro_sigs["tan_sig"] = tmp_df.loc[lambda x: x["group"] == "TAN"].index.tolist()
-# tmp_df
-
-# %%
-# tmp_df = signature_genes_tan_nan.loc[
-#     lambda x: x.index.isin(neutro_sigs["neutro_sig3"]) & (x["group"] == "TAN")
-# ]
-# neutro_sigs["tan_sig"] = tmp_df.index.tolist()
-# tmp_df
-
-# %%
