@@ -260,6 +260,7 @@ class CpdbAnalysis:
             configure=lambda x: x,
             title="",
             order=order,
+            p_cutoff=1,
         ).encode(
             x=alt.X(
                 title=None,

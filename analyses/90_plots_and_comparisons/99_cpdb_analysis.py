@@ -51,6 +51,10 @@ deseq2_path_prefix = nxfvars.get(
     "deseq2_path_prefix",
     "../../data/30_downstream_analyses/de_analysis/{comparison}/de_deseq2",
 )
+deseq2_path_neutro_clusters = nxfvars.get(
+    "deseq2_path_neutro_clusters",
+    "../../data/30_downstream_analyses/de_analysis/neutrophil_subclusters/de_deseq2/neutrophil_subclusters_adata_neutrophil_clusters_neutrophils_DESeq2_result.tsv",
+)
 
 # %%
 adata = sc.read_h5ad(path_adata)
@@ -90,22 +94,6 @@ cpdb
 cpdba = sh.cell2cell.CpdbAnalysis(
     cpdb,
     adata_primary_tumor,
-    pseudobulk_group_by=["patient"],
-    cell_type_column="cell_type_major",
-)
-
-# %%
-cpdba_luad = sh.cell2cell.CpdbAnalysis(
-    cpdb,
-    adata_primary_tumor[adata_primary_tumor.obs["condition"] == "LUAD", :].copy(),
-    pseudobulk_group_by=["patient"],
-    cell_type_column="cell_type_major",
-)
-
-# %%
-cpdba_lusc = sh.cell2cell.CpdbAnalysis(
-    cpdb,
-    adata_primary_tumor[adata_primary_tumor.obs["condition"] == "LUSC", :].copy(),
     pseudobulk_group_by=["patient"],
     cell_type_column="cell_type_major",
 )
@@ -155,9 +143,10 @@ sc.pl.dotplot(
 )
 
 # %%
-cpdb_res = cpdba_lusc.significant_interactions(
+cpdb_res = cpdba.significant_interactions(
     de_res_tumor_cells_luad_lusc, max_pvalue=0.1
 )
+cpdb_res = cpdb_res.loc[lambda x: x["cell_type_major"].isin(immune_cells)]
 top_genes = (
     cpdb_res.loc[:, ["source_genesymbol", "fdr"]]
     .drop_duplicates()
@@ -165,11 +154,8 @@ top_genes = (
     .tolist()
 )
 # cpdb_res.to_csv(f"{artifact_dir}/cpdb_luad_lusc.csv")
-cpdba_lusc.plot_result(
-    cpdb_res.loc[
-        lambda x: x["cell_type_major"].isin(immune_cells)
-        & x["source_genesymbol"].isin(top_genes)
-    ],
+cpdba.plot_result(
+    cpdb_res.loc[lambda x: x["source_genesymbol"].isin(top_genes)],
     title="LUAD vs LUSC: tumor cells, top 30 DE ligands",
     aggregate=False,
     cluster="heatmap",
@@ -195,48 +181,66 @@ de_res_tumor_cells_patient_strat = (
 
 # %%
 cpdb_res = cpdba.significant_interactions(
-    de_res_tumor_cells_patient_strat, max_pvalue=0.1
+    de_res_tumor_cells_patient_strat, max_pvalue=1
+)
+# readjust FDR after subsetting immune cells
+cpdb_res = (
+    cpdb_res.loc[lambda x: x["cell_type_major"].isin(immune_cells)]
+    .pipe(sh.util.fdr_correction)
+    .loc[
+        lambda x: x["source_genesymbol"].isin(
+            x.loc[lambda y: y["fdr"] < 0.1, "source_genesymbol"]
+        )
+    ]
+    .copy()
 )
 cpdb_res.to_csv(f"{artifact_dir}/cpdb_patient_stratification.csv")
 cpdba.plot_result(
-    cpdb_res.loc[lambda x: x["cell_type_major"].isin(immune_cells)],
+    cpdb_res,
     title="Patient stratification: tumor cells, ligand FDR < 0.1",
     aggregate=False,
     cluster="heatmap",
+    clip_fc_at=(-3, 3),
 )
+
+# %%
+cpdb_res
 
 # %% [markdown]
 # # Neutrophils
 
 # %%
-pb_adata = sh.pseudobulk.pseudobulk(
-    adata_n, groupby=["dataset", "patient", "cell_type"]
-)
-
-# %%
-sc.pp.normalize_total(pb_adata, target_sum=1e6)
-sc.pp.log1p(pb_adata, base=2)
-
-# %%
-with warnings.catch_warnings():
-    warnings.filterwarnings("ignore")
-    de_res_neutro = sh.compare_groups.lm.test_lm(
-        pb_adata, "~ C(cell_type, Sum) + patient", groupby="cell_type", n_jobs=16
+de_res_neutro_clusters = (
+    pd.read_csv(
+        (deseq2_path_neutro_clusters).format(comparison="immune_infiltration"),
+        sep="\t",
     )
+    .fillna(1)
+    .pipe(sh.util.fdr_correction)
+    .rename(columns={"comparison": "group"})
+)
 
 # %%
-cpdb_res = cpdba.significant_interactions(
-    de_res_neutro.dropna(),
-    max_pvalue=0.1,
-    fc_col="coef",
-    min_abs_fc=1,
-    gene_symbol_col="variable",
-    de_genes_mode="ligand",
-)
+de_res_neutro_clusters
+
+# %%
+cpdb_res = cpdba.significant_interactions(de_res_neutro_clusters, max_pvalue=0.1)
+cpdb_res.to_csv(f"{artifact_dir}/cpdb_neutro_clusters.csv")
 cpdba.plot_result(
     cpdb_res.loc[lambda x: x["cell_type_major"].isin(["Tumor cells", "T cell CD8"])],
-    fc_col="coef",
-    title="Neutrophil clusters: outgoing interactions, ligand FDR < 0.1; abs(log2FC) > 1",
+    title="Patient stratification: tumor cells, ligand FDR < 0.1",
+    aggregate=False,
+    cluster="heatmap",
+    de_genes_mode="ligand",
+    clip_fc_at=(-3, 3),
+).configure_concat(spacing=0)
+
+# %%
+cpdb_res = cpdba.significant_interactions(de_res_neutro_clusters, max_pvalue=0.01)
+cpdb_res.to_csv(f"{artifact_dir}/cpdb_neutro_clusters.csv")
+cpdba.plot_result(
+    cpdb_res.loc[lambda x: x["cell_type_major"].isin(["Tumor cells", "T cell CD8"])],
+    title="Patient stratification: tumor cells, ligand FDR < 0.01",
     aggregate=False,
     cluster="heatmap",
     de_genes_mode="ligand",
@@ -245,22 +249,15 @@ cpdba.plot_result(
 
 # %%
 cpdb_res = cpdba.significant_interactions(
-    de_res_neutro.dropna(),
-    max_pvalue=0.1,
-    fc_col="coef",
-    min_abs_fc=1,
-    gene_symbol_col="variable",
-    de_genes_mode="receptor",
+    de_res_neutro_clusters, max_pvalue=0.1, de_genes_mode="receptor"
 )
+cpdb_res.to_csv(f"{artifact_dir}/cpdb_neutro_clusters.csv")
 cpdba.plot_result(
     cpdb_res.loc[lambda x: x["cell_type_major"].isin(["Tumor cells"])],
-    fc_col="coef",
     title="Neutrophil clusters: incoming interactions, receptor FDR < 0.1; abs(log2FC) > 1",
     aggregate=False,
     cluster="heatmap",
     de_genes_mode="receptor",
-    clip_fc_at=(-3, 3),
     label_limit=100,
+    clip_fc_at=(-3, 3),
 ).configure_concat(spacing=-80)
-
-# %%
