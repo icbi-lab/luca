@@ -66,13 +66,18 @@ ad_tumor_subtypes = sc.read_h5ad(ad_tumor_subtypes_path)
 # %%
 plot_df["immune_infiltration"].value_counts()
 
+# %%
+plot_df = plot_df.assign(tumor_type_transcriptomic = lambda x: x["tumor_type_inferred"].map({"LUAD": "LUAD", "LUAD NE": "LUAD", "NSCLC mixed": "NSCLC NOS", "LUAD EMT": "LUAD", "LUSC": "LUSC"}))
+
 
 # %%
-def get_row(col, color_scale=None):
+def get_row(col, color_scale=None, title=None, legend_title=None):
+    title = col if title is None else title
+    legend_title = title if legend_title is None else legend_title
     if color_scale is None:
         color_scale = col
     return (
-        alt.Chart(plot_df.assign(ylab=col))
+        alt.Chart(plot_df.assign(ylab=title))
         .mark_rect()
         .encode(
             x=alt.X(
@@ -83,10 +88,8 @@ def get_row(col, color_scale=None):
             y=alt.Y("ylab", axis=alt.Axis(title=None)),
             color=alt.Color(
                 col,
-                scale=sh.colors.altair_scale(color_scale, data=plot_df, data_col=col)
-                if color_scale != "tumor_type"
-                else sh.colors.altair_scale(color_scale),
-                legend=alt.Legend(columns=3),
+                scale=sh.colors.altair_scale(color_scale, data=plot_df, data_col=col),
+                legend=alt.Legend(columns=3, title=legend_title),
             ),
         )
         .properties(width=800)
@@ -95,15 +98,15 @@ def get_row(col, color_scale=None):
 
 p0 = (
     alt.vconcat(
-        get_row("tumor_type_annotated", "tumor_type")
-        & get_row("tumor_type_inferred", "tumor_type"),
+        get_row("tumor_type_annotated", "tumor_type", title="tumor type (histopathological)", legend_title="tumor type") &
+        get_row("tumor_type_transcriptomic", "tumor_type", title="tumor type (transcriptomic)", legend_title="tumor type"),
         get_row("sex"),
-        get_row("tumor_stage", "tumor_stage_verbose"),
+        get_row("tumor_stage", "tumor_stage_verbose", title="tumor stage"),
         # get_row("study"),
         get_row("platform"),
         # get_row("infiltration_state"),
         # get_row("immune_infiltration"),
-        get_row("immune_infiltration"),
+        get_row("immune_infiltration", title="immune infiltration"),
     ).resolve_scale(color="independent")
     # .resolve_legend("shared")
     .configure_concat(spacing=0)
@@ -171,7 +174,7 @@ plot_df.query("tumor_stage == 'unknown'")
 
 # %%
 alt.vconcat(
-    get_row("tumor_type_annotated", "tumor_type").properties(width=1600),
+    get_row("tumor_type_annotated", "tumor_type", title="histopahological").properties(width=1600),
     (
         ad_tumor_subtypes.to_df()
         .reindex(plot_df["patient"])
@@ -181,15 +184,15 @@ alt.vconcat(
             lambda x: alt.Chart(x)
             .mark_bar()
             .encode(
-                x=alt.X("patient", sort=plot_df["patient"].tolist()),
+                x=alt.X("patient", sort=plot_df["patient"].tolist(), axis=alt.Axis(labelLimit=500)),
                 y=alt.Y("fraction", scale=alt.Scale(domain=[0, 1])),
                 color=alt.Color(
-                    "cell_type_tumor", scale=sh.colors.altair_scale("tumor_type")
+                    "cell_type_tumor", scale=sh.colors.altair_scale("tumor_type", data=x, data_col="cell_type_tumor"), legend=alt.Legend(title="transcriptomic")
                 ),
             )
         )
     ).properties(height=150),
-).resolve_scale(x="shared")
+).resolve_scale(x="shared", color="independent")
 
 # %% [markdown]
 # ## groups by histological subtype
