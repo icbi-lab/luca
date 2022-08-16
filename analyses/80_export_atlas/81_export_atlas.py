@@ -17,46 +17,42 @@ import scanpy as sc
 from nxfvars import nxfvars
 import pandas as pd
 import numpy.testing as npt
+import numpy as np
 
 # %% [markdown]
-# Export final atlas for sharing. 
+# Export final atlas for sharing.
 #  * Use ontologies
 #  * Remove unnecessary data
 #  * make sure it passes the cellxgene schema
 #  * output documentation
 
 # %%
-path_core_atlas = nxfvars.get(
+path_atlas = nxfvars.get(
     "core_atlas",
-    "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
-)
-path_extended_atlas = nxfvars.get(
-    "extended_atlas",
+    # "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
     "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 path_neutrophil_atlas = nxfvars.get(
     "neutrophil_atlas",
     "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
 )
+title = nxfvars.get(
+    "title", "The single-cell lung cancer atlas (LuCA) -- extended atlas"
+)
+output_filename = nxfvars.get("output_filename", "extended_atlas_cellxgene_schema.h5ad")
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
 # %%
-# core_atlas = sc.read_h5ad(path_core_atlas)
+atlas = sc.read_h5ad(path_atlas)
 
 # %%
-extended_atlas = sc.read_h5ad(path_extended_atlas)
+neutrophil_atlas = sc.read_h5ad(path_neutrophil_atlas)
 
 # %%
-# neutrophil_atlas = sc.read_h5ad(path_neutrophil_atlas)
+atlas.shape
 
 # %%
-# core_atlas.shape
-
-# %%
-extended_atlas.shape
-
-# %%
-# neutrophil_atlas.shape
+neutrophil_atlas.shape
 
 # %%
 pd.set_option("display.max_columns", None)
@@ -68,34 +64,33 @@ pd.set_option("display.max_columns", None)
 # ### Add Neutrophil annotations
 
 # %%
-# TODO currently not the case, but should be in the final version
+neutrophil_atlas.shape
 
-# assert extended_atlas.shape == neutrophil_atlas.shape
+# %%
+atlas.shape
 
-# # TODO set with copy warning
-# for c in ["cell_type_neutro", "cell_type_neutro_coarse"]:
-#     extended_atlas.obs[c] = neutrophil_atlas.obs[c]
+# %%
+assert atlas.shape == neutrophil_atlas.shape
+
+# TODO set with copy warning
+for c in ["cell_type_neutro", "cell_type_neutro_coarse"]:
+    atlas.obs[c] = neutrophil_atlas.obs[c]
 
 # %% [markdown]
 # ### Remove unnecessary columns
 
 # %%
-extended_atlas.obs = extended_atlas.obs.loc[:, lambda x: ~x.columns.str.startswith("_")]
+atlas.obs = atlas.obs.loc[:, lambda x: ~x.columns.str.startswith("_")]
 
 # %% [markdown]
 # ## Gene annotations
 #  * GENCODE v38/Ensmbl 104
-#  
+#
 # A gene symbol to ENSEMBL map was generated based on the gencode.v38 GTF file (see commented code below).
-# If an ensembl id was missing for a gene symbol, we manually complemented it with information from genecards.org. Duplicate entries were manually resolved using genecards.org. 
+# If an ensembl id was missing for a gene symbol, we manually complemented it with information from genecards.org. Duplicate entries were manually resolved using genecards.org.
 
 # %%
-# gtf = gtfparse.read_gtf(
-#     "../../data/10_references/gencode.v38.primary_assembly.annotation.gtf.gz",
-#     usecols=["gene_id", "gene_name"],
-# ).drop_duplicates()
-# var2 = extended_atlas.var.join(gtf.set_index("gene_name"))
-# var2.loc[:, ["gene_id"]].reset_index().rename(columns={"index": "gene_symbol"}).to_csv("../../tables/symbol_to_ensembl.csv")
+npt.assert_array_equal(atlas.var_names.values, atlas.raw.var_names.values)
 
 # %%
 gene2ensembl = pd.read_csv("../../tables/symbol_to_ensembl.csv", index_col=0)
@@ -111,14 +106,26 @@ gene2ensembl["gene_id2"] = [
 gene2ensembl = gene2ensembl.loc[lambda x: ~x["gene_id2"].str.contains("_PAR_Y"), :]
 
 # %%
-extended_atlas.var = extended_atlas.var.join(
-    gene2ensembl.set_index("gene_symbol"), how="left"
-)
-extended_atlas.var.set_index("gene_id2", inplace=True, drop=True)
+atlas.var = atlas.var.join(gene2ensembl.set_index("gene_symbol"), how="left")
+atlas.var.set_index("gene_id2", inplace=True, drop=True)
 
 # %%
 pd.set_option("display.max_rows", 100)
-extended_atlas.var.loc[lambda x: x["gene_id"].isnull()]
+atlas.var.loc[lambda x: x["gene_id"].isnull()]
+
+# %% [markdown]
+# Exclude genes that have no valid ENSG identifier
+
+# %%
+np.sum(~atlas.var_names.str.startswith("ENSG"))
+
+# %%
+# we can do this since the matrices are the same size and the same order
+# (as checked with an assert above)
+old_raw = atlas.raw[:, atlas.var_names.str.startswith("ENSG")].copy()
+
+# %%
+atlas = atlas[:, atlas.var_names.str.startswith("ENSG")].copy()
 
 # %% [markdown]
 # ## Matrix layers
@@ -126,37 +133,56 @@ extended_atlas.var.loc[lambda x: x["gene_id"].isnull()]
 #  * all genes
 #  * sparse
 #  * `.raw` -> UMI counts or read counts, respectively
-#  * "final" -> suitable for visualization in cellxgene (log-norm, lenght-scaled for SS2) 
-#  * `layers["counts_length_scaled"]` for UMI counts and length-scaled SS2 counts, respectively. 
+#  * "final" -> suitable for visualization in cellxgene (log-norm, lenght-scaled for SS2)
+#  * `layers["counts_length_scaled"]` for UMI counts and length-scaled SS2 counts, respectively.
 #
 
 # %%
-new_raw = sc.AnnData(
-    extended_atlas.layers["raw_counts"], var=extended_atlas.var, obs=extended_atlas.obs
-)
-extended_atlas.layers["counts_length_scaled"] = extended_atlas.X
-extended_atlas.X = extended_atlas.raw.X
-extended_atlas.raw = new_raw
-del extended_atlas.layers["raw_counts"]
+new_raw = sc.AnnData(atlas.layers["raw_counts"], var=atlas.var, obs=atlas.obs)
+atlas.layers["counts_length_scaled"] = atlas.X
+atlas.X = old_raw.X
+atlas.raw = new_raw
+del atlas.layers["raw_counts"]
 
 # %%
-extended_atlas.raw.obs_names[extended_atlas.obs_names.str.contains("SRR10777354")]
+atlas.raw.obs_names[atlas.obs_names.str.contains("SRR10777354")]
+
+# %%
+atlas.var
 
 # %%
 # small consistency check.
 for atlas in [
     # core_atlas,
-    extended_atlas,
+    atlas,
 ]:
     npt.assert_array_equal(
-        atlas[["SRR10777354-13"], ["A1BG", "A2M", "AAK1", "AAMP", "ABCA1", "ABCD1"]]
+        atlas[
+            ["SRR10777354-13"],
+            [
+                "ENSG00000121410",  # A1BG
+                "ENSG00000175899",  # A2M
+                "ENSG00000115977",  # AAK1
+                "ENSG00000127837",  # AAMP
+                "ENSG00000165029",  # ABCA1
+                "ENSG00000101986",  # ABCD1
+            ],
+        ]
         .layers["counts_length_scaled"]
         .A,
         [[20.0, 18.0, 20.0, 20.0, 93.0, 6.0]],
     )
     npt.assert_array_equal(
         atlas.raw[
-            ["SRR10777354-13"], ["A1BG", "A2M", "AAK1", "AAMP", "ABCA1", "ABCD1"]
+            ["SRR10777354-13"],
+            [
+                "ENSG00000121410",  # A1BG
+                "ENSG00000175899",  # A2M
+                "ENSG00000115977",  # AAK1
+                "ENSG00000127837",  # AAMP
+                "ENSG00000165029",  # ABCA1
+                "ENSG00000101986",  # ABCD1
+            ],
         ].X.A,
         [[3.0, 66.0, 142.0, 12.0, 522.0, 15.0]],
     )
@@ -187,7 +213,7 @@ def remap(adata, mapping, target_col, source_col):
 # If there is not an exact match for the assay, clarifying text MAY be enclosed in parentheses and appended to the most accurate term. For example, the sci-plex assay could be curated as "EFO:0010183 (sci-plex)".
 
 # %%
-extended_atlas.obs["platform_fine"].value_counts()
+atlas.obs["platform_fine"].value_counts()
 
 # %%
 platform_map = {
@@ -198,13 +224,13 @@ platform_map = {
     "10x_5p": "EFO:0011025",
     "Smart-seq2": "EFO:0008931",
     "DropSeq": "EFO:0008722",
-    "Singleron": "EFO:00010183 (GEXSCOPE)", # EFO:0030031 is not yet included in the ontology version used by cellxgene schema
+    "Singleron": "EFO:0010183 (GEXSCOPE)",  # EFO:0030031 is not yet included in the ontology version used by cellxgene schema
     "BD-Rhapsody": "EFO:0010183 (BD Rhapsody)",  # single-cell library construction. Cannot find BD Rhapsody in ontology
     "InDrop": "EFO:0008780",
 }
 
 # %%
-remap(extended_atlas, platform_map, "assay_ontology_term_id", "platform_fine")
+remap(atlas, platform_map, "assay_ontology_term_id", "platform_fine")
 
 # %% [markdown]
 # ### cell types / cell_type_ontology_term_id
@@ -260,7 +286,7 @@ cell_type_map = {
 assert "" not in cell_type_map.values()
 
 # %%
-remap(extended_atlas, cell_type_map, "cell_type_ontology_term_id", "cell_type")
+remap(atlas, cell_type_map, "cell_type_ontology_term_id", "cell_type")
 
 
 # %% [markdown]
@@ -285,15 +311,15 @@ def get_stage(age):
 
 
 # %%
-remap(extended_atlas, get_stage, "development_stage_ontology_term_id", "age")
+remap(atlas, get_stage, "development_stage_ontology_term_id", "age")
 
 # %% [markdown]
 # ### condition / disease_ontology_term_id
 #
-#  This MUST be a MONDO term or "PATO:0000461" for normal or healthy. 
+#  This MUST be a MONDO term or "PATO:0000461" for normal or healthy.
 
 # %%
-extended_atlas.obs["condition"].value_counts()
+atlas.obs["condition"].value_counts()
 
 # %%
 condition_map = {
@@ -305,15 +331,15 @@ condition_map = {
 }
 
 # %%
-remap(extended_atlas, condition_map, "disease_ontology_term_id", "condition")
+remap(atlas, condition_map, "disease_ontology_term_id", "condition")
 
 # %% [markdown]
 # ### ethnicity_ontology_term_id
 #
-# for Homo sapiens, this MUST be either a HANCESTRO term or "unknown" if unavailable. 
+# for Homo sapiens, this MUST be either a HANCESTRO term or "unknown" if unavailable.
 
 # %%
-extended_atlas.obs["ethnicity_ontology_term_id"] = "unknown"
+atlas.obs["ethnicity_ontology_term_id"] = "unknown"
 
 
 # %% [markdown]
@@ -325,7 +351,7 @@ def is_primary_data(dataset):
 
 
 # %%
-remap(extended_atlas, is_primary_data, "is_primary_data", "dataset")
+remap(atlas, is_primary_data, "is_primary_data", "dataset")
 
 # %% [markdown]
 # ### organism_ontology_term_id
@@ -333,14 +359,14 @@ remap(extended_atlas, is_primary_data, "is_primary_data", "dataset")
 # `NCBITaxon:9606` for human
 
 # %%
-extended_atlas.obs["organism_ontology_term_id"] = "NCBITaxon:9606"
+atlas.obs["organism_ontology_term_id"] = "NCBITaxon:9606"
 
 # %% [markdown]
 # ### sex_ontology_term_id
 # This MUST be a child of PATO:0001894 for phenotypic sex or "unknown" if unavailable.
 
 # %%
-extended_atlas.obs["sex"].value_counts()
+atlas.obs["sex"].value_counts()
 
 
 # %%
@@ -354,13 +380,13 @@ def sex_map(s):
 
 
 # %%
-remap(extended_atlas, sex_map, "sex_ontology_term_id", "sex")
+remap(atlas, sex_map, "sex_ontology_term_id", "sex")
 
 # %% [markdown]
 # ### tissue_ontology_term_id
 
 # %%
-extended_atlas.obs["tissue"].value_counts()
+atlas.obs["tissue"].value_counts()
 
 # %%
 tissue_map = {
@@ -373,13 +399,13 @@ tissue_map = {
 }
 
 # %%
-remap(extended_atlas, tissue_map, "tissue_ontology_term_id", "tissue")
+remap(atlas, tissue_map, "tissue_ontology_term_id", "tissue")
 
 # %% [markdown]
 # ### Rename or remove old columns (some contain reserved names)
 
 # %%
-extended_atlas.obs = extended_atlas.obs.drop(["sex", "tissue"], axis="columns").rename(
+atlas.obs = atlas.obs.drop(["sex", "tissue"], axis="columns").rename(
     columns={
         "cell_type": "ann_fine",
         "cell_type_coarse": "ann_coarse",
@@ -390,7 +416,10 @@ extended_atlas.obs = extended_atlas.obs.drop(["sex", "tissue"], axis="columns").
 # ## Gene metadata / var and raw.var
 
 # %%
-extended_atlas.var
+atlas.var = atlas.var.drop("gene_id", axis="columns")
+
+# %%
+atlas.var.index.name = "gene_id"
 
 # %% [markdown]
 # ### feature_biotype
@@ -398,8 +427,8 @@ extended_atlas.var
 # must be `gene` unless it's a spike-in
 
 # %%
-extended_atlas.var["feature_biotype"] = "gene"
-extended_atlas.raw.var["feature_biotype"] = "gene"
+atlas.var["feature_biotype"] = "gene"
+atlas.raw.var["feature_biotype"] = "gene"
 
 # %% [markdown]
 # ### Index
@@ -412,36 +441,39 @@ extended_atlas.raw.var["feature_biotype"] = "gene"
 # * This MUST be True if the feature was filtered out in the final matrix (X) but is present in the raw matrix
 
 # %%
-extended_atlas.var["feature_is_filtered"] = False
+atlas.var["feature_is_filtered"] = False
 
 # %% [markdown]
 # ## Metadata / uns
 
 # %%
-extended_atlas.uns["schema_version"] = "2.0.0"
-extended_atlas.uns[
-    "title"
-] = "The single-cell lung cancer atlas (LuCA) -- extended atlas"
-extended_atlas.uns["X_normalization"] = (
+atlas.uns["schema_version"] = "2.0.0"
+atlas.uns["title"] = title
+atlas.uns["X_normalization"] = (
     "Log-normalized length-scaled counts (Smart-seq2) or UMI counts (other protocols). "
     "Normalization was performed using sc.pp.normalize_total() followed by sc.pp.log1p()"
 )
-extended_atlas.uns["batch_condition"] = ["dataset", "patient", "sample"]
-extended_atlas.uns["default_embedding"] = "X_umap"
+atlas.uns["batch_condition"] = ["dataset", "patient", "sample"]
+atlas.uns["default_embedding"] = "X_umap"
+
+# %% [markdown]
+# ## Sanity checks
 
 # %% [markdown]
 # ## Export h5ads
 
 # %%
-export_path = f"{artifact_dir}/extended_atlas_cellxgene_schema.h5ad"
+export_path = f"{artifact_dir}/{output_filename}.h5ad"
 
 # %%
-extended_atlas.write_h5ad(export_path)
+# TODO gzip
+atlas.write_h5ad(
+    export_path,
+    # compression="gzip",
+)
 
 # %% [markdown]
 # ## Validate h5ads
 
 # %%
 # !cellxgene-schema validate {export_path}
-
-# %%
