@@ -240,8 +240,8 @@ with plt.rc_context({"figure.dpi": 150}):
 adata_n.obs["cell_type_neutro"] = adata_n.obs["cell_type"]
 adata.obs["cell_type_neutro"] = adata.obs["cell_type_major"]
 ah.integrate_back(adata, adata_n, variable="cell_type_neutro")
-# Get rid of the ~40 cells that don't have a neutrophil cluster assigned
-adata = adata[adata.obs["cell_type_neutro"] != "Neutrophils", :]
+# # Get rid of the ~40 cells that don't have a neutrophil cluster assigned
+# adata = adata[adata.obs["cell_type_neutro"] != "Neutrophils", :]
 
 # %%
 sc.pl.umap(adata, color="cell_type_neutro")
