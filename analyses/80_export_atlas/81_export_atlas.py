@@ -28,31 +28,30 @@ import numpy as np
 
 # %%
 path_atlas = nxfvars.get(
-    "core_atlas",
-    # "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
-    "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+    "atlas",
+    "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
+    # "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 path_neutrophil_atlas = nxfvars.get(
     "neutrophil_atlas",
-    "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
+    # "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
+    "None"
 )
 title = nxfvars.get(
     "title", "The single-cell lung cancer atlas (LuCA) -- extended atlas"
 )
 output_filename = nxfvars.get("output_filename", "extended_atlas_cellxgene_schema.h5ad")
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
+path_symbols_to_ensembl = nxfvars.get("symbol_to_ensembl", "../../tables/symbol_to_ensembl.csv")
 
 # %%
 atlas = sc.read_h5ad(path_atlas)
 
 # %%
-neutrophil_atlas = sc.read_h5ad(path_neutrophil_atlas)
+neutrophil_atlas = sc.read_h5ad(path_neutrophil_atlas) if str(path_neutrophil_atlas) != "None" else None
 
 # %%
 atlas.shape
-
-# %%
-neutrophil_atlas.shape
 
 # %%
 pd.set_option("display.max_columns", None)
@@ -64,17 +63,14 @@ pd.set_option("display.max_columns", None)
 # ### Add Neutrophil annotations
 
 # %%
-neutrophil_atlas.shape
+if neutrophil_atlas is not None:
+    print(neutrophil_atlas.shape)
+    print(atlas.shape)
+    
+    assert atlas.shape == neutrophil_atlas.shape
 
-# %%
-atlas.shape
-
-# %%
-assert atlas.shape == neutrophil_atlas.shape
-
-# TODO set with copy warning
-for c in ["cell_type_neutro", "cell_type_neutro_coarse"]:
-    atlas.obs[c] = neutrophil_atlas.obs[c]
+    for c in ["cell_type_neutro", "cell_type_neutro_coarse"]:
+        atlas.obs[c] = neutrophil_atlas.obs[c]
 
 # %% [markdown]
 # ### Remove unnecessary columns
@@ -93,7 +89,7 @@ atlas.obs = atlas.obs.loc[:, lambda x: ~x.columns.str.startswith("_")]
 npt.assert_array_equal(atlas.var_names.values, atlas.raw.var_names.values)
 
 # %%
-gene2ensembl = pd.read_csv("../../tables/symbol_to_ensembl.csv", index_col=0)
+gene2ensembl = pd.read_csv(path_symbols_to_ensembl, index_col=0)
 gene2ensembl["gene_id"] = (
     gene2ensembl["gene_id"].str.strip().str.replace("\.\d+$", "", regex=True)
 )
@@ -459,17 +455,31 @@ atlas.uns["default_embedding"] = "X_umap"
 # %% [markdown]
 # ## Sanity checks
 
+# %%
+atlas.shape
+
+# %%
+atlas.raw.shape
+
+# %%
+atlas.obs
+
+# %%
+sc.pl.umap(atlas, color=["ann_fine", "cell_type_ontology_term_id"])
+
+# %%
+atlas.var.head()
+
 # %% [markdown]
 # ## Export h5ads
 
 # %%
-export_path = f"{artifact_dir}/{output_filename}.h5ad"
+export_path = f"{artifact_dir}/{output_filename}"
 
 # %%
-# TODO gzip
 atlas.write_h5ad(
     export_path,
-    # compression="gzip",
+    compression="gzip",
 )
 
 # %% [markdown]

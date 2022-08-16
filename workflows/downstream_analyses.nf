@@ -9,6 +9,7 @@ include { plots_and_comparisons } from "../subworkflows/plots_and_comparisons.nf
 include { JUPYTERNOTEBOOK as STRATIFY_PATIENTS } from "../modules/local/jupyternotebook/main.nf"
 include { JUPYTERNOTEBOOK as STRATIFY_PATIENTS_SAMPLING_LOCATION } from "../modules/local/jupyternotebook/main.nf"
 include { JUPYTERNOTEBOOK as NEUTROPHIL_SUBCLUSTERING } from "../modules/local/jupyternotebook/main.nf"
+include { JUPYTERNOTEBOOK as EXPORT_ATLAS } from "../modules/local/jupyternotebook/main.nf"
 
 workflow downstream_analyses {
     assert params.build_atlas_dir: "Atlas h5ad file not specified!"
@@ -85,6 +86,38 @@ workflow downstream_analyses {
         de_result_tumor_cells,
         de_result_tan_nan,
         de_result_neutro_clusters
+    )
+
+    ch_symbol_to_ensembl = Channel.fromPath("${baseDir}/tables/symbol_to_ensembl.csv")
+    ch_export_atlas_extended = extended_atlas.concat(atlas_neutro_clusters, ch_symbol_to_ensembl).collect()
+    ch_export_atlas_core = core_atlas.concat(ch_symbol_to_ensembl).collect()
+    ch_export_atlas_extended_params = ch_export_atlas_extended.map{
+        extended_atlas, neutro_atlas, symbol_to_ensembl -> [
+            "id": "extended_atlas",
+            "atlas": extended_atlas.name,
+            "neutrophil_atlas": neutro_atlas.name,
+            "title": "The single-cell lung cancer atlas (LuCA) -- extended atlas",
+            "output_filename": "extended_atlas_cellxgene_schema.h5ad",
+            "symbol_to_ensembl": symbol_to_ensembl.name
+        ]
+    }
+    ch_export_atlas_core_params = ch_export_atlas_core.map{
+        core_atlas, symbol_to_ensembl -> [
+            "id": "core_atlas",
+            "atlas": core_atlas.name,
+            "neutrophil_atlas": "None",
+            "title": "The single-cell lung cancer atlas (LuCA) -- core atlas",
+            "output_filename": "core_atlas_cellxgene_schema.h5ad",
+            "symbol_to_ensembl": symbol_to_ensembl.name
+        ]
+    }
+    EXPORT_ATLAS(
+        Channel.value([
+            [id: "export_atlas"],
+            file("${baseDir}/analyses/80_export_atlas/81_export_atlas.py")
+        ]),
+        ch_export_atlas_extended_params.concat(ch_export_atlas_core_params),
+        ch_export_atlas_extended.concat(ch_export_atlas_core)
     )
 }
 
