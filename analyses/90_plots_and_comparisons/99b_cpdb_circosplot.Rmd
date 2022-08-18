@@ -75,20 +75,14 @@ zeileis_28 = c(
 
 immune_cells = c(
   "B cell"   ,
-  "cDC1"            ,
-  "cDC2" ,
-  "DC mature"     ,
-  "Macrophage"     ,
-  "Macrophage alveolar"  ,
-  "Mast cell"     ,
-  "Monocyte"       ,
-  "Neutrophils"   ,
-  "NK cell"      ,
-  "pDC"       ,
+  "cDC",
+  "Macrophage/Monocyte",
+  "Mast cell",
+  "Neutrophils",
+  "NK cell",
+  "pDC",
   "Plasma cell",
-  "T cell CD4"       ,
-  "T cell CD8"     ,
-  "T cell regulatory"
+  "T cell"
 )
 ```
 
@@ -148,7 +142,7 @@ cpdb_plot = function(
   to = match(edges$to, nodes_ct_hierarchy$name)
   conn_meta = data.frame(from=nodes_ct_hierarchy[from,]$name, to=nodes_ct_hierarchy[to,]$name) |>
     left_join(edges, by=c("from", "to"))
-  
+
   # plot using ggraph
   p = ggraph(G_ct, layout="dendrogram", circular=TRUE) +
     geom_node_point(aes(color=cell_type, shape=type, size=fraction_expressed), stroke=2, fill="white") +
@@ -166,7 +160,7 @@ cpdb_plot = function(
     coord_fixed(clip="off") +
     scale_shape_manual(values=c("receptor"=19, "ligand"=21))  +
     scale_color_manual(values=cell_type_color_scale)   +
-    scale_size_continuous(range=c(2, 14)) + 
+    scale_size_continuous(range=c(2, 14)) +
     theme(legend.position="top")
   p
 }
@@ -190,19 +184,19 @@ cpdb_res_luad_lusc_coarse = read_csv(file.path(params$input_dir, "cpdb_luad_lusc
 Comparison of LUAD and LUSC samples. Blue = Upregulated in LUAD, Red = upregulated in LUSC
 
 ```{r}
-# 
-# luad_lusc_interactions = cpdb_res_luad_lusc |> 
-#   select(source=source_genesymbol, target=target_genesymbol, fraction_expressed, fdr=fdr, log2_fc=log2FoldChange, cluster_2=cell_type_major, pvalue) |> 
-#   mutate(group = if_else(log2_fc < 0, "LUSC", "LUAD")) |> 
-#   mutate(cluster_1 = "Tumor cells") |> 
+#
+# luad_lusc_interactions = cpdb_res_luad_lusc |>
+#   select(source=source_genesymbol, target=target_genesymbol, fraction_expressed, fdr=fdr, log2_fc=log2FoldChange, cluster_2=cell_type_major, pvalue) |>
+#   mutate(group = if_else(log2_fc < 0, "LUSC", "LUAD")) |>
+#   mutate(cluster_1 = "Tumor cells") |>
 #   mutate(variable=sprintf("%s_%s_%s_%s", source, target, cluster_1, cluster_2), coef=log2_fc) |>
 #   filter(cluster_2 %in% c(immune_cells))
-# 
+#
 # top_genes = luad_lusc_interactions |> select(source, fdr) |> distinct() |> arrange(fdr) |> pull(source) |> head(10)
 ```
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-# luad_lusc_interactions  |> filter(source %in% top_genes) |> cpdb_plot(edge_color="log2_fc", cell_type_color_scale = COLORS$cell_type_major) 
+# luad_lusc_interactions  |> filter(source %in% top_genes) |> cpdb_plot(edge_color="log2_fc", cell_type_color_scale = COLORS$cell_type_major)
 # ggsave(file.path(params$artifact_dir, "luad_lusc_ciros_cell_type_major.pdf"))
 ```
 
@@ -210,18 +204,18 @@ Comparison of LUAD and LUSC samples. Blue = Upregulated in LUAD, Red = upregulat
 
 ```{r}
 
-luad_lusc_interactions_coarse = cpdb_res_luad_lusc_coarse |> 
-  select(source=source_genesymbol, target=target_genesymbol, fraction_expressed, fdr=fdr, log2_fc=log2FoldChange, cluster_2=cell_type_coarse, pvalue) |> 
-  mutate(group = if_else(log2_fc < 0, "LUSC", "LUAD")) |> 
-  mutate(cluster_1 = "Tumor cells") |> 
+luad_lusc_interactions_coarse = cpdb_res_luad_lusc_coarse |>
+  select(source=source_genesymbol, target=target_genesymbol, fraction_expressed, fdr=fdr, log2_fc=log2FoldChange, cluster_2=cell_type_coarse, pvalue) |>
+  mutate(group = if_else(log2_fc < 0, "LUSC", "LUAD")) |>
+  mutate(cluster_1 = "Tumor cells") |>
   mutate(variable=sprintf("%s_%s_%s_%s", source, target, cluster_1, cluster_2), coef=log2_fc) |>
   filter(cluster_2 %in% c(immune_cells))
 
-top_genes = luad_lusc_interactions_coarse |> select(source, fdr) |> distinct() |> arrange(fdr) |> pull(source) |> head(15)
+top_genes = luad_lusc_interactions_coarse |> select(source, fdr) |> distinct() |> arrange(fdr) |> pull(source) |> head(10)
 ```
 
 ```{r, fig.width=22, fig.height=14, message=FALSE, warning=FALSE, results=FALSE}
-luad_lusc_interactions_coarse  |> filter(source %in% top_genes) |> cpdb_plot(edge_color="log2_fc", cell_type_color_scale = COLORS$cell_type_coarse) 
+luad_lusc_interactions_coarse  |> filter(source %in% top_genes) |> cpdb_plot(edge_color="log2_fc", cell_type_color_scale = COLORS$cell_type_coarse)
 ggsave(file.path(params$artifact_dir, "luad_lusc_ciros_cell_type_coarse.pdf"))
 ```
 
