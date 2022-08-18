@@ -185,16 +185,16 @@ c2 = (
 c1 & c2
 
 # %%
-df = (
-    adata.obs.loc[lambda x: ~x["dataset"].isin(["Guo_Zhang_2018", "Maier_Merad_2020"])]
-    .groupby(["platform", "dataset"], observed=True)["cell_type_coarse"]
-    .value_counts(normalize=True)
-    .reset_index()
-    .rename(columns={"cell_type_coarse": "fraction", "level_2": "cell_type_coarse"})
-)
+df.loc[lambda x: x["cell_type_coarse"] == "Neutrophils"]
 
 # %%
-df
+ukimv_fracs = adata.obs.loc[lambda x: x["study"] == "UKIM-V", "cell_type_coarse"].value_counts(normalize=True)
+
+# %%
+ukimv_fracs
+
+# %%
+ukimv_fracs["Neutrophils"]
 
 # %% [markdown] tags=[] jp-MarkdownHeadingCollapsed=true tags=[]
 # # mRNA content
