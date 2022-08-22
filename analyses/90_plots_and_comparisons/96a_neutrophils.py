@@ -960,7 +960,9 @@ markers = {
 }
 
 # %%
-fig = sh.signatures.plot_markers(pb_n, "cell_type", markers_tan_nan, top=10, return_fig=True)
+fig = sh.signatures.plot_markers(
+    pb_n, "cell_type", markers_tan_nan, top=10, return_fig=True
+)
 fig.savefig(
     f"{artifact_dir}/matrixplot_tan_nan_top10_all_clusters.pdf", bbox_inches="tight"
 )
@@ -1410,6 +1412,18 @@ neutro_sigs = {k: v for k, v in neutro_sigs.items() if len(v)}
 neutro_sigs["sig_trn"] = neutro_sigs["sig_tan"] + neutro_sigs["sig_nan"]
 
 # %%
+sc.pl.matrixplot(
+    pb_n,
+    var_names={
+        k: v
+        for k, v in sorted(neutro_sigs.items(), key=lambda x: x[0])
+        if k in ["sig_tan", "sig_nan"]
+    },
+    groupby="cell_type",
+    cmap="bwr",
+)
+
+# %%
 fig = sc.pl.matrixplot(
     pb_n,
     var_names=neutro_sigs["sig_neutro_top_0"],
@@ -1436,6 +1450,19 @@ sig_keys = list(neutro_sigs.keys())
 # %%
 # adata_n.obs["tan_nan_sig"] = (adata_n.obs["tan_sig"] + adata_n.obs["nan_sig"]) / 2
 # pb_n.obs["tan_nan_sig"] = (pb_n.obs["tan_sig"] + pb_n.obs["nan_sig"]) / 2
+
+# %%
+fig = sc.pl.matrixplot(
+    pb_n,
+    var_names=["sig_nan", "sig_tan", "sig_trn"],
+    cmap="bwr",
+    groupby="cell_type",
+    return_fig=True,
+)
+fig.show()
+# fig.savefig(
+#     f"{artifact_dir}/matrixplot_signature_scores_by_cluster.pdf", bbox_inches="tight"
+# )
 
 # %%
 fig = sc.pl.matrixplot(
@@ -1501,10 +1528,32 @@ for sig, genes in tqdm(neutro_sigs.items()):
 # %%
 sc.pl.matrixplot(
     pb_primary,
+    var_names=["sig_nan", "sig_tan", "sig_trn"],  #  + ["tan_nan_sig"],
+    cmap="bwr",
+    groupby="cell_type_major",
+)
+
+# %%
+sc.pl.matrixplot(
+    pb_primary,
     var_names=list(neutro_sigs.keys()),  #  + ["tan_nan_sig"],
     cmap="bwr",
     groupby="cell_type_major",
 )
+
+# %%
+fig = sc.pl.umap(
+    adata,
+    color=["sig_tan", "sig_nan", "sig_trn"],
+    cmap="inferno",
+    size=1,
+    ncols=3,
+    frameon=False,
+    return_fig=True,
+)
+# fig.savefig(
+#     f"{artifact_dir}/umap_atlas_signature_scores.pdf", dpi=1200, bbox_inches="tight"
+# )
 
 # %%
 fig = sc.pl.umap(
@@ -1588,3 +1637,5 @@ with open(f"{artifact_dir}/neutro_sigs.csv", "w") as f:
     for sig, genes in neutro_sigs.items():
         for gene in genes:
             f.write(sig + "," + gene + "\n")
+
+# %%

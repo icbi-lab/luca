@@ -60,6 +60,9 @@ neutro_sig_tab = read_csv(params$neutro_sigs)
 net_sig_tab = read_csv(params$net_sigs, comment="#")
 net_sig = sapply(unique(net_sig_tab$signature), function(sig) { net_sig_tab |> filter(signature == !!sig) |> pull(gene_symbol)}, USE.NAMES = TRUE, simplify = FALSE)
 neutro_sig = sapply(unique(neutro_sig_tab$signature), function(sig) { neutro_sig_tab |> filter(signature == !!sig) |> pull(gene_symbol)}, USE.NAMES = TRUE, simplify = FALSE)
+
+sig_old = read_csv("../../data/0_backup/2022-06-18_as_sumitted/30_downstream_analyses/neutrophils/neutrophil_analysis/artifacts/neutro_sigs.csv")
+neutro_sig$sig_neutro_old =  sig_old |> filter(signature == "neutro_sig2") |> pull("gene_symbol")
 ```
 
 ```{r}
@@ -261,7 +264,7 @@ This should answer the question if there's a different effect of Neutrophils
 in the different treatment arms
 
 ```{r}
-res = summary(coxph(as.formula("Surv(time, status) ~ sig_neutro_balanced * study_arm + dataset + gender"), data = ici_clin_and_scores |> filter(type == "LUSC")))
+res = summary(coxph(as.formula("Surv(time, status) ~ sig_trn * study_arm + dataset + gender + type"), data = ici_clin_and_scores))
 res
 ```
 
@@ -274,10 +277,10 @@ res
 
 
 ```{r}
-summary(glm(as.formula("response_to_any ~ dataset + sig_neutro_balanced * study_arm + gender"), data=ici_clin_and_scores |> filter(!is.na(response_to_any), type == "LUAD"), family="binomial"))
+summary(glm(as.formula("response_to_any ~ dataset + type + gender + sig_tan * study_arm + gender"), data=ici_clin_and_scores |> filter(!is.na(response_to_any)), family="binomial"))
 ```
 ```{r}
-summary(glm(as.formula("response_to_any ~ sig_tan * type + dataset + sig_tan * study_arm"), data=ici_clin_and_scores |> filter(!is.na(response_to_any)), family="binomial"))
+summary(glm(as.formula("response_to_any ~ sig_nan * type + dataset + sig_tan * study_arm"), data=ici_clin_and_scores |> filter(!is.na(response_to_any)), family="binomial"))
 ```
 
 
@@ -339,7 +342,7 @@ lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
     lapply(c("LUAD", "LUSC", "all"), function(type) {
         filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
         filter_arm = if(arm == "any") {c("Docetaxel", "MPDL3280A")} else {arm}
-        lapply(c("sig_tan", "sig_nan"), function(sig) {
+        lapply(c("sig_tan", "sig_nan", "sig_trn", "sig_neutro_balanced_fc"), function(sig) {
           p = plot_kaplan_meyer(
             ici_clin_and_scores |> filter(type %in% filter_type, study_arm %in% filter_arm),
             sig,
@@ -419,9 +422,10 @@ glm_res = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
 }) |> bind_rows()
 ```
 
-```{r, fig.width=18, fig.height=7}
-pvalue_df = glm_res |> filter(`Pr(>|z|)` < 1, type == "all", arm=="MPDL3280A") |> 
+```{r, fig.width=7, fig.height=4}
+pvalue_df = glm_res |> filter(type=="all", arm=="MPDL3280A") |> 
   select(signature=var, pvalue=`Pr(>|z|)`) |> 
+  filter(signature %in% c("sig_tan", "sig_nan", "sig_trn")) |> 
   mutate(pvalue = sprintf("p=%*.3f", 3, pvalue)) |>
   distinct()
 
@@ -429,6 +433,7 @@ p = ici_data |> select(type, response=response_to_ici, dataset, starts_with("sig
     pivot_longer(-c(type, response, dataset), names_to="signature", values_to="score") |>
     filter(!is.na(response)) |> 
     inner_join(pvalue_df) |> 
+    mutate(signature = factor(signature, levels=c("sig_tan", "sig_nan", "sig_trn"))) |> 
     ggplot(aes(x=response, y=score)) + 
     geom_quasirandom(aes(color=type, shape=dataset)) +
     geom_boxplot(outlier.alpha=0, width=.2) + 
@@ -444,8 +449,8 @@ p
 ```
 
 ```{r}
-ici_clin_and_scores |> filter(!is.na(response_to_ici)) |> 
-  ggplot(aes(y=sig_lcam_consensus, x=sig_neutro_top_0)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response_to_ici)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
+ici_clin_and_scores |>  
+  ggplot(aes(y=sig_trn, x=sig_neutro_old)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=type)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
 ggsave(file.path(params$artifact_dir, "corr_lcam_consensus_vs_neutro2.pdf"), width=6, height=4)
 ```
 
@@ -460,6 +465,17 @@ tcga_clin_and_scores = tcga_clin_and_scores |> left_join(tcga_patient_strat_didi
 ```
 
 ```{r}
+patient_strat_francesca = read_rds("../../tables/tcga/quantiseq_patient_stratification.rds") |> as.data.frame() |> as_tibble(rownames="patient_id")
+colnames(patient_strat_francesca) = c("TCGA_patient_barcode", "patient_strat_francesca")
+patient_strat_francesca$TCGA_patient_barcode = str_replace_all(patient_strat_francesca$TCGA_patient_barcode, "(LUAD|LUSC)_TCGA\\.(.{2})\\.(.{4}).*", "TCGA-\\2-\\3")
+tcga_clin_and_scores = tcga_clin_and_scores |> left_join(patient_strat_francesca)
+```
+
+```{r}
+patient_strat_cibersortx = read_csv("/home/sturm/Downloads/stratification_cibersortx.csv")
+```
+
+```{r}
 deconv_res = read_tsv("../../data/13_tcga/immunedeconv/nsclc_deconvolution.tsv")
 ```
 
@@ -468,15 +484,24 @@ cell_type_group = c("uncharacterized cell" = "desert", "Macrophage M1" = "M", "M
 ```
 
 ```{r}
-summary(coxph(as.formula("Surv(time, status) ~ patient_strat_didi + age + gender"), data=tcga_clin_and_scores))
+summary(coxph(as.formula("Surv(time, status) ~ patient_strat_francesca + age + gender"), data=tcga_clin_and_scores))
+```
+
+```{r}
+summary(coxph(as.formula("Surv(time, status) ~ immune_type + age + gender"), data=patient_strat_cibersortx))
 ```
 
 ```{r}
 summary(glm(as.formula("response_to_chemotherapy ~ patient_strat_didi"), family="binomial", data=tcga_clin_and_scores))
 ```
 
-```{r}
-fit = survfit(Surv(time, status) ~ patient_strat_didi, data=tcga_clin_and_scores |> filter(time < 365 * 5))
+```{r, fig.width=12, fig.height=8}
+fit = survfit(Surv(time, status) ~ immune_type, data=patient_strat_cibersortx)
+ggsurvplot(fit, data=patient_strat_cibersortx)
+```
+
+```{r, fig.width=12, fig.height=8}
+fit = survfit(Surv(time, status) ~ patient_strat_francesca, data=tcga_clin_and_scores)
 ggsurvplot(fit, data=tcga_clin_and_scores)
 ```
 
