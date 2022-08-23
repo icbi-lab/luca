@@ -80,6 +80,9 @@ cpus = nxfvars.get("cpus", 8)
 adata_n = sc.read_h5ad(adata_n_path)
 
 # %%
+adata_n.shape
+
+# %%
 adata = sc.read_h5ad(adata_path)
 
 # %%
@@ -154,6 +157,13 @@ sc.pp.log1p(pb_tan_nan, base=2)
 
 # %% [markdown] tags=[] jp-MarkdownHeadingCollapsed=true
 # # UMAPs by covariate
+
+# %%
+adata_n.obs["patient"].nunique()
+
+# %%
+# patients with > 10 Neutrophils
+adata_n.obs.groupby("patient").size().reset_index(name="n").loc[lambda x: x["n"] > 10].shape[0]
 
 # %%
 with plt.rc_context({"figure.dpi": 150}):

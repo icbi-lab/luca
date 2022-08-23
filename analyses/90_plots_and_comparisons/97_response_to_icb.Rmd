@@ -269,7 +269,7 @@ res
 ```
 
 ```{r}
-res = summary(coxph(as.formula("Surv(time, status) ~ dataset + type + sig_neutro_balanced_fc * study_arm + gender"), data = ici_clin_and_scores))
+res = summary(coxph(as.formula("Surv(time, status) ~ dataset + type * study_arm"), data = ici_clin_and_scores))
 res
 ```
 
@@ -277,7 +277,7 @@ res
 
 
 ```{r}
-summary(glm(as.formula("response_to_any ~ dataset + type + gender + sig_tan * study_arm + gender"), data=ici_clin_and_scores |> filter(!is.na(response_to_any)), family="binomial"))
+summary(glm(as.formula("response_to_any ~ dataset + type * study_arm"), data=ici_clin_and_scores |> filter(!is.na(response_to_any)), family="binomial"))
 ```
 ```{r}
 summary(glm(as.formula("response_to_any ~ sig_nan * type + dataset + sig_tan * study_arm"), data=ici_clin_and_scores |> filter(!is.na(response_to_any)), family="binomial"))
@@ -359,7 +359,7 @@ lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
 
 Neutro-lo Neutro-hi + study arms in same plot. 
 ```{r, fig.width=8, fig.height=4}
-plot_kaplan_meyer_multi = function(clinical_data, column, q=c(0.25, .75), pvalue=TRUE, ...) {
+plot_kaplan_meyer_multi = function(clinical_data, column, q=c(0.1, .9), pvalue=TRUE, ...) {
   tmp_col = clinical_data[[column]]
   cutoffs = quantile(tmp_col, q)
   group = rep(NA, length(tmp_col))
