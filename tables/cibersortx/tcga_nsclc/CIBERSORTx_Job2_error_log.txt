@@ -1,6 +1,0 @@
-PHP Fatal error:  Uncaught Mpdf\MpdfException: The HTML code size is larger than pcre.backtrack_limit 1000000. You should use WriteHTML() with smaller string lengths. in /var/www/html/cibersortx/vendor/mpdf/mpdf/src/Mpdf.php:27001
-Stack trace:
-#0 /var/www/html/cibersortx/vendor/mpdf/mpdf/src/Mpdf.php(13366): Mpdf\Mpdf->AdjustHTML()
-#1 /var/www/html/cibersortx/inc/inc.htmlpdf.php(24): Mpdf\Mpdf->WriteHTML()
-#2 {main}
-  thrown in /var/www/html/cibersortx/vendor/mpdf/mpdf/src/Mpdf.php on line 27001
