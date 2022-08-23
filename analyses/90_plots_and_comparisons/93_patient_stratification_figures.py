@@ -125,6 +125,7 @@ heatmap_df = (
     .rename(columns={"index": "patient"})
     .melt(id_vars="patient")
 )
+heatmap_df["cell_type_major"] = heatmap_df["cell_type_major"].str.replace("Tumor cells", "Cancer cells")
 p2 = (
     alt.Chart(heatmap_df)
     .mark_rect()
@@ -137,21 +138,21 @@ p2 = (
         y=alt.Y(
             "cell_type_major",
             sort=[
-                "Tumor cells",
+                "Cancer cells",
                 "B cell",
                 "Plasma cell",
                 "Mast cell",
                 "Macrophage",
-                "Macrophage FABP4+",
+                "Macrophage alveolar",
                 "Monocyte",
-                "DC mature",
-                "cDC1",
-                "cDC2",
-                "pDC",
                 "T cell CD4",
                 "T cell CD8",
                 "T cell regulatory",
                 "NK cell",
+                "DC mature",
+                "cDC1",
+                "cDC2",
+                "pDC",
             ],
             axis=alt.Axis(title=None),
         ),
