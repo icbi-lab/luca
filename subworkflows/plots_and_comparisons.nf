@@ -173,21 +173,21 @@ workflow plots_and_comparisons {
         extended_atlas
     )
 
-    // ch_response_to_ici_input_files = ch_neutro_sigs.concat(
-    //     Channel.fromPath("${baseDir}/data/14_ici_treatment/Genentech_for_scissor/genentech.rds"),
-    //     Channel.fromPath("${baseDir}/data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv")
-    // ).collect()
-    // RESPONSE_TO_ICI(
-    //     Channel.value(
-    //         [[id: 'response_to_ici'], file("${baseDir}/analyses/90_plots_and_comparisons/97_response_to_icb.Rmd")]
-    //     ),
-    //     ch_response_to_ici_input_files.map{ sigs, tpm, meta -> [
-    //         "neutro_sigs": sigs.name,
-    //         "ici_tpm": tpm.name,
-    //         "ici_meta": meta.name
-    //     ]},
-    //     ch_response_to_ici_input_files
-    // )
+    ch_response_to_ici_input_files = ch_neutro_sigs.concat(
+        Channel.fromPath("${baseDir}/data/14_ici_treatment/Genentech_for_scissor/genentech.rds"),
+        Channel.fromPath("${baseDir}/data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv")
+    ).collect()
+    RESPONSE_TO_ICI(
+        Channel.value(
+            [[id: 'response_to_ici'], file("${baseDir}/analyses/90_plots_and_comparisons/97_response_to_icb.Rmd")]
+        ),
+        ch_response_to_ici_input_files.map{ sigs, tpm, meta -> [
+            "neutro_sigs": sigs.name,
+            "ici_tpm": tpm.name,
+            "ici_meta": meta.name
+        ]},
+        ch_response_to_ici_input_files
+    )
 
     ch_cpdb_analysis_input_files = extended_atlas.concat(
         adata_neutrophil_clusters,
