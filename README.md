@@ -7,7 +7,7 @@ The atlas is publicly available for interactive exploration through a *cell-x-ge
 into the atlas. For more information, check out the 
 
  * [project website](https://luca.icbi.at) and 
- * our [preprint](TODO). 
+ * our [preprint](https://doi.org/10.1101/2022.05.09.491204). 
 
 > Salcher, Sturm, Horvath et al., Manuscript in preparation
 
