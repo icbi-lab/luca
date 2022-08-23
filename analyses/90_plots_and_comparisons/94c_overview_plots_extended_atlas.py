@@ -433,6 +433,7 @@ def process_subset(mask):
 adatas = {
     label: process_subset(ct)
     for label, ct in {
+        "cd8": (adata.obs["cell_type"].str.contains("CD8") | (adata.obs["cell_type"] == "T cell NK-like")),
         "immune": adata.obs["cell_type_coarse"].isin(
             [
                 "T cell",
@@ -662,5 +663,44 @@ tumor_markers = {
 
 # %%
 sc.pl.dotplot(adatas["tumor"], groupby="cell_type_tumor", var_names=tumor_markers)
+
+# %%
+with plt.rc_context({"figure.figsize": (3, 3), "figure.dpi": 300}):
+    fig = sc.pl.umap(
+        adatas["cd8"],
+        color="cell_type",
+        legend_loc="right margin",
+        legend_fontsize=8,
+        legend_fontoutline=2,
+        frameon=False,
+        # add_outline=True,
+        size=1,
+        return_fig=True,
+        title="",
+    )
+    fig.savefig(
+        f"{artifact_dir}/umap_extended_atlas_cd8.pdf", dpi=1200, bbox_inches="tight"
+    )
+
+# %%
+adatas["cd8"].obs["cell_type2"] = adatas["cd8"].obs["cell_type"].str.replace("T cell ", "").str.replace("CD8 ", "")
+
+# %%
+with plt.rc_context({"figure.figsize": (3, 3), "figure.dpi": 300}):
+    fig = sc.pl.umap(
+        adatas["cd8"],
+        color="cell_type2",
+        legend_loc="on data",
+        legend_fontsize=8,
+        legend_fontoutline=2,
+        frameon=False,
+        # add_outline=True,
+        size=1,
+        return_fig=True,
+        title="",
+    )
+    fig.savefig(
+        f"{artifact_dir}/umap_extended_atlas_cd8_legend_on_data.pdf", dpi=1200, bbox_inches="tight"
+    )
 
 # %%
