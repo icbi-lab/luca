@@ -100,6 +100,9 @@ adata.obs["study"].nunique()
 adata.obs.columns
 
 # %%
+adata.obs.loc[:, ["patient", "condition"]].drop_duplicates()["condition"].value_counts()
+
+# %%
 adata.obs.loc[lambda x: x["origin"].str.contains("tumor")]["patient"].nunique()
 
 # %% [markdown]
@@ -483,6 +486,15 @@ for core_adata, tmp_adata in zip(
 adatas["UKIM-V"].obs["cell_type_coarse"].value_counts()
 
 # %%
+adatas["UKIM-V"].obs.loc[lambda x: x["origin"] == "tumor_primary", "cell_type_coarse"].value_counts()
+
+# %%
+adatas["UKIM-V"].obs.loc[lambda x: x["origin"] == "normal_adjacent", "cell_type_coarse"].value_counts()
+
+# %%
+np.sum(adata.obs["study"] == "UKIM-V")
+
+# %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
     fig = sc.pl.umap(
         adatas["UKIM-V"],
@@ -628,6 +640,9 @@ with plt.rc_context({"figure.figsize": (3, 3), "figure.dpi": 300}):
     fig.savefig(
         f"{artifact_dir}/umap_extended_atlas_tumor.pdf", dpi=1200, bbox_inches="tight"
     )
+
+# %%
+adatas["tumor"].shape
 
 # %%
 tumor_markers = {
