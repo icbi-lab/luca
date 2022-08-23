@@ -305,6 +305,27 @@ with plt.rc_context({"font.size": 16, "figure.figsize": (10, 6)}):
     )
     plt.show()
 
+# %% [markdown]
+# ## cell-type fractions by origin
+
+# %%
+plot_df = adata.obs.loc[
+    lambda x: x["origin"].isin(["normal_adjacent", "tumor_primary"]), :
+].groupby(["patient", "origin"]).apply(
+    lambda x: x["cell_type_major"].value_counts(normalize=True).fillna(0)
+).reset_index().rename(
+    columns={"level_2": "cell_type", "cell_type_major": "fraction"}
+).groupby(
+    ["origin", "cell_type"]
+).apply(
+    lambda x: x["fraction"].mean()
+).reset_index(name="fraction")
+
+# %%
+ch = alt.Chart(plot_df).encode(x="fraction", y="origin", color=alt.Color("cell_type", scale=sh.colors.altair_scale("cell_type_major"))).mark_bar()
+ch.save(f"{artifact_dir}/cell_type_fractions_by_origin.svg")
+ch.display()
+
 
 # %% [markdown]
 # # Patients per cell-type
@@ -313,19 +334,27 @@ with plt.rc_context({"font.size": 16, "figure.figsize": (10, 6)}):
 def get_patients_per_cell_type(
     adata, cell_type_col="cell_type", *, cutoffs=[5, 10, 30], patient_col="patient"
 ):
-    cell_type_matrix =  (
+    cell_type_matrix = (
         adata.obs.groupby([patient_col, cell_type_col], observed=False)
         .size()
         .reset_index(name="n_cells")
         .pivot_table(values="n_cells", columns=cell_type_col, index=patient_col)
     )
-    return pd.DataFrame({
-        cutoff: np.sum(cell_type_matrix >= cutoff, axis=0) for cutoff in cutoffs})
+    return pd.DataFrame(
+        {cutoff: np.sum(cell_type_matrix >= cutoff, axis=0) for cutoff in cutoffs}
+    )
 
 
 # %%
-for cell_type_col in ["cell_type_tumor", "cell_type", "cell_type_major", "cell_type_coarse"]:
-    get_patients_per_cell_type(adata, cell_type_col).to_csv(f"{artifact_dir}/patients_per_{cell_type_col}.csv")
+for cell_type_col in [
+    "cell_type_tumor",
+    "cell_type",
+    "cell_type_major",
+    "cell_type_coarse",
+]:
+    get_patients_per_cell_type(adata, cell_type_col).to_csv(
+        f"{artifact_dir}/patients_per_{cell_type_col}.csv"
+    )
 
 # %% [markdown]
 # # UMAP plots
@@ -433,7 +462,10 @@ def process_subset(mask):
 adatas = {
     label: process_subset(ct)
     for label, ct in {
-        "cd8": (adata.obs["cell_type"].str.contains("CD8") | (adata.obs["cell_type"] == "T cell NK-like")),
+        "cd8": (
+            adata.obs["cell_type"].str.contains("CD8")
+            | (adata.obs["cell_type"] == "T cell NK-like")
+        ),
         "immune": adata.obs["cell_type_coarse"].isin(
             [
                 "T cell",
@@ -487,10 +519,14 @@ for core_adata, tmp_adata in zip(
 adatas["UKIM-V"].obs["cell_type_coarse"].value_counts()
 
 # %%
-adatas["UKIM-V"].obs.loc[lambda x: x["origin"] == "tumor_primary", "cell_type_coarse"].value_counts()
+adatas["UKIM-V"].obs.loc[
+    lambda x: x["origin"] == "tumor_primary", "cell_type_coarse"
+].value_counts()
 
 # %%
-adatas["UKIM-V"].obs.loc[lambda x: x["origin"] == "normal_adjacent", "cell_type_coarse"].value_counts()
+adatas["UKIM-V"].obs.loc[
+    lambda x: x["origin"] == "normal_adjacent", "cell_type_coarse"
+].value_counts()
 
 # %%
 np.sum(adata.obs["study"] == "UKIM-V")
@@ -683,7 +719,9 @@ with plt.rc_context({"figure.figsize": (3, 3), "figure.dpi": 300}):
     )
 
 # %%
-adatas["cd8"].obs["cell_type2"] = adatas["cd8"].obs["cell_type"].str.replace("T cell ", "").str.replace("CD8 ", "")
+adatas["cd8"].obs["cell_type2"] = (
+    adatas["cd8"].obs["cell_type"].str.replace("T cell ", "").str.replace("CD8 ", "")
+)
 
 # %%
 with plt.rc_context({"figure.figsize": (3, 3), "figure.dpi": 300}):
@@ -700,7 +738,9 @@ with plt.rc_context({"figure.figsize": (3, 3), "figure.dpi": 300}):
         title="",
     )
     fig.savefig(
-        f"{artifact_dir}/umap_extended_atlas_cd8_legend_on_data.pdf", dpi=1200, bbox_inches="tight"
+        f"{artifact_dir}/umap_extended_atlas_cd8_legend_on_data.pdf",
+        dpi=1200,
+        bbox_inches="tight",
     )
 
 # %%

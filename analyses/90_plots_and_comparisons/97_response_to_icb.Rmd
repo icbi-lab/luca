@@ -329,7 +329,8 @@ p
 
 ```{r}
 ici_clin_and_scores |>  
-  filter(study_arm == "MPDL3280A") |>
+  filter(!is.na(response_to_ici)) |>
+  mutate(response_to_ici = recode(response_to_ici, "0"="Non-responder", "1"="Responder")) |> 
   ggplot(aes(y=sig_lcam_consensus, x=sig_trn)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response_to_ici)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
 ggsave(file.path(params$artifact_dir, "corr_lcam_consensus_vs_trn.pdf"), width=6, height=4)
 ```
