@@ -323,7 +323,7 @@ p = ici_data |> select(type, response=response_to_ici, dataset, starts_with("sig
     ggtitle(sprintf("Scoring function: %s", params$scoring_function)) + 
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-ggsave(file.path(params$artifact_dir, "ici_treatment_response.pdf"), width = 18, height=7)
+ggsave(file.path(params$artifact_dir, "ici_treatment_response.pdf"), width = 7, height=5)
 p
 ```
 

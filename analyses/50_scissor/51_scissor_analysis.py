@@ -152,7 +152,10 @@ scissor_obs = {
 for colname, series in scissor_obs.items():
     print(colname)
     adata_primary.obs[colname] = series
-    assert adata_primary.obs[colname].value_counts().tolist() == series.value_counts().tolist()
+    assert (
+        adata_primary.obs[colname].value_counts().tolist()
+        == series.value_counts().tolist()
+    )
 
 # %%
 sc.settings.set_figure_params(figsize=(8, 8))
@@ -331,9 +334,7 @@ scissor_dfs_cd8 = {
 }
 
 # %%
-adata_cd8 = adata_primary[
-    ~adata_primary.obs["cell_type_cd8"].isnull(), :
-].copy()
+adata_cd8 = adata_primary[~adata_primary.obs["cell_type_cd8"].isnull(), :].copy()
 
 # %%
 sh.annotation.AnnotationHelper.reprocess_adata_subset_scvi(
@@ -341,8 +342,32 @@ sh.annotation.AnnotationHelper.reprocess_adata_subset_scvi(
 )
 
 # %%
-sc.pl.umap(
-    adata_cd8, color=["cell_type"], size=5, legend_loc="on data", legend_fontoutline=3, frameon=False
+adata_cd8.obs["cell_type_cd8_short"] = adata_cd8.obs["cell_type_cd8"].str.replace("T cell ", "")
+
+# %%
+fig = sc.pl.umap(
+    adata_cd8,
+    color=["cell_type_cd8_short"],
+    size=10,
+    legend_loc="on data",
+    legend_fontoutline=3,
+    frameon=False,
+    return_fig=True,
+)
+fig.savefig(f"{artifact_dir}/umap_scissor_cd8.pdf", dpi=1200, bbox_inches="tight")
+
+# %%
+fig = sc.pl.umap(
+    adata_cd8,
+    color=["cell_type_cd8"],
+    size=10,
+    legend_loc="right margin",
+    legend_fontoutline=3,
+    frameon=False,
+    return_fig=True,
+)
+fig.savefig(
+    f"{artifact_dir}/umap_scissor_cd8_legend_right.pdf", dpi=1200, bbox_inches="tight"
 )
 
 # %%

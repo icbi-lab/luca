@@ -989,7 +989,38 @@ ch.save(f"{artifact_dir}/matrixplot_neutro_clusters_top5_auroc.svg")
 ch.display()
 
 # %%
+fig = sh.signatures.plot_markers(pb_n, "cell_type", markers, top=10, return_fig=True)
+fig.savefig(f"{artifact_dir}/matrixplot_neutro_clusters_top10.pdf", bbox_inches="tight")
+
+# %%
+ch = sh.signatures.plot_metric_strip(pb_n, markers, top=10)
+ch.save(f"{artifact_dir}/matrixplot_neutro_clusters_top10_auroc.svg")
+ch.display()
+
+# %%
 np.max(pb_n.var.loc[:, pb_n.var.columns.str.contains("auroc")])
+
+# %%
+umap_genes = list(itertools.chain.from_iterable([m[:5] for m in markers.values()]))
+
+# %%
+len(umap_genes)
+
+# %%
+fig = sc.pl.umap(
+    adata_n,
+    color=umap_genes,
+    cmap="inferno",
+    size=40,
+    ncols=7,
+    frameon=False,
+    return_fig=True,
+)
+fig.savefig(
+    f"{artifact_dir}/umap_neutro_clusters_top5_markers.pdf",
+    bbox_inches="tight",
+    dpi=600,
+)
 
 # %% [markdown]
 # ## Selected Top markers
