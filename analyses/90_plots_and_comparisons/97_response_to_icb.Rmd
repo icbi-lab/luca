@@ -263,6 +263,12 @@ lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
 })
 ```
 
+```{r}
+summary(coxph(as.formula("Surv(time, status) ~ dataset + sig_trn * type * study_arm"), data = ici_clin_and_scores))
+summary(coxph(as.formula("Surv(time, status) ~ dataset + sig_tan * type * study_arm"), data = ici_clin_and_scores))
+summary(coxph(as.formula("Surv(time, status) ~ dataset + sig_nan * type * study_arm"), data = ici_clin_and_scores))
+```
+
 ## Responder vs. Non-responder
 
 ### Response to ICI
