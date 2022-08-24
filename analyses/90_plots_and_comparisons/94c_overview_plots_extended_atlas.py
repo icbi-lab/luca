@@ -309,20 +309,27 @@ with plt.rc_context({"font.size": 16, "figure.figsize": (10, 6)}):
 # ## cell-type fractions by origin
 
 # %%
-plot_df = adata.obs.loc[
-    lambda x: x["origin"].isin(["normal_adjacent", "tumor_primary"]), :
-].groupby(["patient", "origin"]).apply(
-    lambda x: x["cell_type_major"].value_counts(normalize=True).fillna(0)
-).reset_index().rename(
-    columns={"level_2": "cell_type", "cell_type_major": "fraction"}
-).groupby(
-    ["origin", "cell_type"]
-).apply(
-    lambda x: x["fraction"].mean()
-).reset_index(name="fraction")
+plot_df = (
+    adata.obs.loc[lambda x: x["origin"].isin(["normal_adjacent", "tumor_primary"]), :]
+    .groupby(["patient", "origin"])
+    .apply(lambda x: x["cell_type_major"].value_counts(normalize=True).fillna(0))
+    .reset_index()
+    .rename(columns={"level_2": "cell_type", "cell_type_major": "fraction"})
+    .groupby(["origin", "cell_type"])
+    .apply(lambda x: x["fraction"].mean())
+    .reset_index(name="fraction")
+)
 
 # %%
-ch = alt.Chart(plot_df).encode(x="fraction", y="origin", color=alt.Color("cell_type", scale=sh.colors.altair_scale("cell_type_major"))).mark_bar()
+ch = (
+    alt.Chart(plot_df)
+    .encode(
+        x="fraction",
+        y="origin",
+        color=alt.Color("cell_type", scale=sh.colors.altair_scale("cell_type_major")),
+    )
+    .mark_bar()
+)
 ch.save(f"{artifact_dir}/cell_type_fractions_by_origin.svg")
 ch.display()
 
@@ -355,6 +362,107 @@ for cell_type_col in [
     get_patients_per_cell_type(adata, cell_type_col).to_csv(
         f"{artifact_dir}/patients_per_{cell_type_col}.csv"
     )
+
+# %% [markdown]
+# ## Export patient table
+
+# %%
+## Export patient table
+patient_metadata = (
+    adata.obs.loc[
+        :,
+        [
+            "study",
+            "dataset",
+            "patient",
+            "uicc_stage",
+            "tumor_stage",
+            "sex",
+            "ever_smoker",
+            "driver_genes",
+            "condition",
+            "age",
+            "platform",
+            "platform_fine",
+        ],
+    ]
+    .drop_duplicates()
+    .sort_values(
+        [
+            "study",
+            "dataset",
+            "patient",
+        ]
+    )
+    .reset_index(drop=True)
+)
+
+patient_metadata.to_csv(f"{artifact_dir}/patient_table.csv")
+
+# get rid of duplicated patients (that occur in multiple datasets)
+patient_metadata = patient_metadata.drop(columns=["dataset", "platform_fine"]).drop_duplicates()
+assert patient_metadata.shape[0] == patient_metadata["patient"].nunique()
+
+# %%
+patient_metadata["condition"].value_counts()
+
+# %%
+patient_metadata
+
+# %%
+patient_metadata["group"] = patient_metadata["condition"].map(
+    {
+        "LUAD": "NSCLC",
+        "non-cancer": "control",
+        "LUSC": "NSCLC",
+        "COPD": "control",
+        "NSCLC NOS": "NSCLC",
+    }
+)
+
+# %%
+for c in [
+    "sex",
+    "uicc_stage",
+    "tumor_stage",
+    "ever_smoker",
+    "condition",
+    "platform",
+]:
+    patient_metadata[c] = (
+        patient_metadata[c].astype(str).map(lambda x: np.nan if x == "None" else x)
+    )
+
+# %%
+patient_metadata.groupby("group").size().reset_index(name="n")
+
+# %%
+patient_metadata.groupby("group")["age"].agg(median=np.median, min=np.min, max=np.max)
+
+# %%
+patient_metadata.groupby("group")["sex"].value_counts(
+    dropna=False, normalize=True
+).unstack()
+
+# %%
+patient_metadata.groupby("group")["condition"].value_counts(
+    dropna=False, normalize=True
+).unstack()
+
+# %%
+patient_metadata.groupby("group")["ever_smoker"].value_counts(
+    dropna=False, normalize=True
+).unstack()
+
+# %%
+patient_metadata.groupby("group")["tumor_stage"].value_counts(
+    dropna=False, normalize=True
+).unstack()
+
+# %%
+patient_metadata.groupby("group")["uicc_stage"].value_counts(
+    dropna=False, normalize=True
+).unstack()
 
 # %% [markdown]
 # # UMAP plots
