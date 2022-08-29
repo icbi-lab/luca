@@ -4,7 +4,6 @@ nextflow.enable.dsl = 2
 
 include { de_analysis } from "../subworkflows/de_analysis.nf"
 include { scissor } from "../subworkflows/scissor.nf"
-include { infercnv } from "../subworkflows/infercnv.nf"
 include { plots_and_comparisons } from "../subworkflows/plots_and_comparisons.nf"
 include { JUPYTERNOTEBOOK as STRATIFY_PATIENTS } from "../modules/local/jupyternotebook/main.nf"
 include { JUPYTERNOTEBOOK as STRATIFY_PATIENTS_SAMPLING_LOCATION } from "../modules/local/jupyternotebook/main.nf"
@@ -73,7 +72,6 @@ workflow downstream_analyses {
     de_result_neutro_clusters = de_analysis.out.neutro_clusters.flatten().filter{ it -> it.name ==~ /neutrophil_subclusters.*_DESeq2_result.tsv/ }
 
     scissor(extended_atlas)
-    infercnv(extended_atlas, patient_stratification_table)
     plots_and_comparisons(
         extended_atlas,
         neutro_clusters,
