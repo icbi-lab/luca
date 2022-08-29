@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ---
 # jupyter:
 #   jupytext:
@@ -27,28 +28,39 @@ import numpy as np
 #  * output documentation
 
 # %%
+atlas_id = nxfvars.get(
+    "id",
+    "core_atlas",
+    # "extended_atlas",
+)
 path_atlas = nxfvars.get(
     "atlas",
-    "../../data/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
-    # "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
+    "../../data/0_backup/2022-08-23_before_cleanup/20_build_atlas/annotate_datasets/35_final_atlas/artifacts/full_atlas_annotated.h5ad",
+    # "../../data/0_backup/2022-08-23_before_cleanup/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
 path_neutrophil_atlas = nxfvars.get(
     "neutrophil_atlas",
     # "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
-    "None"
+    "None",
 )
 title = nxfvars.get(
     "title", "The single-cell lung cancer atlas (LuCA) -- extended atlas"
 )
 output_filename = nxfvars.get("output_filename", "extended_atlas_cellxgene_schema.h5ad")
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
-path_symbols_to_ensembl = nxfvars.get("symbol_to_ensembl", "../../tables/symbol_to_ensembl.csv")
+path_symbols_to_ensembl = nxfvars.get(
+    "symbol_to_ensembl", "../../tables/symbol_to_ensembl.csv"
+)
 
 # %%
 atlas = sc.read_h5ad(path_atlas)
 
 # %%
-neutrophil_atlas = sc.read_h5ad(path_neutrophil_atlas) if str(path_neutrophil_atlas) != "None" else None
+neutrophil_atlas = (
+    sc.read_h5ad(path_neutrophil_atlas)
+    if str(path_neutrophil_atlas) != "None"
+    else None
+)
 
 # %%
 atlas.shape
@@ -66,7 +78,7 @@ pd.set_option("display.max_columns", None)
 if neutrophil_atlas is not None:
     print(neutrophil_atlas.shape)
     print(atlas.shape)
-    
+
     assert atlas.shape == neutrophil_atlas.shape
 
     for c in ["cell_type_neutro", "cell_type_neutro_coarse"]:
@@ -204,12 +216,50 @@ def remap(adata, mapping, target_col, source_col):
 
 
 # %% [markdown]
+# ### Suspension type
+#
+# >  For typical non-spatial expression data, this will be ‘cell’ or ‘nucleus’. Did you happen to survey the data you pulled in to understand the variation you have?
+
+# %%
+atlas.obs["suspension_type"] = "cell"
+
+# %% [markdown]
 # ### Sequencing platform / assay_ontology_term_id
 #
 # If there is not an exact match for the assay, clarifying text MAY be enclosed in parentheses and appended to the most accurate term. For example, the sci-plex assay could be curated as "EFO:0010183 (sci-plex)".
 
+# %% [markdown]
+# **Comment from Jason Hilton (CZI curation team):**
+#
+# > Looking at the cell barcodes against the 10x lists, I believe there are some 3’ v3 data mixed in and marked as 3’ v2.
+# >
+# >    It appears to be these patients from Chen_Zhang_2020 are actually v3:
+# >
+# >        Chen_Zhang_2020_NSCLC-10
+# >        Chen_Zhang_2020_NSCLC-11
+# >        Chen_Zhang_2020_NSCLC-8
+# >        Chen_Zhang_2020_NSCLC-6
+# >        Chen_Zhang_2020_NSCLC-7
+# >        Chen_Zhang_2020_NSCLC-9
+#
+# In the paper, they write that everything is 10x v2, but the barcodes seem more reliable, therefore I change the platform for these patients. 
+
 # %%
-atlas.obs["platform_fine"].value_counts()
+atlas.obs["platform_fine"] = atlas.obs["platform_fine"].astype(str)
+atlas.obs.loc[
+    lambda x: x["patient"].isin(
+        [
+            "Chen_Zhang_2020_NSCLC-10",
+            "Chen_Zhang_2020_NSCLC-11",
+            "Chen_Zhang_2020_NSCLC-8",
+            "Chen_Zhang_2020_NSCLC-6",
+            "Chen_Zhang_2020_NSCLC-7",
+            "Chen_Zhang_2020_NSCLC-9",
+        ]
+    ),
+    "platform_fine",
+] = "10x_3p_v3"
+atlas.obs["platform_fine"] = atlas.obs["platform_fine"].astype("category")
 
 # %%
 platform_map = {
@@ -340,10 +390,18 @@ atlas.obs["ethnicity_ontology_term_id"] = "unknown"
 
 # %% [markdown]
 # ### is_primary_data
+#
+# is_primary_data may be set to True for each cell exactely once in all cellxgene collections.
+# The canonical source of the "UKIM-V" dataset (3 patients) is the core atlas, the one of the "UKIM-V-2" dataset is the extended atlas. 
 
 # %%
 def is_primary_data(dataset):
-    return "UKIM" in dataset
+    if dataset == "UKIM-V" and atlas_id == "core_atlas":
+        return True
+    elif dataset == "UKIM-V-2" and atlas_id == "extended_atlas":
+        return True
+    else:
+        return False
 
 
 # %%
@@ -397,15 +455,81 @@ tissue_map = {
 # %%
 remap(atlas, tissue_map, "tissue_ontology_term_id", "tissue")
 
+
+# %% [markdown]
+# ### User category: ann_fine
+# Make it consistent with the paper
+
+# %%
+def ann_fine_map(x):
+    if x == "Tumor cells":
+        return "Cancer cells"
+    elif x == "myeloid dividing":
+        return "Myeloid dividing"
+    elif x == "stromal dividing":
+        return "Stromal dividing"
+    elif x == "transitional club/AT2":
+        return "Transitional Club/AT2"
+    else:
+        return x
+
+
+remap(atlas, ann_fine_map, "cell_type", "cell_type")
+
+# %% [markdown] tags=[]
+# ### User category: tumor_stage
+#
+# non-cancer patients should get a different label
+
+# %%
+atlas.obs["tumor_stage"] = atlas.obs["tumor_stage"].astype(str)
+
+# %%
+atlas.obs.loc[
+    lambda x: (x["condition"].isin(["non-cancer", "COPD"])), "tumor_stage"
+] = "non-cancer"
+atlas.obs.loc[lambda x: (x["tumor_stage"] == "None"), "tumor_stage"] = np.nan
+
+# %%
+atlas.obs["tumor_stage"] = atlas.obs["tumor_stage"].astype("category")
+
+# %% [markdown] tags=[]
+# ### User category: uicc_stage
+#
+# non-cancer patients should get a different label
+
+# %%
+atlas.obs["uicc_stage"] = atlas.obs["uicc_stage"].astype(str)
+
+# %%
+atlas.obs.loc[
+    lambda x: (x["condition"].isin(["non-cancer", "COPD"])), "uicc_stage"
+] = "non-cancer"
+atlas.obs.loc[lambda x: (x["uicc_stage"] == "None"), "uicc_stage"] = np.nan
+
+# %%
+atlas.obs["uicc_stage"] = atlas.obs["uicc_stage"].astype("category")
+
 # %% [markdown]
 # ### Rename or remove old columns (some contain reserved names)
 
 # %%
-atlas.obs = atlas.obs.drop(["sex", "tissue"], axis="columns").rename(
-    columns={
-        "cell_type": "ann_fine",
-        "cell_type_coarse": "ann_coarse",
-    }
+atlas.obs
+
+# %%
+atlas.obs = (
+    atlas.obs.drop(columns=["batch"], errors="ignore")
+    .drop(
+        columns=["sex", "tissue", "driver_genes", "condition", "platform_fine"],
+        errors="raise",
+    )
+    .rename(
+        columns={
+            "cell_type": "ann_fine",
+            "cell_type_coarse": "ann_coarse",
+            "patient": "donor_id",
+        }
+    )
 )
 
 # %% [markdown]
@@ -449,7 +573,7 @@ atlas.uns["X_normalization"] = (
     "Log-normalized length-scaled counts (Smart-seq2) or UMI counts (other protocols). "
     "Normalization was performed using sc.pp.normalize_total() followed by sc.pp.log1p()"
 )
-atlas.uns["batch_condition"] = ["dataset", "patient", "sample"]
+atlas.uns["batch_condition"] = ["dataset", "donor_id", "sample"]
 atlas.uns["default_embedding"] = "X_umap"
 
 # %% [markdown]
