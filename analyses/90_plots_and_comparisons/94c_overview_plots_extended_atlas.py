@@ -103,6 +103,9 @@ adata.obs.columns
 adata.obs.loc[:, ["patient", "condition"]].drop_duplicates()["condition"].value_counts()
 
 # %%
+adata.obs["study"].value_counts().sort_index()
+
+# %%
 adata.obs.loc[lambda x: x["origin"].str.contains("tumor")]["patient"].nunique()
 
 # %% [markdown]
