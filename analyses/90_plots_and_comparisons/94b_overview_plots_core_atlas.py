@@ -179,10 +179,13 @@ adata_epi = adata_epi[
 ].copy()
 
 # %%
+adata_epi.obs["cell_type2"] = adata_epi.obs["cell_type"].str.replace("Tumor", "Cancer")
+
+# %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
     fig = sc.pl.umap(
         adata_epi,
-        color="cell_type",
+        color="cell_type2",
         legend_loc="on data",
         legend_fontsize=8,
         legend_fontoutline=2,
@@ -273,10 +276,13 @@ adatas = {
 }
 
 # %%
+adatas["immune"].obs["cell_type2"] = adatas["immune"].obs["cell_type"].replace("T cell NK-like", "T cell CD8").str.replace("T cell CD8 (?!d).*", "T cell CD8", regex=True)
+
+# %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
     fig = sc.pl.umap(
         adatas["immune"],
-        color="cell_type",
+        color="cell_type2",
         legend_loc="on data",
         legend_fontsize=6,
         legend_fontoutline=1,
@@ -292,7 +298,7 @@ with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
 adatas["immune"].shape[0]
 
 # %%
-adatas["immune"].obs["cell_type"].value_counts()
+adatas["immune"].obs["cell_type2"].value_counts()
 
 # %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):

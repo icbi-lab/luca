@@ -323,7 +323,7 @@ ah.annotate_cell_types(
         "Tumor cells LUAD EMT": [6, 18, 23],
         "Tumor cells LUAD MSLN": [21],
         "Tumor cells LUAD NE": [31],
-        "Tumor cells LUAD dedifferentiated": [17],
+        "Tumor cells NSCLC mixed": [17],
         "Tumor cells LUAD mitotic": [14, 19],
         "Tumor cells LUSC": [0, 8, 28, 16],
         "Tumor cells LUSC mitotic": [3, 11],

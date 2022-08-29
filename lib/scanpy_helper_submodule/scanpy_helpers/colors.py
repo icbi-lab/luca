@@ -122,7 +122,8 @@ class COLORS:
         "NSCLC NOS": "#999999",
         "LUAD EMT": "#386cb0",
         "LUAD NE": "#f0027f",
-        "LUAD dedifferentiated": "#bf5b17",
+        "NSCLC mixed": "#bf5b17",
+        "LUAD MSLN": "#1b9e77",
     }
     condition = {
         "healthy_control": "#7fc97f",
@@ -136,7 +137,7 @@ class COLORS:
         "other": "#DDDDDD",
         "LUAD EMT": "#386cb0",
         "LUAD NE": "#f0027f",
-        "LUAD dedifferentiated": "#bf5b17",
+        "NSCLC mixed": "#bf5b17",
     }
     origin = {
         "tumor_metastasis": "#a6761d",
@@ -204,7 +205,7 @@ class COLORS:
         "Tumor cells LUAD EMT": "#d62728",
         "Tumor cells LUAD MSLN": "#aa40fc",
         "Tumor cells LUAD NE": "#8c564b",
-        "Tumor cells LUAD dedifferentiated": "#e377c2",
+        "Tumor cells NSCLC mixed": "#e377c2",
         "Tumor cells LUAD mitotic": "#b5bd61",
         "Tumor cells LUSC": "#17becf",
         "Tumor cells LUSC mitotic": "#aec7e8",

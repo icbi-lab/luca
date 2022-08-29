@@ -33,6 +33,7 @@ import itertools
 import progeny
 import dorothea
 from threadpoolctl import threadpool_limits
+from matplotlib_venn import venn3
 
 # %%
 alt.data_transformers.disable_max_rows()
@@ -97,6 +98,12 @@ adata.obs["study"].nunique()
 
 # %%
 adata.obs.columns
+
+# %%
+adata.obs.loc[:, ["patient", "condition"]].drop_duplicates()["condition"].value_counts()
+
+# %%
+adata.obs["study"].value_counts().sort_index()
 
 # %%
 adata.obs.loc[lambda x: x["origin"].str.contains("tumor")]["patient"].nunique()
@@ -259,6 +266,208 @@ s3 = (
 ).resolve_scale(color="independent", y="shared")
 
 # %% [markdown]
+# ## Sample types per patient
+
+# %%
+data = (
+    adata.obs.groupby(["study", "patient", "origin"], observed=True)
+    .size()
+    .reset_index(name="n_cells")
+)
+
+# %%
+alt.Chart(data).mark_bar().encode(
+    x=alt.X("count(patient)", title="# patients"),
+    y="origin",
+    color=alt.Color(
+        "origin", scale=sh.colors.altair_scale("origin", data=data, data_col="origin")
+    ),
+)
+
+# %%
+venn_labels = {
+    "normal": ["normal_adjacent", "normal"],
+    "primary\ntumor": ["tumor_primary"],
+    "metastases": ["tumor_metastasis"],
+}
+venn_sets = {
+    key: set(data.loc[lambda x: x["origin"].isin(labels), "patient"].values)
+    for key, labels in venn_labels.items()
+}
+
+# %%
+with plt.rc_context({"font.size": 16, "figure.figsize": (10, 6)}):
+    venn3(
+        venn_sets.values(),
+        set_labels=venn_sets.keys(),
+        set_colors=[
+            sh.colors.COLORS.origin[x]
+            for x in ["normal", "tumor_primary", "tumor_metastasis"]
+        ],
+        alpha=0.6,
+    )
+    plt.show()
+
+# %% [markdown]
+# ## cell-type fractions by origin
+
+# %%
+plot_df = (
+    adata.obs.loc[lambda x: x["origin"].isin(["normal_adjacent", "tumor_primary"]), :]
+    .groupby(["patient", "origin"])
+    .apply(lambda x: x["cell_type_major"].value_counts(normalize=True).fillna(0))
+    .reset_index()
+    .rename(columns={"level_2": "cell_type", "cell_type_major": "fraction"})
+    .groupby(["origin", "cell_type"])
+    .apply(lambda x: x["fraction"].mean())
+    .reset_index(name="fraction")
+)
+
+# %%
+ch = (
+    alt.Chart(plot_df)
+    .encode(
+        x="fraction",
+        y="origin",
+        color=alt.Color("cell_type", scale=sh.colors.altair_scale("cell_type_major")),
+    )
+    .mark_bar()
+)
+ch.save(f"{artifact_dir}/cell_type_fractions_by_origin.svg")
+ch.display()
+
+
+# %% [markdown]
+# # Patients per cell-type
+
+# %%
+def get_patients_per_cell_type(
+    adata, cell_type_col="cell_type", *, cutoffs=[5, 10, 30], patient_col="patient"
+):
+    cell_type_matrix = (
+        adata.obs.groupby([patient_col, cell_type_col], observed=False)
+        .size()
+        .reset_index(name="n_cells")
+        .pivot_table(values="n_cells", columns=cell_type_col, index=patient_col)
+    )
+    return pd.DataFrame(
+        {cutoff: np.sum(cell_type_matrix >= cutoff, axis=0) for cutoff in cutoffs}
+    )
+
+
+# %%
+for cell_type_col in [
+    "cell_type_tumor",
+    "cell_type",
+    "cell_type_major",
+    "cell_type_coarse",
+]:
+    get_patients_per_cell_type(adata, cell_type_col).to_csv(
+        f"{artifact_dir}/patients_per_{cell_type_col}.csv"
+    )
+
+# %% [markdown]
+# ## Export patient table
+
+# %%
+## Export patient table
+patient_metadata = (
+    adata.obs.loc[
+        :,
+        [
+            "study",
+            "dataset",
+            "patient",
+            "uicc_stage",
+            "tumor_stage",
+            "sex",
+            "ever_smoker",
+            "driver_genes",
+            "condition",
+            "age",
+            "platform",
+            "platform_fine",
+        ],
+    ]
+    .drop_duplicates()
+    .sort_values(
+        [
+            "study",
+            "dataset",
+            "patient",
+        ]
+    )
+    .reset_index(drop=True)
+)
+
+patient_metadata.to_csv(f"{artifact_dir}/patient_table.csv")
+
+# get rid of duplicated patients (that occur in multiple datasets)
+patient_metadata = patient_metadata.drop(columns=["dataset", "platform_fine"]).drop_duplicates()
+assert patient_metadata.shape[0] == patient_metadata["patient"].nunique()
+
+# %%
+patient_metadata["condition"].value_counts()
+
+# %%
+patient_metadata
+
+# %%
+patient_metadata["group"] = patient_metadata["condition"].map(
+    {
+        "LUAD": "NSCLC",
+        "non-cancer": "control",
+        "LUSC": "NSCLC",
+        "COPD": "control",
+        "NSCLC NOS": "NSCLC",
+    }
+)
+
+# %%
+for c in [
+    "sex",
+    "uicc_stage",
+    "tumor_stage",
+    "ever_smoker",
+    "condition",
+    "platform",
+]:
+    patient_metadata[c] = (
+        patient_metadata[c].astype(str).map(lambda x: np.nan if x == "None" else x)
+    )
+
+# %%
+patient_metadata.groupby("group").size().reset_index(name="n")
+
+# %%
+patient_metadata.groupby("group")["age"].agg(median=np.median, min=np.min, max=np.max)
+
+# %%
+patient_metadata.groupby("group")["sex"].value_counts(
+    dropna=False, normalize=True
+).unstack()
+
+# %%
+patient_metadata.groupby("group")["condition"].value_counts(
+    dropna=False, normalize=True
+).unstack()
+
+# %%
+patient_metadata.groupby("group")["ever_smoker"].value_counts(
+    dropna=False, normalize=True
+).unstack()
+
+# %%
+patient_metadata.groupby("group")["tumor_stage"].value_counts(
+    dropna=False, normalize=True
+).unstack()
+
+# %%
+patient_metadata.groupby("group")["uicc_stage"].value_counts(
+    dropna=False, normalize=True
+).unstack()
+
+# %% [markdown]
 # # UMAP plots
 #
 # UMAP overview plots of the "core" atlas (without projected datasets)
@@ -417,6 +626,19 @@ for core_adata, tmp_adata in zip(
 adatas["UKIM-V"].obs["cell_type_coarse"].value_counts()
 
 # %%
+adatas["UKIM-V"].obs.loc[
+    lambda x: x["origin"] == "tumor_primary", "cell_type_coarse"
+].value_counts()
+
+# %%
+adatas["UKIM-V"].obs.loc[
+    lambda x: x["origin"] == "normal_adjacent", "cell_type_coarse"
+].value_counts()
+
+# %%
+np.sum(adata.obs["study"] == "UKIM-V")
+
+# %%
 with plt.rc_context({"figure.figsize": (5, 5), "figure.dpi": 300}):
     fig = sc.pl.umap(
         adatas["UKIM-V"],
@@ -564,6 +786,9 @@ with plt.rc_context({"figure.figsize": (3, 3), "figure.dpi": 300}):
     )
 
 # %%
+adatas["tumor"].shape
+
+# %%
 tumor_markers = {
     "Epithelial": ["EPCAM", "B2M"],
     "Alveolar cell type 1": ["AGER", "CLDN18"],
@@ -581,5 +806,3 @@ tumor_markers = {
 
 # %%
 sc.pl.dotplot(adatas["tumor"], groupby="cell_type_tumor", var_names=tumor_markers)
-
-# %%

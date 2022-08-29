@@ -1,4 +1,5 @@
 include { SPLIT_ANNDATA }  from "../modules/local/scconversion/main.nf"
+include { FILTER_ANNDATA }  from "../modules/local/scconversion/main.nf"
 include { H5AD_TO_SCE }  from "../modules/local/scconversion/main.nf"
 include { SCISSOR as SCISSOR_TCGA } from "../modules/local/scissor.nf"
 include {
@@ -13,7 +14,11 @@ workflow scissor {
 
     main:
     ch_adata_integrated = adata_annotated.map{ it -> [it.baseName, it]}
-    SPLIT_ANNDATA(ch_adata_integrated, "patient")
+    FILTER_ANNDATA(
+        ch_adata_integrated,
+        """lambda x: (x['origin'] == 'tumor_primary')"""
+    )
+    SPLIT_ANNDATA(FILTER_ANNDATA.out.adata, "patient")
     H5AD_TO_SCE(SPLIT_ANNDATA.out.adata.flatten().map{ it -> [it.baseName, it]})
 
     ch_sce = H5AD_TO_SCE.out.sce

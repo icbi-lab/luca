@@ -69,6 +69,12 @@ adata = sc.read_h5ad(path_adata)
 # %%
 sc.pl.umap(adata, color=["cell_type_coarse", "origin"], wspace=0.8)
 
+# %%
+adata_primary = adata[
+    (adata.obs["origin"] == "tumor_primary"),
+    :,
+].copy()
+
 # %% [markdown]
 # # Overview clinical data
 
@@ -99,7 +105,6 @@ scissor_res_files = {
             # "any_kras_mutation",
             # "any_braf_mutation",
             # "any_egfr_mutation",
-            
             "any_tumor_type",
             "any_status_time",
             #
@@ -110,7 +115,6 @@ scissor_res_files = {
             "LUAD_stk11_mutation",
             "LUAD_random",
             "LUAD_status_time",
-            
             "LUSC_braf_mutation",
             "LUSC_egfr_mutation",
             "LUSC_tp53_mutation",
@@ -147,15 +151,18 @@ scissor_obs = {
 # %%
 for colname, series in scissor_obs.items():
     print(colname)
-    adata.obs[colname] = series
-    assert adata.obs[colname].value_counts().tolist() == series.value_counts().tolist()
+    adata_primary.obs[colname] = series
+    assert (
+        adata_primary.obs[colname].value_counts().tolist()
+        == series.value_counts().tolist()
+    )
 
 # %%
 sc.settings.set_figure_params(figsize=(8, 8))
 
 # %%
 sc.pl.umap(
-    adata,
+    adata_primary,
     color=[
         "scissor_any_status_time",
         "scissor_luad_status_time",
@@ -167,13 +174,6 @@ sc.pl.umap(
 
 # %% [markdown]
 # Scissor+ cells are associated with late stage or with having the corresponding mutation.
-
-# %%
-adata_primary = adata[
-    (adata.obs["origin"] == "tumor_primary"),
-    # & ~adata.obs["dataset"].str.startswith("UKIM"),
-    :,
-].copy()
 
 # %%
 sc.pl.umap(adata_primary, color=["dataset", "condition", "origin"], size=1)
@@ -262,19 +262,13 @@ def plot_scissor_df(df, *, title="scissor"):
         .encode(
             x=alt.X("cell_type_major", sort=order, axis=None),
             y=alt.Y(up, scale=alt.Scale(domain=[0, 1])),
-            # color=alt.Color(
-            #     "gini_better", scale=alt.Scale(scheme="magma", reverse=False)
-            # ),
         )
         .properties(height=100, title=title),
         alt.Chart(df.assign(**{down: lambda x: -x[down]}))
         .mark_bar()
         .encode(
             x=alt.X("cell_type_major", sort=order),
-            y=alt.Y(down, scale=alt.Scale(domain=[-1, 0]))
-            # color=alt.Color(
-            #     "gini_worse", scale=alt.Scale(scheme="magma", reverse=False)
-            # ),
+            y=alt.Y(down, scale=alt.Scale(domain=[-1, 0])),
         )
         .properties(height=100),
         spacing=0,
@@ -287,23 +281,18 @@ def plot_scissor_df_ratio(
 ):
     """Plot the result of scissor_by_group as a bar chart"""
     df = df.loc[lambda x: x["fdr"] < fdr_cutoff].copy().reset_index(drop=False)
-    # print(df)
     up, down = df.columns[:2]
-    # df["log2_ratio"] = np.log2(df[up]) - np.log2(df[down])
     order = df.sort_values("log2_ratio")[groupby].values.tolist()
     max_ = np.max(np.abs(df["log2_ratio"]))
     return (
         alt.Chart(df)
         .mark_bar()
         .encode(
-            x=alt.X(groupby, sort=order),
+            x=alt.X(groupby, sort=order, axis=alt.Axis(labelLimit=400)),
             y=alt.Y("log2_ratio", scale=alt.Scale(domain=[-5.5, 5.5])),
             color=alt.Color(
                 "log2_ratio", scale=alt.Scale(scheme="redblue", domain=[-max_, max_])
-            )
-            # color=alt.Color(
-            #     "gini_better", scale=alt.Scale(scheme="magma", reverse=False)
-            # ),
+            ),
         )
         .properties(height=100, title=title)
     )
@@ -320,6 +309,88 @@ for col, df in scissor_dfs.items():
     ch = plot_scissor_df_ratio(df, title=col)
     try:
         ch.save(f"{artifact_dir}/{col}.svg")
+    except JSONDecodeError:
+        warnings.warn(f"Failed to save plot {col} to svg!")
+    ch.display()
+
+# %% [markdown]
+# ## Only CD8+T cells
+
+# %%
+adata_primary.obs["cell_type_cd8"] = [
+    ct if ("CD8" in ct or "NK-like" in ct) else np.nan
+    for ct in adata_primary.obs["cell_type"]
+]
+
+# %%
+scissor_dfs_cd8 = {
+    k: scissor_by_group(
+        adata_primary,
+        scissor_col=k,
+        cell_cutoff=1,
+        groupby=["cell_type_cd8", "patient"],
+    )
+    for k in scissor_cols
+}
+
+# %%
+adata_cd8 = adata_primary[~adata_primary.obs["cell_type_cd8"].isnull(), :].copy()
+
+# %%
+sh.annotation.AnnotationHelper.reprocess_adata_subset_scvi(
+    adata_cd8, use_rep="X_scANVI"
+)
+
+# %%
+adata_cd8.obs["cell_type_cd8_short"] = adata_cd8.obs["cell_type_cd8"].str.replace("T cell ", "")
+
+# %%
+fig = sc.pl.umap(
+    adata_cd8,
+    color=["cell_type_cd8_short"],
+    size=10,
+    legend_loc="on data",
+    legend_fontoutline=3,
+    frameon=False,
+    return_fig=True,
+)
+fig.savefig(f"{artifact_dir}/umap_scissor_cd8.pdf", dpi=1200, bbox_inches="tight")
+
+# %%
+fig = sc.pl.umap(
+    adata_cd8,
+    color=["cell_type_cd8"],
+    size=10,
+    legend_loc="right margin",
+    legend_fontoutline=3,
+    frameon=False,
+    return_fig=True,
+)
+fig.savefig(
+    f"{artifact_dir}/umap_scissor_cd8_legend_right.pdf", dpi=1200, bbox_inches="tight"
+)
+
+# %%
+adata_primary.obs["cell_type_cd8"].value_counts()
+
+# %%
+for var in scissor_cols:
+    with plt.rc_context({"figure.figsize": (6, 6), "figure.dpi": 300}):
+        fig = sc.pl.umap(
+            adata_cd8,
+            color=var,
+            size=6,
+            palette=["#ca0020", "#0571b0"][::-1],
+            frameon=False,
+            return_fig=True,
+        )
+        fig.savefig(f"{artifact_dir}/cd8_{var}.pdf", dpi=300, bbox_inches="tight")
+
+# %%
+for col, df in scissor_dfs_cd8.items():
+    ch = plot_scissor_df_ratio(df, title=col, groupby="cell_type_cd8")
+    try:
+        ch.save(f"{artifact_dir}/cd8_{col}.svg")
     except JSONDecodeError:
         warnings.warn(f"Failed to save plot {col} to svg!")
     ch.display()

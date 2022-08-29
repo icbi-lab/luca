@@ -7,6 +7,8 @@ params:
   ici_tpm: "../../data/14_ici_treatment/Genentech_for_scissor/genentech.rds"
   ici_meta: "../../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv"
   neutro_sigs: "../../data/30_downstream_analyses/neutrophils/neutrophil_analysis/artifacts/neutro_sigs.csv"
+  # neutro_sigs: "/home/sturm/Downloads/neutro_sigs.csv"
+  # net_sigs: "../../tables/gene_annotations/net_signatures.csv"
   input_dir: NULL
 ---
 
@@ -15,6 +17,7 @@ library(conflicted)
 library(dplyr)
 conflict_prefer("filter", "dplyr")
 conflict_prefer("select", "dplyr")
+conflict_prefer("rename", "dplyr")
 library(survminer)
 library(survival)
 library(tidyr)
@@ -23,22 +26,34 @@ library(stringr)
 library(tibble)
 library(ggbeeswarm)
 library(cowplot)
+library(readxl)
 ```
 
 # Load data
 
+## ICI
+
 ```{r}
 ici_tpm = read_rds(params$ici_tpm)
-ici_meta = read_tsv(params$ici_meta) |> rename(dataset=study) |> mutate(response_to_ici=factor(response_to_ici), response_to_chemotherapy=factor(response_to_chemotherapy))
+ici_meta = read_tsv(params$ici_meta) |> rename(dataset=study)
 ```
 
-# Signature scoring
+## Signatures 
 
 ```{r}
 neutro_sig_tab = read_csv(params$neutro_sigs)
 neutro_sig = sapply(unique(neutro_sig_tab$signature), function(sig) { neutro_sig_tab |> filter(signature == !!sig) |> pull(gene_symbol)}, USE.NAMES = TRUE, simplify = FALSE)
+
+# sig_old = read_csv("../../data/0_backup/2022-06-18_as_sumitted/30_downstream_analyses/neutrophils/neutrophil_analysis/artifacts/neutro_sigs.csv")
+# neutro_sig$sig_neutro_old =  sig_old |> filter(signature == "neutro_sig2") |> pull("gene_symbol")
 ```
 
+```{r}
+all_sigs = neutro_sig 
+sig_names = names(all_sigs)
+```
+
+# Functions to compute signature scores
 
 ## Original LCAM scores
 This essentially computes a mean z score of marker gene expression. 
@@ -114,41 +129,8 @@ get_lcam_scores = function(mixture, genes) {
 scoring_function = get_lcam_scores 
 ```
 
-
-# ICI treatment data
-
-```{r, fig.width=9, fig.height=4}
-
-ici_lcam_scores = get_LCAM_scores(ici_tpm)
-ici_scores = data.frame(
-    sig_neutro2=scoring_function(ici_tpm, neutro_sig$neutro_sig2),
-    sig_lcam_hi=ici_lcam_scores[, 1],
-    sig_lcam_lo=ici_lcam_scores[, 2],
-    sig_lcam_consensus=ici_lcam_scores[, 3]
-) |> 
-  as_tibble(rownames="sample")
-
-ici_clin_and_scores = ici_meta |> 
-  rename(sample=sample_id) |>
-  inner_join(ici_scores) 
-
-ici_clin_and_scores |> select(type, starts_with("sig_")) |>
-  filter(!is.na(type)) |> 
-  pivot_longer(-type, names_to="signature", values_to="score") |>
-  ggplot(aes(x=type, y=score)) + 
-  geom_quasirandom(aes(color=type)) + 
-  geom_boxplot(outlier.alpha=0, width=.2) + 
-  stat_compare_means(method="wilcox.test") +
-  theme_cowplot() + 
-  background_grid() + 
-  facet_wrap(~signature, ncol = 5) + 
-  ggtitle(sprintf("Scoring function: %s", params$scoring_function))
-
-```
-
-## Survival analysis
-
-```{r, fig.width=6, fig.height=6}
+## Significance codes
+```{r}
 sig_codes = Vectorize(function(p) {
   if(p < 0.001) {
     "p < 0.001"
@@ -162,14 +144,67 @@ sig_codes = Vectorize(function(p) {
     "p >= 0.1"
   }
 })
+```
 
+
+# Prepare data
+## ICI treatment data
+
+```{r, fig.width=12, fig.height=7}
+
+ici_lcam_scores = get_LCAM_scores(ici_tpm)
+
+
+ici_scores = data.frame(sapply(names(all_sigs), function(sig) {
+  scoring_function(ici_tpm, all_sigs[[sig]])
+})) |> mutate(
+    sig_lcam_hi=ici_lcam_scores[, 1],
+    sig_lcam_lo=ici_lcam_scores[, 2],
+    sig_lcam_consensus=ici_lcam_scores[, 3],
+    sig_trn_mean=(sig_tan+sig_nan)/2
+) |> 
+  as_tibble(rownames="sample")
+
+ici_clin_and_scores = ici_meta |> 
+  rename(sample=sample_id) |>
+  inner_join(ici_scores) |>
+  mutate(response_to_any = ifelse(study_arm == "Docetaxel", response_to_chemotherapy, response_to_ici), .before="response_to_chemotherapy") |>
+  mutate_at(vars(type, dataset, study_arm, response_to_chemotherapy, response_to_ici, response_to_any), factor)
+
+```
+
+# LUAD vs LUSC
+
+```{r, fig.width=7, fig.height=5}
+ici_clin_and_scores |> select(type, starts_with("sig_")) |>
+  filter(!is.na(type)) |> 
+  pivot_longer(-type, names_to="signature", values_to="score") |>
+  ggplot(aes(x=signature, y=score, color=type)) + 
+  theme_cowplot() + 
+  background_grid() + 
+  geom_boxplot() + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+```{r}
+# ICI
+lapply(sig_names, function(sig) {
+  res = summary(lm(as.formula(sprintf("`%s` ~ type + dataset + gender + study_arm", sig)), data=ici_clin_and_scores))
+  res$coefficients |> as_tibble(rownames="var") |> mutate(sig=sig, .before=1)
+}) |> bind_rows() |> filter(var == "typeLUSC")
+```
+
+## Survival analysis
+
+```{r, fig.width=6, fig.height=6}
+tmp_sig_names = sig_names
 coxph_results = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
     lapply(c("all", "LUSC", "LUAD"), function(type) {
         filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
         filter_arm = if(arm == "any") {c("Docetaxel", "MPDL3280A")} else {arm}
         type_covar = ifelse(type == "all", "+ type ", "")
         arm_covar = ifelse(arm == "any", "+ study_arm", "")
-        coxph_res = lapply(colnames(select(ici_clin_and_scores, starts_with("sig_"))), function(col) {
+        coxph_res = lapply(tmp_sig_names, function(col) {
            res = summary(coxph(as.formula(sprintf("Surv(time, status) ~ `%s` %s %s + dataset", col, type_covar, arm_covar)), data=ici_clin_and_scores |> 
                                  filter(type %in% filter_type, study_arm %in% filter_arm)))
            res$coefficients |> 
@@ -177,20 +212,23 @@ coxph_results = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
              filter(grepl( col, var)) |> 
              mutate(var=col, type=type)
            
-        }) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> arrange(-coef) |> mutate(var=factor(var, levels=unique(var)))
+        }) |> bind_rows() |> mutate(sig_code = sig_codes(`Pr(>|z|)`)) |> 
+          # arrange(-coef) |> 
+          mutate(var=factor(var, levels=unique(var)))
         
-        print(coxph_res |> ggplot(aes(x=var, y=coef)) +
-                geom_bar(aes(fill=sig_code), stat="identity") + 
-                scale_fill_brewer(palette= "Blues", direction=-1) + 
-                theme_cowplot()+ 
-                theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
-                geom_hline(yintercept = 0, color="black") +
-                facet_wrap(~type, ncol=1)+ 
-                ggtitle(sprintf("Study arm: %s", arm)))
+        # print(coxph_res |> ggplot(aes(x=var, y=coef)) +
+        #         geom_bar(aes(fill=sig_code), stat="identity", color="black") + 
+        #         scale_fill_brewer(palette= "Blues", direction=-1) + 
+        #         theme_cowplot()+ 
+        #         theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+        #         geom_hline(yintercept = 0, color="black") +
+        #         facet_wrap(~type, ncol=1)+ 
+        #         ggtitle(sprintf("Study arm: %s", arm)))
         
         coxph_res |> mutate(type=type)
     }) |> bind_rows() |> mutate(study_arm=arm)
 }) |> bind_rows()
+
 ```
 
 
@@ -211,7 +249,7 @@ lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
     lapply(c("LUAD", "LUSC", "all"), function(type) {
         filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
         filter_arm = if(arm == "any") {c("Docetaxel", "MPDL3280A")} else {arm}
-        lapply(c("sig_neutro2"), function(sig) {
+        lapply(c("sig_tan", "sig_nan", "sig_trn"), function(sig) {
           p = plot_kaplan_meyer(
             ici_clin_and_scores |> filter(type %in% filter_type, study_arm %in% filter_arm),
             sig,
@@ -225,39 +263,53 @@ lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
 })
 ```
 
+```{r}
+summary(coxph(as.formula("Surv(time, status) ~ dataset + sig_trn * type * study_arm"), data = ici_clin_and_scores))
+summary(coxph(as.formula("Surv(time, status) ~ dataset + sig_tan * type * study_arm"), data = ici_clin_and_scores))
+summary(coxph(as.formula("Surv(time, status) ~ dataset + sig_nan * type * study_arm"), data = ici_clin_and_scores))
+```
 
 ## Responder vs. Non-responder
 
 ### Response to ICI
 ```{r, fig.width=6, fig.height=6}
-ici_data = ici_clin_and_scores |> filter(study_arm == "MPDL3280A") 
-glm_res_ici = lapply(c("all", "LUSC", "LUAD"), function(type) {
-    filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
-    type_covar = ifelse(type == "all", "+ type ", "")
-    tmp_res = lapply(colnames(select(ici_clin_and_scores, starts_with("sig_"))), function(col) {
-      res = summary(glm(as.formula(sprintf("response_to_ici ~ `%s` %s + dataset", col, type_covar)), family="binomial", data=ici_data |> filter(type %in% filter_type)))
-      res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
-    }) |> 
-      bind_rows() |> 
-      mutate(sig_code = sig_codes(`Pr(>|z|)`)) |>
-      arrange(-Estimate) |> 
-      mutate(var=factor(var, levels=unique(var)))
-    
-    print(tmp_res |> ggplot(aes(x=var, y=Estimate)) + 
-            geom_bar(aes(fill=sig_code), stat="identity") +
-            scale_fill_brewer(palette= "Blues", direction=-1)  + 
-            theme_cowplot()+
-            theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
-            geom_hline(yintercept = 0, color="black") + 
-            ggtitle(type))
-    
-    tmp_res |> mutate(type=type)
+tmp_sig_names = sig_names
+ici_data = ici_clin_and_scores
+glm_res = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
+  lapply(c("all", "LUSC", "LUAD"), function(type) {
+      filter_arm = if(arm == "any") {c("Docetaxel", "MPDL3280A")} else {arm}
+      filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
+      type_covar = ifelse(type == "all", "+ type ", "")
+      arm_covar = ifelse(arm == "any", "+ study_arm", "")
+      tmp_res = lapply(tmp_sig_names, function(col) {
+        res = summary(glm(as.formula(sprintf("response_to_any ~ `%s` %s %s + dataset", col, type_covar, arm_covar)), family="binomial", data=ici_data |> filter(type %in% filter_type, study_arm %in% filter_arm)))
+        res$coefficients |> as_tibble(rownames="var") |> filter(grepl( col, var)) |> mutate(var=col)
+      }) |> 
+        bind_rows() |> 
+        mutate(sig_code = sig_codes(`Pr(>|z|)`)) |>
+        # arrange(-Estimate) |> 
+        mutate(var=factor(var, levels=unique(var)))
+      
+      tmp_res = tmp_res |> mutate(type=type, arm=arm)
+      # print(tmp_res |> ggplot(aes(x=var, y=Estimate)) + 
+      #         geom_bar(aes(fill=sig_code), stat="identity") +
+      #         scale_fill_brewer(palette= "Blues", direction=-1)  + 
+      #         theme_cowplot()+
+      #         theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+      #         geom_hline(yintercept = 0, color="black") + 
+      #         ggtitle(sprintf("Study arm: %s", arm)) +
+      #         facet_wrap(~type, ncol=1))
+      
+      tmp_res
+      
+  }) |> bind_rows()
 }) |> bind_rows()
 ```
 
-```{r, fig.width=8, fig.height=4}
-pvalue_df = glm_res_ici |> filter(`Pr(>|z|)` < 0.1, type == "all") |> 
+```{r, fig.width=7, fig.height=5}
+pvalue_df = glm_res |> filter(type=="all", arm=="MPDL3280A") |> 
   select(signature=var, pvalue=`Pr(>|z|)`) |> 
+  filter(signature %in% c("sig_tan", "sig_nan", "sig_trn")) |> 
   mutate(pvalue = sprintf("p=%*.3f", 3, pvalue)) |>
   distinct()
 
@@ -265,6 +317,8 @@ p = ici_data |> select(type, response=response_to_ici, dataset, starts_with("sig
     pivot_longer(-c(type, response, dataset), names_to="signature", values_to="score") |>
     filter(!is.na(response)) |> 
     inner_join(pvalue_df) |> 
+    mutate(signature = factor(signature, levels=c("sig_tan", "sig_nan", "sig_trn"))) |> 
+    mutate(response = recode(response, "0"="Non-responder", "1"="Responder")) |> 
     ggplot(aes(x=response, y=score)) + 
     geom_quasirandom(aes(color=type, shape=dataset)) +
     geom_boxplot(outlier.alpha=0, width=.2) + 
@@ -275,12 +329,16 @@ p = ici_data |> select(type, response=response_to_ici, dataset, starts_with("sig
     ggtitle(sprintf("Scoring function: %s", params$scoring_function)) + 
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-ggsave(file.path(params$artifact_dir, "ici_treatment_response.pdf"), width = 18, height=7)
+ggsave(file.path(params$artifact_dir, "ici_treatment_response.pdf"), width = 7, height=5)
 p
 ```
 
 ```{r}
-ici_clin_and_scores |> filter(!is.na(response_to_ici)) |> 
-  ggplot(aes(y=sig_lcam_consensus, x=sig_neutro2)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response_to_ici)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
-ggsave(file.path(params$artifact_dir, "corr_lcam_consensus_vs_neutro2.pdf"), width=6, height=4)
+ici_clin_and_scores |>  
+  filter(!is.na(response_to_ici)) |>
+  mutate(response_to_ici = recode(response_to_ici, "0"="Non-responder", "1"="Responder")) |> 
+  ggplot(aes(y=sig_lcam_consensus, x=sig_trn)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response_to_ici)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
+ggsave(file.path(params$artifact_dir, "corr_lcam_consensus_vs_trn.pdf"), width=6, height=4)
 ```
+
+

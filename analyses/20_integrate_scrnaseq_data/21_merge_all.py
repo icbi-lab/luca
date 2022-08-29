@@ -60,7 +60,7 @@ dataset_table = pd.read_csv(
 )
 dataset_path_annotated = nxfvars.get(
     "dataset_path_annotated",
-    "../../data/20_integrate_scrnaseq_data/integrate_datasets/11_seed_annotations/artifacts/",
+    "../../data/20_build_atlas/integrate_datasets/11_seed_annotations/artifacts/",
 )
 dataset_path = nxfvars.get(
     "dataset_path", "../../data/20_build_atlas/integrate_datasets/02_qc_and_filtering/"
@@ -89,9 +89,7 @@ for dataset_id in datasets:
 
 # %%
 for dataset_id in datasets_annotated:
-    tmp_adata = sc.read_h5ad(
-        f"{dataset_path_annotated}/{dataset_id}_annotated.h5ad"
-    )
+    tmp_adata = sc.read_h5ad(f"{dataset_path_annotated}/{dataset_id}_annotated.h5ad")
     datasets[dataset_id].obs["cell_type"] = tmp_adata.obs["cell_type"]
 
 # %% [markdown]
@@ -117,9 +115,12 @@ datasets["Goveia_Carmeliet_2020_NSCLC"].obs["sex"] = "nan"
 datasets["Guo_Zhang_2018_NSCLC"] = datasets["Guo_Zhang_2018_NSCLC"][
     datasets["Guo_Zhang_2018_NSCLC"].obs["tissue"] != "blood"
 ].copy()
+# store true raw counts for later export
+tmp_raw_counts = datasets["Guo_Zhang_2018_NSCLC"].X
 datasets["Guo_Zhang_2018_NSCLC"] = normalize_by_gene_length(
     datasets["Guo_Zhang_2018_NSCLC"]
 )
+datasets["Guo_Zhang_2018_NSCLC"].layers["raw_counts"] = tmp_raw_counts
 datasets["Guo_Zhang_2018_NSCLC"].obs["sex"] = "nan"
 
 # %%
@@ -139,9 +140,12 @@ datasets["Habermann_Kropski_2020_pulmonary-fibrosis"] = datasets[
 # No modifications necessary for He_Fan
 
 # %%
+# store true raw counts for later export
+tmp_raw_counts = datasets["Maynard_Bivona_2020_NSCLC"].X
 datasets["Maynard_Bivona_2020_NSCLC"] = normalize_by_gene_length(
     datasets["Maynard_Bivona_2020_NSCLC"]
 )
+datasets["Maynard_Bivona_2020_NSCLC"].layers["raw_counts"] = tmp_raw_counts
 
 # %%
 datasets["Laughney_Massague_2020_NSCLC"].obs["sex"] = "nan"
@@ -182,9 +186,12 @@ datasets["Reyfman_Misharin_2018_pulmonary-fibrosis"] = datasets[
 datasets["Travaglini_Krasnow_2020_Lung_SS2"] = datasets[
     "Travaglini_Krasnow_2020_Lung_SS2"
 ][datasets["Travaglini_Krasnow_2020_Lung_SS2"].obs["tissue"] == "lung", :]
+# store true raw counts for later export
+tmp_raw_counts = datasets["Travaglini_Krasnow_2020_Lung_SS2"].X
 datasets["Travaglini_Krasnow_2020_Lung_SS2"] = normalize_by_gene_length(
     datasets["Travaglini_Krasnow_2020_Lung_SS2"]
 )
+datasets["Travaglini_Krasnow_2020_Lung_SS2"].layers["raw_counts"] = tmp_raw_counts
 
 # %%
 datasets["Zilionis_Klein_2019_NSCLC"] = datasets["Zilionis_Klein_2019_NSCLC"][
@@ -264,7 +271,7 @@ for dataset_id, dataset in datasets.items():
     datasets[dataset_id] = aggregate_duplicate_gene_symbols(dataset)
 
 # %% [markdown]
-# ## Export all
+# ## Merge data
 
 # %%
 obs_all = pd.concat([x.obs for x in datasets.values()], ignore_index=True).reset_index(
@@ -351,6 +358,55 @@ merged_all = merge_datasets(datasets.values(), symbol_in_n_datasets=17)
 
 # %%
 merged_all.shape
+
+# %% [markdown]
+# ### Re-integrate raw counts (not length-scaled) for smartseq2 datasets
+#
+# This is needed for building a cellxgene-schema-compliant h5ad object 
+# in the downstream workflow. 
+
+# %%
+# updating values is very slow in sparse matrices.
+# We can afford the memory for making this dense temporarily.
+merged_all.layers["raw_counts"] = merged_all.X.toarray()
+
+# %%
+# the code for "merge all" could have been updated to handle this additional layer.
+# however at the point this change was introduced this would have required to patch
+# the singularity container again, which would have been more complicated than
+# doing this manually here.
+for dataset_id in [
+    "Guo_Zhang_2018_NSCLC",
+    "Maynard_Bivona_2020_NSCLC",
+    "Travaglini_Krasnow_2020_Lung_SS2",
+]:
+    mask = merged_all.obs["dataset"] == dataset_id
+    obs_names_merged = merged_all.obs_names[mask]
+    obs_names_dataset = obs_names_merged.str.replace("-(\d+)$", "", regex=True)
+
+    common_var = np.intersect1d(merged_all.var_names, datasets[dataset_id].var_names)
+    mask_var = merged_all.var_names.isin(common_var)
+
+    # subset dataset in the right order.
+    # some cells might not be contained in merged that are in the dataset due to "min batch size"
+    tmp_dataset = datasets[dataset_id][obs_names_dataset, common_var]
+
+    assert np.all(
+        obs_names_dataset == tmp_dataset.obs_names
+    ), "order of indices does not match"
+    assert np.all(
+        merged_all.var_names[mask_var] == tmp_dataset.var_names
+    ), "order of variables does not match"
+
+    merged_all.layers["raw_counts"][np.ix_(mask, mask_var)] = tmp_dataset.layers["raw_counts"].A
+
+# %%
+merged_all.layers["raw_counts"] = scipy.sparse.csr_matrix(
+    merged_all.layers["raw_counts"]
+)
+
+# %% [markdown]
+# ## Export all
 
 # %%
 merged_all.obs.drop_duplicates().reset_index(drop=True)

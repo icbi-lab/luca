@@ -27,6 +27,8 @@ workflow plots_and_comparisons {
     patient_stratification_adata_immune
     patient_stratification_adata_tumor_subtypes
     deseq2_results
+    deseq2_results_tan_nan
+    deseq2_results_neutro_clusters
 
     main:
 
@@ -34,18 +36,20 @@ workflow plots_and_comparisons {
         adata_neutrophil_clusters,
         patient_stratification,
         Channel.fromPath("${baseDir}/tables/gene_annotations/neutro_phenotype_genesets.xlsx"),
-        Channel.fromPath("${baseDir}/tables/gene_annotations/neutro_recruitment_chemokines.xlsx")
+        Channel.fromPath("${baseDir}/tables/gene_annotations/neutro_recruitment_chemokines.xlsx"),
+        deseq2_results_tan_nan
     ).collect()
     NEUTROPHIL_ANALYSIS(
         Channel.value(
             [[id: 'neutrophil_analysis'], file("${baseDir}/analyses/90_plots_and_comparisons/96a_neutrophils.py")]
         ),
-        ch_neutrophil_analysis_input_files.map { adata, adata_n, patient_strat, genesets1, genesets2 -> [
+        ch_neutrophil_analysis_input_files.map { adata, adata_n, patient_strat, genesets1, genesets2, deseq2_tan_nan -> [
             "adata_n_path": adata_n.name,
             "adata_path": adata.name,
             "patient_stratification_path": patient_strat.name,
             "neutro_geneset_path": genesets1.name,
-            "neutro_recruitment_geneset_path": genesets2.name
+            "neutro_recruitment_geneset_path": genesets2.name,
+            "deseq_tan_nan_path": deseq2_tan_nan.name
         ]},
         ch_neutrophil_analysis_input_files
     )
@@ -188,7 +192,8 @@ workflow plots_and_comparisons {
     ch_cpdb_analysis_input_files = extended_atlas.concat(
         adata_neutrophil_clusters,
         Channel.fromPath("${baseDir}/tables/cellphonedb_2022-04-06.tsv"),
-        deseq2_results,
+        deseq2_results_neutro_clusters,
+        deseq2_results
     ).collect()
     CPDB_ANALYSIS(
         Channel.value(
@@ -198,6 +203,7 @@ workflow plots_and_comparisons {
             "main_adata": it[0].name,
             "adata_n": it[1].name,
             "path_cpdb": it[2].name,
+            "deseq2_path_neutro_clusters": it[3].name,
             "deseq2_path_prefix": "./"
         ]},
         ch_cpdb_analysis_input_files

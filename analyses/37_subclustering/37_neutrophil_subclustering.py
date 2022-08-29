@@ -42,14 +42,10 @@ adata_file = nxfvars.get(
     "adata_in",
     "../../data/20_build_atlas/add_additional_datasets/03_update_annotation/artifacts/full_atlas_merged.h5ad",
 )
-neutro_clustering = nxfvars.get("neutro_clustering", "../../tables/neutrophil_clustering.csv")
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
 
 # %%
 adata = sc.read_h5ad(adata_file)
-
-# %%
-neutrophil_clustering = pd.read_csv(neutro_clustering, index_col=0)
 
 # %% [markdown]
 # # Neutrophil subset
@@ -66,28 +62,34 @@ adata_n.shape
 
 # %%
 ah.reprocess_adata_subset_scvi(
-    adata_n, use_rep="X_scANVI", leiden_res=0.5, n_neighbors=20
+    adata_n, use_rep="X_scANVI", leiden_res=0.75, n_neighbors=30
 )
 
 # %%
-# We use a predefined clustering for neutrophils here. 
-# 
-# It was generated using exactly this notebook, but using an earlier version of the atlas. 
-# After fixing an unrelated mistake in the atlas metadata, the scANVI embedding has changed slightly. 
-# While the clustering is qualitativly similar, the clusters don't match 1:1 with the previous version
-# and at this point, we didn't want to change downstream results anymore. 
-adata_n.obs["leiden"] = neutrophil_clustering["leiden"].astype(str)
-adata_n = adata_n[~adata_n.obs["leiden"].isnull(), :].copy()
+sc.pl.umap(adata_n, color=["leiden", "FCGR3B", "dataset"], cmap="inferno", size=20)
+
+# %% [markdown]
+# Remove cluster with empty droplets or potential doublets (no FCGR3B expression)
+
+# %%
+adata_n = adata_n[adata_n.obs["leiden"] != "9", :].copy()
 
 # %%
 adata_n.shape
 
-# %%
-# flip UMAP y axis to be visually consistent with previous iterations of the dataset
-adata_n.obsm["X_umap"][:, 1] = np.max(adata_n.obsm["X_umap"][:, 1]) - adata_n.obsm["X_umap"][:, 1]
+# %% [markdown]
+# Rerun clustering with Neutrophil clusters only
 
 # %%
-sc.pl.umap(adata_n, color="dataset")
+ah.reprocess_adata_subset_scvi(
+    adata_n, use_rep="X_scANVI", leiden_res=1, n_neighbors=30
+)
+
+# %%
+# flip UMAP y axis to be visually consistent with previous iterations of the dataset
+adata_n.obsm["X_umap"][:, 1] = (
+    np.max(adata_n.obsm["X_umap"][:, 1]) - adata_n.obsm["X_umap"][:, 1]
+)
 
 # %%
 sc.pl.umap(
@@ -102,29 +104,27 @@ sc.pl.umap(
     ncols=2,
 )
 
-# %%
-sc.pl.umap(
-    adata_n,
-    color=[
-        "cell_type",
-        "leiden",
-        "origin",
-        "condition",
-        "tumor_stage",
-        "sex",
-        "dataset",
-    ],
-    wspace=0.5,
-    ncols=3,
-)
-
 # %% [markdown]
 # ## subclustering
 
 # %%
 sc.pl.umap(
     adata_n,
-    color=["FCGR3B", "CXCL2", "OLR1", "IFIT1", "CCL3", "CDK1"],
+    color=[
+        "FCGR3B",
+        "PADI4",
+        "S100A12",
+        "TNFSF13B",
+        "IL1A",
+        "IL1RN",
+        "CD74",
+        "HLA-DRA",
+        "ASAH1",
+        "PLPP3",
+        "RPL23",
+        "IFIT1",
+        "CDK1",
+    ],
     cmap="inferno",
     size=20,
     ncols=3,
@@ -181,7 +181,10 @@ marker_genes = pd.DataFrame(pb_n.uns["rank_genes_groups"]["names"])
 # %%
 # markers from zillionis/klein
 sc.pl.umap(
-    adata_n, color=["IFIT1", "MMP8", "PALD1", "CXCL3", "CTSC", "CCL3"], cmap="inferno"
+    adata_n,
+    color=["IFIT1", "MMP8", "PALD1", "CXCL3", "CTSC", "CCL3"],
+    cmap="inferno",
+    size=20,
 )
 
 # %%
@@ -205,14 +208,18 @@ sc.pl.umap(adata_n, color="leiden", legend_loc="on data", legend_fontoutline=2)
 ah.annotate_cell_types(
     adata_n,
     {
-        "NAN-1": [4],  # also in zillionis/klein, S100A12
-        "NAN-2": [0],
-        "TAN-1": [3], 
-        "TAN-2": [2], 
-        "TAN-3": [1],  
-        "TAN-4": [5], 
+        "NAN-1": [6, 8],
+        "NAN-2": [4, 0],
+        "NAN-3": [7],
+        "TAN-1": [5],
+        "TAN-2": [1, 10],
+        "TAN-3": [2, 3],
+        "TAN-4": [9],
     },
 )
+
+# %%
+adata_n.obs["cell_type_tan_nan"] = [x[:3] for x in adata_n.obs["cell_type"]]
 
 # %%
 with plt.rc_context({"figure.dpi": 150}):
@@ -233,8 +240,8 @@ with plt.rc_context({"figure.dpi": 150}):
 adata_n.obs["cell_type_neutro"] = adata_n.obs["cell_type"]
 adata.obs["cell_type_neutro"] = adata.obs["cell_type_major"]
 ah.integrate_back(adata, adata_n, variable="cell_type_neutro")
-# Get rid of the ~10 cells that don't have a neutrophil cluster assigned
-adata = adata[adata.obs["cell_type_neutro"] != "Neutrophils", :]
+# # Get rid of the ~40 cells that don't have a neutrophil cluster assigned
+# adata = adata[adata.obs["cell_type_neutro"] != "Neutrophils", :]
 
 # %%
 sc.pl.umap(adata, color="cell_type_neutro")
@@ -254,3 +261,5 @@ adata.obs.loc[
 # %%
 adata_n.write_h5ad(f"{artifact_dir}/adata_neutrophil_clusters.h5ad")
 adata.write_h5ad(f"{artifact_dir}/full_atlas_neutrophil_clusters.h5ad")
+
+# %%

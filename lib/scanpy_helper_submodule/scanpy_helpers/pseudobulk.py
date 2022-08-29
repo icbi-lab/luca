@@ -38,6 +38,10 @@ def pseudobulk(
 
     combinations = adata.obs.loc[:, groupby].drop_duplicates()
 
+    if adata.is_view:
+        # for whatever reason, the pseudobulk function is terribly slow when operating on a view.
+        adata = adata.copy()
+
     # precompute masks
     masks = {}
     for col in groupby:

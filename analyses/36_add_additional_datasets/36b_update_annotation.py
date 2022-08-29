@@ -114,6 +114,8 @@ query_merged = anndata.concat(
     datasets.values(),
     index_unique="-",
 )
+# query doesn't have smartseq2 datasets, we can therefore just copy the raw counts. 
+query_merged.layers["raw_counts"] = query_merged.X.copy()
 
 # %%
 reference_atlas.obsm["X_scANVI"] = reference_scanvi.obsm["X_scANVI"]
@@ -230,6 +232,7 @@ cell_type_coarse_map = {
     "Monocyte classical": "Macrophage/Monocyte",
     "Monocyte non-classical": "Macrophage/Monocyte",
     "NK cell": "NK cell",
+    "NK cell dividing": "NK cell",
     "Neutrophils": "Neutrophils",
     "Pericyte": "Stromal",
     "Plasma cell": "Plasma cell",
@@ -237,8 +240,13 @@ cell_type_coarse_map = {
     "ROS1+ healthy epithelial": "Epithelial cell",
     "Smooth muscle cell": "Stromal",
     "T cell CD4": "T cell",
-    "T cell CD8": "T cell",
-    "T cell dividing": "T cell",
+    "T cell CD4 dividing": "T cell",
+    "T cell CD8 activated": "T cell",
+    "T cell CD8 dividing": "T cell",
+    "T cell CD8 effector memory": "T cell",
+    "T cell CD8 naive": "T cell",
+    "T cell CD8 terminally exhausted": "T cell",
+    "T cell NK-like": "T cell",
     "T cell regulatory": "T cell",
     "Tumor cells": "Epithelial cell",
     "cDC1": "cDC",
@@ -270,6 +278,7 @@ cell_type_major_map = {
     "Monocyte classical": "Monocyte",
     "Monocyte non-classical": "Monocyte",
     "NK cell": "NK cell",
+    "NK cell dividing": "other",
     "Neutrophils": "Neutrophils",
     "Pericyte": "Stromal",
     "Plasma cell": "Plasma cell",
@@ -277,8 +286,13 @@ cell_type_major_map = {
     "ROS1+ healthy epithelial": "other",
     "Smooth muscle cell": "Stromal",
     "T cell CD4": "T cell CD4",
-    "T cell CD8": "T cell CD8",
-    "T cell dividing": "other",
+    "T cell CD4 dividing": "other",
+    "T cell CD8 activated": "T cell CD8",
+    "T cell CD8 dividing": "other",
+    "T cell CD8 effector memory": "T cell CD8",
+    "T cell CD8 naive": "T cell CD8",
+    "T cell CD8 terminally exhausted": "T cell CD8",
+    "T cell NK-like": "T cell CD8",
     "T cell regulatory": "T cell regulatory",
     "Tumor cells": "Tumor cells",
     "cDC1": "cDC1",

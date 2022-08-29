@@ -30,13 +30,12 @@ rcParams["axes.grid"] = False
 # %%
 adata_n_path = nxfvars.get(
     "adata_n_path",
-    "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad",
+    "/home/sturm/Downloads/adata_neutrophil_clusters.h5ad"
+    # "../../data/30_downstream_analyses/04_neutrophil_subclustering/artifacts/adata_neutrophil_clusters.h5ad",
 )
 velocyto_dir = nxfvars.get("velocyto_dir", "../../data/11_own_datasets/velocyto/")
-artifact_dir = nxfvars.get(
-    "artifact_dir", "../../data/30_downstream_analyses/neutrophils"
-)
-cpus = nxfvars.get("cpus", 8)
+artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads")
+cpus = nxfvars.get("cpus", 16)
 
 # %%
 adata_n = sc.read_h5ad(adata_n_path)
@@ -51,6 +50,15 @@ filename_map = {
     "UKIM-V-2_P6": "Combined_182808_final",
     "UKIM-V-2_P7": "Combined_182809_final",
     "UKIM-V-2_P8": "Combined_182810_final",
+    "UKIM-V-2_P9": "Combined_200144",
+    "UKIM-V-2_P10": "Combined_200146",
+    "UKIM-V-2_P11": "Combined_202833",
+    "UKIM-V-2_P12": "Combined_202834",
+    "UKIM-V-2_P13": "Combined_202831",
+    "UKIM-V-2_P14": "Combined_202832",
+    "UKIM-V-2_P15": "Combined_202829",
+    "UKIM-V-2_P16": "Combined_202830",
+    "UKIM-V-2_P17": "Combined_202835",
 }
 
 
@@ -65,7 +73,9 @@ def _read_scvelo(patient, filename):
     return adata
 
 
-adatas = process_map(_read_scvelo, filename_map.keys(), filename_map.values(), max_workers=cpus)
+adatas = process_map(
+    _read_scvelo, filename_map.keys(), filename_map.values(), max_workers=cpus
+)
 
 # %%
 adata_ukim = adata_n[adata_n.obs["dataset"].str.contains("UKIM"), :].copy()
@@ -109,7 +119,7 @@ adata_scvelo.shape
 scv.pp.filter_and_normalize(adata_scvelo)
 
 # %%
-scv.pp.moments(adata_scvelo, n_pcs=30, n_neighbors=30)
+scv.pp.moments(adata_scvelo, n_pcs=30, n_neighbors=35)
 
 # %%
 scv.tl.velocity(adata_scvelo)
@@ -198,6 +208,7 @@ fig.savefig(f"{artifact_dir}/velocyto_paga_graph.pdf", bbox_inches="tight")
 
 # %%
 df = scv.get_df(adata_scvelo, "paga/transitions_confidence", precision=2).T
+df.index = df.columns = sorted(adata_scvelo.obs["cell_type"].unique())
 df.style.background_gradient(cmap="Blues").format("{:.2g}")
 
 # %%
@@ -216,5 +227,3 @@ ax = scv.pl.paga(
 ax.get_figure().savefig(
     f"{artifact_dir}/umap_paga_graph.pdf", bbox_inches="tight", dpi=1200
 )
-
-# %%
