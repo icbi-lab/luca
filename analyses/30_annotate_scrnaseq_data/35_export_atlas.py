@@ -508,21 +508,7 @@ adata.obs.loc[:, ["origin", "patient"]].drop_duplicates()["origin"].value_counts
 date_now = datetime.now().date().isoformat()
 
 # %%
-adata_cellxgene = sc.AnnData(
-    var=adata.raw.var, X=adata.raw.X, obs=adata.obs, obsm=adata.obsm
-)
-
-# %%
-adata_cellxgene_epi = sc.AnnData(
-    var=adata_epi.raw.var, X=adata_epi.raw.X, obs=adata_epi.obs, obsm=adata_epi.obsm
-)
-
-# %%
 adata.write_h5ad(f"{artifact_dir}/full_atlas_annotated.h5ad")
 adata_epi.write_h5ad(f"{artifact_dir}/epithelial_cells_annotated.h5ad")
-
-# %%
-adata_cellxgene.write_h5ad(f"{artifact_dir}/full_atlas_{date_now}.h5ad")
-adata_cellxgene_epi.write_h5ad(f"{artifact_dir}/epithelial_cells_{date_now}.h5ad")
 
 # %%
