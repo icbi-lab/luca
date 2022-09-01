@@ -47,7 +47,7 @@ cd luca
 Then, within the repository, download the data archives and extract then to the corresponding directories:
 
 **NOTE: we are currently uploading the data for the revised pipeline. Due to issues with the zenodo servers this
-is taking longer than expected. In the meanwhile, you can still run the [old pipeline version](https://github.com/icbi-lab/luca/tree/2022.05.10)**
+is taking longer than expected. In the meanwhile, you can still run the [old pipeline version](https://github.com/icbi-lab/luca/tree/2022.05.10).**
 
 ```bash
 # Download links will be added here
