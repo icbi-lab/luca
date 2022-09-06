@@ -14,7 +14,7 @@ into the atlas. For more information, check out the
 This repository contains the source-code to reproduce the single-cell data analysis for the paper.
 The analyses are wrapped into [nextflow](https://github.com/nextflow-io/nextflow/) pipelines, all dependencies are
 provided as [singularity](https://sylabs.io/guides/3.0/user-guide/quick_start.html) containers, and input data are
-available [from zenodo](https://doi.org/10.5281/zenodo.6411868).
+available [from zenodo](https://doi.org/10.5281/zenodo.6411867).
 
 For clarity, the project is split up into two separate workflows:
 
@@ -46,25 +46,16 @@ cd luca
 
 Then, within the repository, download the data archives and extract then to the corresponding directories:
 
-**NOTE: we are currently uploading the data for the revised pipeline. Due to issues with the zenodo servers this
-is taking longer than expected. In the meanwhile, you can still run the [old pipeline version](https://github.com/icbi-lab/luca/tree/2022.05.10).**
-
-```bash
-# Download links will be added here
-```
-
-<!--
 ```bash
  # singularity containers
-curl "https://zenodo.org/record/6411868/files/containers.tar.xz?download=1" | tar xvJ
+curl "https://zenodo.org/record/6997383/files/containers.tar.xz?download=1" | tar xvJ
 
 # input data
-curl "https://zenodo.org/record/6411868/files/input_data.tar.xz?download=1" | tar xvJ
+curl "https://zenodo.org/record/6997383/files/input_data.tar.xz?download=1" | tar xvJ
 
 # OPTIONAL: obtain intermediate results if you just want to run the `downstream_analysis` workflow
-curl "https://zenodo.org/record/6411868/files/input_data.tar.xz?download=1" | tar xvJ
+curl "https://zenodo.org/record/6997383/files/build_atlas_results.tar.xz?download=1" | tar xvJ
 ```
--->
 
 Note that some steps of the downstream analysis depend on an additional [cohort of checkpoint-inhibitor-treated patients](https://ega-archive.org/studies/EGAS00001005013), which is only available under protected access agreement. For obvious reasons, these data
 are not included in our data archive. You'll need to obtain the dataset yourself and place it in the `data/14_ici_treatment/Genentech` folder.
