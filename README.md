@@ -1,5 +1,7 @@
 # LuCA - The single-cell **Lu**ng **C**ancer **A**tlas
 
+[![DOI](https://zenodo.org/badge/384040849.svg)](https://zenodo.org/badge/latestdoi/384040849)
+
 The single cell lung cancer atlas is a resource integrating more than 1.2 million cells from 309 patients across 29 datasets.
 
 The atlas is publicly available for interactive exploration through a *cell-x-gene* instance. We also provide
