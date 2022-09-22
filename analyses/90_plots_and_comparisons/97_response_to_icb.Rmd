@@ -7,8 +7,7 @@ params:
   ici_tpm: "../../data/14_ici_treatment/Genentech_for_scissor/genentech.rds"
   ici_meta: "../../data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv"
   neutro_sigs: "../../data/30_downstream_analyses/neutrophils/neutrophil_analysis/artifacts/neutro_sigs.csv"
-  # neutro_sigs: "/home/sturm/Downloads/neutro_sigs.csv"
-  # net_sigs: "../../tables/gene_annotations/net_signatures.csv"
+  cell_type_major_sigs: "/home/sturm/Downloads/cell_type_major_signatures.csv"
   input_dir: NULL
 ---
 
@@ -43,76 +42,22 @@ ici_meta = read_tsv(params$ici_meta) |> rename(dataset=study)
 ```{r}
 neutro_sig_tab = read_csv(params$neutro_sigs)
 neutro_sig = sapply(unique(neutro_sig_tab$signature), function(sig) { neutro_sig_tab |> filter(signature == !!sig) |> pull(gene_symbol)}, USE.NAMES = TRUE, simplify = FALSE)
-
-# sig_old = read_csv("../../data/0_backup/2022-06-18_as_sumitted/30_downstream_analyses/neutrophils/neutrophil_analysis/artifacts/neutro_sigs.csv")
-# neutro_sig$sig_neutro_old =  sig_old |> filter(signature == "neutro_sig2") |> pull("gene_symbol")
+cell_type_sig_tab = read_csv(params$cell_type_major_sigs)
+cell_type_sig = sapply(unique(cell_type_sig_tab$signature), function(sig) { cell_type_sig_tab |> filter(signature == !!sig) |> pull(gene_symbol)}, USE.NAMES = TRUE, simplify = FALSE)
 ```
 
 ```{r}
-all_sigs = neutro_sig 
+all_sigs = c(neutro_sig, cell_type_sig)
+neutro_sig_names = names(neutro_sig)
+ct_sig_names = names(cell_type_sig)
 sig_names = names(all_sigs)
 ```
 
 # Functions to compute signature scores
 
-## Original LCAM scores
-This essentially computes a mean z score of marker gene expression. 
-However, scores for each cell-type are computed separately, and then averaged. 
-
-There's a LCAMhi and LCAMlo signature. Finally, a "LCAM consensus" signature 
-is created, but subtracting one from the other. That way, the authors claim,
-they generate a score that's independent of overall immune infiltration. 
-```{r}
-# From https://github.com/effiken/Leader_et_al/blob/3eb043acdea7b3dea45a2325ee1035060d9964af/scripts/get_LCAM_scores.R
-library(matrixStats)
-
-LCAMhi_subtypes <- c("IgG_plasma","SPP1_mac","T_activated")
-LCAMlo_subtypes <- c("B","AM","cDC2","AZU1_mac","cDC1")
-genes <- strsplit("IGHG3,IGHG4,IGHG1,MZB1,FAM92B,SPAG4,DERL3,JSRP1,TBCEL,LINC01485,SLC2A5,SPP1,CCL7,HAMP,CXCL13,ZBED2,GNG4,KRT86,TNFRSF9,LAYN,GZMB,KIR2DL4,GAPT,CTB-133G6.1,AKR1C3,RSPO3,MCEMP1,RND3,HP,FOLR3,GPD1,GS1-600G8.5,PCOLCE2,CAMP,CCL17,CD1B,CD1C,CD1E,PLD4,TRPC6,CLEC10A,FCER1A,PLA1A,CFP,CEACAM8,AZU1,PKP2,RETN,LYZ,ELANE,ATP6AP1L,RP6-159A1.4,THBS1,CFD,P2RY14,DNASE1L3,PTGER3,CST3,BATF3,CPVL,RGS18,SERPINF2,LGALS2",",")[[1]]
-subtypes <- rep(c(LCAMhi_subtypes,LCAMlo_subtypes),times=c(10,4,8,2,10,10,10,9))
-names(subtypes) <- genes
-
-
-get_LCAM_scores <- function(expr_mat){
-  
-  message("computing LCAM scores on bulkRNA expression matrix")
-  # identify matching gene symbols
-  genes_matching <- intersect(genes,rownames(expr_mat))
-  subtypes_matching <- subtypes[genes_matching]
-  missing_genes <- setdiff(genes,genes_matching)
-  if(!is.null(missing_genes)){
-    message(paste("inconsistent gene symbols:",paste(missing_genes,collapse=", ")))
-  }
-  
-  # normalize and scale expression values
-  expr_mat <- t(t(expr_mat)/rowSums(t(expr_mat)))
-  zmat <- t(scale(t(log10(1e-6+expr_mat[genes_matching,]))))
-  
-  #subset expression matrix to only the genes needed for the scores
-  #zmat <- zmat[genes_matching,]
-  
-  # compute subtype scores
-  score_mat <- matrix(0,nrow=length(genes_matching),ncol=length(unique(subtypes_matching)),dimnames=list(genes_matching,unique(subtypes_matching)))
-  for(subtype_iter in subtypes_matching){
-    score_mat[genes_matching[subtypes_matching==subtype_iter],subtype_iter] <- 1
-  }
-  
-  subtype_scores <- t(scale(t(t(score_mat)%*%zmat)))
-  
-  #summarize the subtype scores
-  res <- cbind(colMeans(subtype_scores[LCAMhi_subtypes,]),colMeans(subtype_scores[LCAMlo_subtypes,]))
-  res <- cbind(res,res[,1]-res[,2])
-  colnames(res) <- c("LCAMhi","LCAMlo","difference")
-  return(res)
-
-}
-```
-
 ## "Mean z score" scoring function
 This is similar to the LCAM score, just there is no differentiation between markers for different cell-types. 
 ```{r}
-norm01 = function(x)  (x-min(x))/(max(x)-min(x))
-
 #' Score signature genes as described in the Merad paper
 #' 
 #' This is a simple mean of the z-scored gene expression
@@ -132,16 +77,17 @@ scoring_function = get_lcam_scores
 ## Significance codes
 ```{r}
 sig_codes = Vectorize(function(p) {
+  f = \(x) factor(x, levels=c("p < 0.001", "p < 0.01", "p < 0.05", "p < 0.1", "p >= 0.1"))
   if(p < 0.001) {
-    "p < 0.001"
+    f("p < 0.001")
   } else if(p < 0.01) {
-    "p < 0.01"
+    f("p < 0.01")
   } else if (p < 0.05) {
-    "p < 0.05"
+    f("p < 0.05")
   } else if (p < 0.1) {
-    "p < 0.1"
+    f("p < 0.1")
   } else {
-    "p >= 0.1"
+    f("p >= 0.1")
   }
 })
 ```
@@ -151,16 +97,9 @@ sig_codes = Vectorize(function(p) {
 ## ICI treatment data
 
 ```{r, fig.width=12, fig.height=7}
-
-ici_lcam_scores = get_LCAM_scores(ici_tpm)
-
-
 ici_scores = data.frame(sapply(names(all_sigs), function(sig) {
   scoring_function(ici_tpm, all_sigs[[sig]])
 })) |> mutate(
-    sig_lcam_hi=ici_lcam_scores[, 1],
-    sig_lcam_lo=ici_lcam_scores[, 2],
-    sig_lcam_consensus=ici_lcam_scores[, 3],
     sig_trn_mean=(sig_tan+sig_nan)/2
 ) |> 
   as_tibble(rownames="sample")
@@ -176,7 +115,7 @@ ici_clin_and_scores = ici_meta |>
 # LUAD vs LUSC
 
 ```{r, fig.width=7, fig.height=5}
-ici_clin_and_scores |> select(type, starts_with("sig_")) |>
+ici_clin_and_scores |> select(type, !!neutro_sig_names) |>
   filter(!is.na(type)) |> 
   pivot_longer(-type, names_to="signature", values_to="score") |>
   ggplot(aes(x=signature, y=score, color=type)) + 
@@ -188,7 +127,7 @@ ici_clin_and_scores |> select(type, starts_with("sig_")) |>
 
 ```{r}
 # ICI
-lapply(sig_names, function(sig) {
+lapply(neutro_sig_names, function(sig) {
   res = summary(lm(as.formula(sprintf("`%s` ~ type + dataset + gender + study_arm", sig)), data=ici_clin_and_scores))
   res$coefficients |> as_tibble(rownames="var") |> mutate(sig=sig, .before=1)
 }) |> bind_rows() |> filter(var == "typeLUSC")
@@ -197,7 +136,7 @@ lapply(sig_names, function(sig) {
 ## Survival analysis
 
 ```{r, fig.width=6, fig.height=6}
-tmp_sig_names = sig_names
+tmp_sig_names = make.names(sig_names)
 coxph_results = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
     lapply(c("all", "LUSC", "LUAD"), function(type) {
         filter_type = if(type == "all") {c("LUAD", "LUSC") } else {type}
@@ -231,6 +170,31 @@ coxph_results = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
 
 ```
 
+```{r, fig.width=4, fig.height=4}
+lapply(c("all", "LUAD", "LUSC"), function(tumor_type) {
+  tmp_df = coxph_results |> 
+    filter(study_arm == "MPDL3280A", type==tumor_type) |> 
+    filter(var %in% make.names(ct_sig_names)) |> 
+    mutate(fdr = p.adjust(`Pr(>|z|)`, method="fdr")) |>
+    mutate(var = str_replace_all(var, "\\.", " "))
+  
+  p = tmp_df |> mutate(var = factor(var, levels= arrange(tmp_df, -coef) |> pull("var"))) |> 
+    filter(fdr < 0.1) |> 
+    ggplot(aes(x=var, y=coef, fill=coef)) +
+    geom_bar(stat='identity') +
+    scale_fill_distiller(palette="RdBu") + 
+    theme_cowplot() + 
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + 
+    background_grid() +
+    geom_hline(yintercept=0) + 
+    ylab("log(hazard ratio)") + xlab("cell type") + theme(legend.position = "none") + 
+    ggtitle(tumor_type)
+
+  ggsave(file.path(params$artifact_dir, sprintf("cell_type_sig_score_%s.pdf", tumor_type)), width=4, height=4)
+  
+  p
+})
+```
 
 ```{r, fig.width=4, fig.height=4}
 plot_kaplan_meyer = function(clinical_data, column, q=c(0.25, .75), pvalue=TRUE) {
@@ -273,7 +237,7 @@ summary(coxph(as.formula("Surv(time, status) ~ dataset + sig_nan * type * study_
 
 ### Response to ICI
 ```{r, fig.width=6, fig.height=6}
-tmp_sig_names = sig_names
+tmp_sig_names = neutro_sig_names 
 ici_data = ici_clin_and_scores
 glm_res = lapply(c("any", "Docetaxel", "MPDL3280A"), function(arm) {
   lapply(c("all", "LUSC", "LUAD"), function(type) {
@@ -332,13 +296,4 @@ p = ici_data |> select(type, response=response_to_ici, dataset, starts_with("sig
 ggsave(file.path(params$artifact_dir, "ici_treatment_response.pdf"), width = 7, height=5)
 p
 ```
-
-```{r}
-ici_clin_and_scores |>  
-  filter(!is.na(response_to_ici)) |>
-  mutate(response_to_ici = recode(response_to_ici, "0"="Non-responder", "1"="Responder")) |> 
-  ggplot(aes(y=sig_lcam_consensus, x=sig_trn)) + geom_smooth(method="lm", color="black") + geom_point(aes(color=response_to_ici)) + stat_cor() + theme_cowplot() + background_grid() + scale_color_brewer(palette="Dark2")
-ggsave(file.path(params$artifact_dir, "corr_lcam_consensus_vs_trn.pdf"), width=6, height=4)
-```
-
 

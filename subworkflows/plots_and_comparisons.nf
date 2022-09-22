@@ -7,6 +7,7 @@ include {
     JUPYTERNOTEBOOK as CELL_TYPE_MARKERS_CORE_ATLAS;
     JUPYTERNOTEBOOK as OVERVIEW_PLOTS_CORE_ATLAS;
     JUPYTERNOTEBOOK as OVERVIEW_PLOTS_EXTENDED_ATLAS;
+    JUPYTERNOTEBOOK as CELL_TYPE_SIGNATURES;
     JUPYTERNOTEBOOK as COMPARE_PLATFORMS;
     JUPYTERNOTEBOOK as CPDB_ANALYSIS;
     JUPYTERNOTEBOOK as SCCODA_CONDITION;
@@ -162,6 +163,16 @@ workflow plots_and_comparisons {
         ch_extended_atlas_input_files
     )
 
+    CELL_TYPE_SIGNATURES(
+       Channel.value(
+            [[id: '94d_cell_type_signatures'], file("${baseDir}/analyses/90_plots_and_comparisons/94d_cell_type_signatures.py")]
+        ),
+        extended_atlas.map { extended -> [
+            "adata_path": extended.name
+        ]},
+        extended_atlas
+    )
+    ch_cell_type_signatures = CELL_TYPE_SIGNATURES.out.artifacts.flatten().filter{ it -> it.name.equals("cell_type_major_signatures.csv") }
 
     COMPARE_PLATFORMS(
         Channel.value(
@@ -174,6 +185,7 @@ workflow plots_and_comparisons {
     )
 
     ch_response_to_ici_input_files = ch_neutro_sigs.concat(
+        ch_cell_type_signatures,
         Channel.fromPath("${baseDir}/data/14_ici_treatment/Genentech_for_scissor/genentech.rds"),
         Channel.fromPath("${baseDir}/data/14_ici_treatment/Genentech_for_scissor/genentech_clinical_data.tsv")
     ).collect()
@@ -181,8 +193,9 @@ workflow plots_and_comparisons {
         Channel.value(
             [[id: 'response_to_ici'], file("${baseDir}/analyses/90_plots_and_comparisons/97_response_to_icb.Rmd")]
         ),
-        ch_response_to_ici_input_files.map{ sigs, tpm, meta -> [
-            "neutro_sigs": sigs.name,
+        ch_response_to_ici_input_files.map{ sigs_neutro, sigs_cell_type, tpm, meta -> [
+            "neutro_sigs": sigs_neutro.name,
+            "cell_type_major_sigs": sigs_cell_type.name,
             "ici_tpm": tpm.name,
             "ici_meta": meta.name
         ]},

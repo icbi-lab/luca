@@ -116,6 +116,7 @@ pd.concat([r.assign(cell_type=ct).iloc[[0]] for ct, r in results.items()]).set_i
 # %%
 mcprs = {}
 for ct, res in results.items():
+    display_html(f"<h3>working on: {ct}</h3>", raw=True)
     mcprs[ct] = sh.signatures.refit_evaluate_plot(
         res, adata_train=adata_primary_train, adata_test=adata_primary_test
     )
