@@ -36,6 +36,7 @@ threadpoolctl.threadpool_limits(20)
 # %%
 matplotlib.rcParams.update({"font.size": 16})
 matplotlib.rcParams["figure.dpi"] = 300
+matplotlib.rcParams['pdf.use14corefonts'] = False # don't convert text to path
 
 # %%
 adata = sc.read_h5ad(

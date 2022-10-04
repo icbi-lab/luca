@@ -23,6 +23,10 @@ from scanpy_helpers.compare_groups.pl import plot_lm_result_altair
 import scanpy as sc
 import numpy as np
 from nxfvars import nxfvars
+import matplotlib.pyplot as plt
+
+# %%
+plt.rcParams['pdf.use14corefonts'] = False # don't convert text to path
 
 # %%
 path_prefix = nxfvars.get(

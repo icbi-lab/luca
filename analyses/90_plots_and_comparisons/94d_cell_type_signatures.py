@@ -51,6 +51,7 @@ artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 
 # %%
 sc.settings.set_figure_params(figsize=(5, 5))
+plt.rcParams['pdf.use14corefonts'] = False # don't convert text to path
 
 # %% [markdown]
 # # Load data

@@ -41,23 +41,24 @@ alt.data_transformers.disable_max_rows()
 
 # %%
 sc.settings.set_figure_params(figsize=(5, 5))
+plt.rcParams['pdf.use14corefonts'] = False # don't convert text to path
 
 # %%
 artifact_dir = nxfvars.get("artifact_dir", "/home/sturm/Downloads/")
 adata_n_path = nxfvars.get(
     "adata_n_path",
-    # "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/adata_neutrophil_clusters.h5ad",
-    "/home/sturm/Downloads/adata_neutrophil_clusters.h5ad",
+    "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/adata_neutrophil_clusters.h5ad",
+    # "/home/sturm/Downloads/adata_neutrophil_clusters.h5ad",
 )
 adata_path = nxfvars.get(
     "adata_path",
-    # "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
-    "/home/sturm/Downloads/full_atlas_neutrophil_clusters.h5ad",
+    "../../data/30_downstream_analyses/neutrophils/subclustering/artifacts/full_atlas_neutrophil_clusters.h5ad",
+    # "/home/sturm/Downloads/full_atlas_neutrophil_clusters.h5ad",
 )
 patient_stratification_path = nxfvars.get(
     "patient_stratification_path",
-    "/home/sturm/Downloads/patient_stratification.csv"
-    # "../../data/30_downstream_analyses/stratify_patients/stratification/artifacts/patient_stratification.csv",
+    # "/home/sturm/Downloads/patient_stratification.csv"
+    "../../data/30_downstream_analyses/stratify_patients/stratification/artifacts/patient_stratification.csv",
 )
 neutro_geneset_path = nxfvars.get(
     "neutro_geneset_path",
@@ -1230,6 +1231,9 @@ neutro_sigs = {k: v for k, v in neutro_sigs.items() if len(v)}
 {sig: len(genes) for sig, genes in neutro_sigs.items()}
 
 # %%
+matplotlib.rcParams['svg.fonttype'] = 'none'
+
+# %%
 fig = sc.pl.matrixplot(
     pb_n,
     var_names={
@@ -1241,6 +1245,7 @@ fig = sc.pl.matrixplot(
     cmap="bwr",
     return_fig=True,
 )
+fig.savefig(f"{artifact_dir}/sig_genes_by_cluster.svg", bbox_inches="tight")
 fig.savefig(f"{artifact_dir}/sig_genes_by_cluster.pdf", bbox_inches="tight")
 
 # %% [markdown]
