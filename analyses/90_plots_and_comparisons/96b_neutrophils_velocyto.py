@@ -26,6 +26,7 @@ from glob import glob
 from tqdm.contrib.concurrent import process_map
 
 rcParams["axes.grid"] = False
+rcParams['pdf.use14corefonts'] = False # don't convert text to path
 
 # %%
 adata_n_path = nxfvars.get(

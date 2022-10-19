@@ -42,6 +42,9 @@ alt.data_transformers.disable_max_rows()
 sc.set_figure_params(figsize=(5, 5))
 
 # %%
+plt.rcParams['pdf.use14corefonts'] = False
+
+# %%
 ah = AnnotationHelper()
 
 # %%

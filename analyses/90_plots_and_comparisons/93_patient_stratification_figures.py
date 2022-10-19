@@ -44,6 +44,9 @@ from functools import reduce
 import scanpy_helpers as sh
 
 # %%
+plt.rcParams['pdf.use14corefonts'] = False # don't convert text to path
+
+# %%
 patient_stratification_path = nxfvars.get(
     "patient_stratification_path",
     "../../data/30_downstream_analyses/stratify_patients/stratification/artifacts/patient_stratification.csv",
