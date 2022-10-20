@@ -50,13 +50,13 @@ Then, within the repository, download the data archives and extract then to the 
 
 ```bash
  # singularity containers
-curl "https://zenodo.org/record/6997383/files/containers.tar.xz?download=1" | tar xvJ
+curl "https://zenodo.org/record/7227571/files/containers.tar.xz?download=1" | tar xvJ
 
 # input data
-curl "https://zenodo.org/record/6997383/files/input_data.tar.xz?download=1" | tar xvJ
+curl "https://zenodo.org/record/7227571/files/input_data.tar.xz?download=1" | tar xvJ
 
 # OPTIONAL: obtain intermediate results if you just want to run the `downstream_analysis` workflow
-curl "https://zenodo.org/record/6997383/files/build_atlas_results.tar.xz?download=1" | tar xvJ
+curl "https://zenodo.org/record/7227571/files/build_atlas_results.tar.xz?download=1" | tar xvJ
 ```
 
 Note that some steps of the downstream analysis depend on an additional [cohort of checkpoint-inhibitor-treated patients](https://ega-archive.org/studies/EGAS00001005013), which is only available under protected access agreement. For obvious reasons, these data
