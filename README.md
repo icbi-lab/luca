@@ -1,6 +1,8 @@
 # LuCA - The single-cell **Lu**ng **C**ancer **A**tlas
 
 [![DOI](https://zenodo.org/badge/384040849.svg)](https://zenodo.org/badge/latestdoi/384040849)
+  
+> Salcher, S., Sturm, G., Horvath, L., Untergasser, G., Kuempers, C., Fotakis, G., ... & Trajanoski, Z. (2022). High-resolution single-cell atlas reveals diversity and plasticity of tissue-resident neutrophils in non-small cell lung cancer. Cancer Cell. [doi:10.1016/j.ccell.2022.10.008](https://doi.org/10.1016/j.ccell.2022.10.008)
 
 The single cell lung cancer atlas is a resource integrating more than 1.2 million cells from 309 patients across 29 datasets.
 
@@ -9,9 +11,7 @@ The atlas is publicly available for interactive exploration through a *cell-x-ge
 into the atlas. For more information, check out the
 
  * [project website](https://luca.icbi.at) and
- * our [preprint](https://doi.org/10.1101/2022.05.09.491204).
-
-> Salcher, Sturm, Horvath et al., Manuscript in preparation
+ * our [publication](https://doi.org/10.1016/j.ccell.2022.10.008).
 
 This repository contains the source-code to reproduce the single-cell data analysis for the paper.
 The analyses are wrapped into [nextflow](https://github.com/nextflow-io/nextflow/) pipelines, all dependencies are
