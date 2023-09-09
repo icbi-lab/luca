@@ -23,7 +23,8 @@
 			"extensions": [
 				"ms-python.python",
 				"ms-toolsai.jupyter",
-				"GitHub.copilot"
+				"GitHub.copilot",
+				"ms-python.black-formatter"
 			]
 		}
 	},

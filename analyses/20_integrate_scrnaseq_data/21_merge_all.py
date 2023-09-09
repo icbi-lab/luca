@@ -60,9 +60,10 @@ dataset_table = pd.read_csv(
 )
 dataset_path_annotated = nxfvars.get(
     "dataset_path_annotated",
-    None",
+    None,
 )
 dataset_path = nxfvars.get(
+    "dataset_path",
     None
 )
 
