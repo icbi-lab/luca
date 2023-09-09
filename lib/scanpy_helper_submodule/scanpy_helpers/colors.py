@@ -139,17 +139,6 @@ class COLORS:
         "LUAD NE": "#f0027f",
         "NSCLC mixed": "#bf5b17",
     }
-    origin = {
-        "tumor_metastasis": "#a6761d",
-        "metastases": "#a6761d",
-        "other": "#DDDDDD",
-        "normal": "#66a61e",
-        "normal_adjacent": "#d95f02",
-        "adj. normal": "#d95f02",
-        "tumor_primary": "#e6ab02",
-        "primary tumor": "#e6ab02",
-        "nan": "#DDDDDD",
-    }
     platform = {
         "10x": "#377eb8",
         "Smart-seq2": "#e41a1c",

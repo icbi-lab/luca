@@ -58,14 +58,6 @@ sc.set_figure_params(figsize=(5, 5))
 dataset_table = pd.read_csv(
     nxfvars.get("samplesheet", None)
 )
-dataset_path_annotated = nxfvars.get(
-    "dataset_path_annotated",
-    None,
-)
-dataset_path = nxfvars.get(
-    "dataset_path",
-    None
-)
 
 # %%
 dataset_table
@@ -77,157 +69,23 @@ datasets_annotated = []
 datasets = {
     dataset_id: sc.read_h5ad(
         f"{dataset_id}.qc.h5ad"
-        if dataset_path == "."
-        else f"{dataset_path}/{dataset_id}/{dataset_id}.qc.h5ad"
     )
     for dataset_id in tqdm(dataset_table["id"])
 }
 
 # %%
-# Set cell-types of unannotated datasets to "unknown" for scVI
-for dataset_id in datasets:
-    datasets[dataset_id].obs["cell_type"] = "unknown"
+for dataset_id, adata in tqdm(datasets.items()):
+    # Set cell-types of unannotated datasets to "unknown" for scVI
+    if "celltype" not in datasets[dataset_id].obs.columns:
+        datasets[dataset_id].obs["celltype"] = "unknown"
+    
+    # Set dataset id
+    datasets[dataset_id].obs["dataset"] = dataset_id
 
-# %%
-for dataset_id in datasets_annotated:
-    tmp_adata = sc.read_h5ad(f"{dataset_path_annotated}/{dataset_id}_annotated.h5ad")
-    datasets[dataset_id].obs["cell_type"] = tmp_adata.obs["cell_type"]
-
-# %% [markdown]
-# ### Dataset-specific filtering and metadata fixes
-
-# %%
-datasets["Adams_Kaminski_2020_COPD"].obs["origin"] = "normal"
-datasets["Adams_Kaminski_2020_COPD"].obs["sex"] = "nan"
-datasets["Adams_Kaminski_2020_COPD"] = datasets["Adams_Kaminski_2020_COPD"][
-    datasets["Adams_Kaminski_2020_COPD"].obs["condition"] != "IPF", :
-]
-
-# %%
-# No modifications necessary for Chen_Zhang
-
-# %%
-datasets["Goveia_Carmeliet_2020_NSCLC"] = datasets["Goveia_Carmeliet_2020_NSCLC"][
-    datasets["Goveia_Carmeliet_2020_NSCLC"].obs["condition"] != "LLCC"
-].copy()
-datasets["Goveia_Carmeliet_2020_NSCLC"].obs["sex"] = "nan"
-
-# %%
-datasets["Guo_Zhang_2018_NSCLC"] = datasets["Guo_Zhang_2018_NSCLC"][
-    datasets["Guo_Zhang_2018_NSCLC"].obs["tissue"] != "blood"
-].copy()
-# store true raw counts for later export
-tmp_raw_counts = datasets["Guo_Zhang_2018_NSCLC"].X
-datasets["Guo_Zhang_2018_NSCLC"] = normalize_by_gene_length(
-    datasets["Guo_Zhang_2018_NSCLC"]
-)
-datasets["Guo_Zhang_2018_NSCLC"].layers["raw_counts"] = tmp_raw_counts
-datasets["Guo_Zhang_2018_NSCLC"].obs["sex"] = "nan"
-
-# %%
-datasets["Habermann_Kropski_2020_pulmonary-fibrosis"].obs["sex"] = [
-    {"M": "male", "F": "female", "Unknown": "nan"}[s]
-    for s in datasets["Habermann_Kropski_2020_pulmonary-fibrosis"].obs["sex"]
-]
-datasets["Habermann_Kropski_2020_pulmonary-fibrosis"] = datasets[
-    "Habermann_Kropski_2020_pulmonary-fibrosis"
-][
-    datasets["Habermann_Kropski_2020_pulmonary-fibrosis"].obs["condition"]
-    == "healthy_control",
-    :,
-].copy()
-
-# %%
-# No modifications necessary for He_Fan
-
-# %%
-# store true raw counts for later export
-tmp_raw_counts = datasets["Maynard_Bivona_2020_NSCLC"].X
-datasets["Maynard_Bivona_2020_NSCLC"] = normalize_by_gene_length(
-    datasets["Maynard_Bivona_2020_NSCLC"]
-)
-datasets["Maynard_Bivona_2020_NSCLC"].layers["raw_counts"] = tmp_raw_counts
-
-# %%
-datasets["Laughney_Massague_2020_NSCLC"].obs["sex"] = "nan"
-
-# %%
-datasets["Maier_Merad_2020_NSCLC"].obs["sex"] = "nan"
-
-# %%
-datasets["Madissoon_Meyer_2020_pulmonary-fibrosis"].obs["tissue"] = "lung"
-datasets["Madissoon_Meyer_2020_pulmonary-fibrosis"].obs["origin"] = "normal"
-datasets["Madissoon_Meyer_2020_pulmonary-fibrosis"].obs["condition"] = "healthy_control"
-datasets["Madissoon_Meyer_2020_pulmonary-fibrosis"].obs["sex"] = "nan"
-datasets["Madissoon_Meyer_2020_pulmonary-fibrosis"].X.data = np.rint(
-    datasets["Madissoon_Meyer_2020_pulmonary-fibrosis"].X.data
-)
-
-# %%
-datasets["Mayr_Schiller_2020_pulmonary-fibrosis"].obs["sex"] = "nan"
-datasets["Mayr_Schiller_2020_pulmonary-fibrosis"] = datasets[
-    "Mayr_Schiller_2020_pulmonary-fibrosis"
-][
-    datasets["Mayr_Schiller_2020_pulmonary-fibrosis"].obs["condition"]
-    == "healthy_control",
-    :,
-]
-
-# %%
-datasets["Reyfman_Misharin_2018_pulmonary-fibrosis"].obs["sex"] = "nan"
-datasets["Reyfman_Misharin_2018_pulmonary-fibrosis"] = datasets[
-    "Reyfman_Misharin_2018_pulmonary-fibrosis"
-][
-    datasets["Reyfman_Misharin_2018_pulmonary-fibrosis"].obs["condition"]
-    == "healthy_control",
-    :,
-]
-
-# %%
-datasets["Travaglini_Krasnow_2020_Lung_SS2"] = datasets[
-    "Travaglini_Krasnow_2020_Lung_SS2"
-][datasets["Travaglini_Krasnow_2020_Lung_SS2"].obs["tissue"] == "lung", :]
-# store true raw counts for later export
-tmp_raw_counts = datasets["Travaglini_Krasnow_2020_Lung_SS2"].X
-datasets["Travaglini_Krasnow_2020_Lung_SS2"] = normalize_by_gene_length(
-    datasets["Travaglini_Krasnow_2020_Lung_SS2"]
-)
-datasets["Travaglini_Krasnow_2020_Lung_SS2"].layers["raw_counts"] = tmp_raw_counts
-
-# %%
-datasets["Zilionis_Klein_2019_NSCLC"] = datasets["Zilionis_Klein_2019_NSCLC"][
-    datasets["Zilionis_Klein_2019_NSCLC"].obs["tissue"] == "lung", :
-]
-datasets["Zilionis_Klein_2019_NSCLC"].obs["sex"] = [
-    {"M": "male", "F": "female", "Unknown": "nan"}[s]
-    for s in datasets["Zilionis_Klein_2019_NSCLC"].obs["sex"]
-]
-
-# %% [markdown]
-# ### make patients unique across datasets
-#
-# Except for the two Travaglini variants - they are the same patients profiled with different platforms
-
-# %%
-for dataset_id, adata in datasets.items():
-    adata.obs["dataset"] = dataset_id
-    adata.obs["patient"] = [
-        f'{dataset.replace("_10x", "").replace("_SS2", "")}_{patient}'
-        for dataset, patient in zip(adata.obs["dataset"], adata.obs["patient"])
-    ]
-    datasets[dataset_id] = adata
-
-# %% [markdown]
-# ### Validate data
-
-# %%
-datasets["Lambrechts_2018_LUAD_6653"].X.data
-
-# %%
-for dataset_id, adata in datasets.items():
-    print(f"Validating {dataset_id}")
+    # Validate data
     sanitize_adata(adata)
     validate_adata(adata)
+
 
 # %% [markdown]
 # ## Gene identifier remapping
@@ -279,69 +137,7 @@ obs_all = pd.concat([x.obs for x in datasets.values()], ignore_index=True).reset
     drop=True
 )
 obs_all = (
-    obs_all.loc[
-        :,
-        MANDATORY_COLS
-        + [
-            "accession",
-            "sampleType",
-            "platform",
-            "age",
-            "tobacco",
-            "ethnicity",
-            "processing_site",
-            "Tissue origins",
-            "histology",
-            "smoking",
-            "pathology",
-            "EGFR",
-            "tumor_stage",
-            "geo_accession",
-            "tissue_orig",
-            "replicate",
-            "race",
-            "smoking_status",
-            "driver_gene",
-            "driver_mutation",
-            "secondary_mutation",
-            "Notes",
-            "stage_at_diagnosis",
-            "pathlogy_review",
-            "biopsy_date",
-            "sort_date",
-            "biopsy_type",
-            "biopsy_time_status",
-            "early_treatment_status",
-            "best_response_status",
-            "biopsy_timing",
-            "analysis",
-            "treatment_history",
-            "treatment_history_detail",
-            "line_of_therapy",
-            "treatment_type",
-            "treatment",
-            "percent_PFS_ref_values",
-            "percent.PFS.reference.values",
-            "infections",
-            "early_bx_day",
-            "treatment_start_date",
-            "pfs_over_under",
-            "pfs_day",
-            "pfs_month",
-            "date_of_death",
-            "stageIII.IV_ca_dx_date",
-            "ca_dx_OS",
-            "region",
-            "location",
-            "label",
-            "tumor_id",
-            "tumor_type",
-            "GEO_Sample",
-            "biopsy_segment",
-            "gsm",
-            "characteristics_ch1.7.treatment received prior to surgery (1= treated; 0=untreated)",
-        ],
-    ]
+    obs_all
     .join(dataset_table.set_index("id"), on="dataset")
     .drop_duplicates(ignore_index=False)
     .set_index("sample")
@@ -370,36 +166,6 @@ merged_all.shape
 # updating values is very slow in sparse matrices.
 # We can afford the memory for making this dense temporarily.
 merged_all.layers["raw_counts"] = merged_all.X.toarray()
-
-# %%
-# the code for "merge all" could have been updated to handle this additional layer.
-# however at the point this change was introduced this would have required to patch
-# the singularity container again, which would have been more complicated than
-# doing this manually here.
-for dataset_id in [
-    "Guo_Zhang_2018_NSCLC",
-    "Maynard_Bivona_2020_NSCLC",
-    "Travaglini_Krasnow_2020_Lung_SS2",
-]:
-    mask = merged_all.obs["dataset"] == dataset_id
-    obs_names_merged = merged_all.obs_names[mask]
-    obs_names_dataset = obs_names_merged.str.replace("-(\d+)$", "", regex=True)
-
-    common_var = np.intersect1d(merged_all.var_names, datasets[dataset_id].var_names)
-    mask_var = merged_all.var_names.isin(common_var)
-
-    # subset dataset in the right order.
-    # some cells might not be contained in merged that are in the dataset due to "min batch size"
-    tmp_dataset = datasets[dataset_id][obs_names_dataset, common_var]
-
-    assert np.all(
-        obs_names_dataset == tmp_dataset.obs_names
-    ), "order of indices does not match"
-    assert np.all(
-        merged_all.var_names[mask_var] == tmp_dataset.var_names
-    ), "order of variables does not match"
-
-    merged_all.layers["raw_counts"][np.ix_(mask, mask_var)] = tmp_dataset.layers["raw_counts"].A
 
 # %%
 merged_all.layers["raw_counts"] = scipy.sparse.csr_matrix(

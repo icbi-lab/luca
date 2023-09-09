@@ -46,8 +46,6 @@ workflow integrate_datasets {
         ]),
         [
             samplesheet: ch_samplesheet.toString(),
-            dataset_path: ".",
-            dataset_path_annotated: ".",
             gene_symbol_table: "gene_symbol_dict.csv"
         ],
         SCQC.out.adata.flatMap{ id, adata -> adata }.mix(

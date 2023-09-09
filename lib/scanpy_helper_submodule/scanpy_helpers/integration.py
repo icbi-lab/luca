@@ -14,25 +14,12 @@ import re
 
 """Definitions for metadata consistency checks"""
 MANDATORY_COLS = [
-    "sample",
+    "batch",
     "patient",
     "tissue",
-    "origin",
     "condition",
     "dataset",
     "sex",
-]
-
-VALID_ORIGIN = [
-    "tumor_primary",
-    "normal_adjacent",
-    "tumor_edge",
-    "tumor_middle",  # between tumor core and tumor edge
-    "tumor_metastasis",
-    "blood_peripheral",
-    "effusion",
-    "normal",
-    "nan",
 ]
 
 VALID_TISSUE = ["lung", "adrenal", "brain", "liver", "lymph_node", "pleura"]
@@ -43,10 +30,10 @@ VALID_SEX = ["male", "female", "nan"]
 
 
 def sanitize_adata(adata):
-    # sample should be dataset specific
-    adata.obs["sample"] = [
-        f"{dataset}_{sample}"
-        for dataset, sample in zip(adata.obs["dataset"], adata.obs["sample"])
+    # batch should be dataset specific
+    adata.obs["batch"] = [
+        f"{dataset}_{batch}"
+        for dataset, batch in zip(adata.obs["dataset"], adata.obs["batch"])
     ]
 
     # X should be in CSR format
@@ -84,11 +71,11 @@ def _validate_obs(adata):
     for col in MANDATORY_COLS:
         assert col in obs.columns, "{} is a mandatory column".format(col)
 
-    # Only one patient per sample
-    sample_count = obs.groupby(["sample", "patient"], observed=True)["sample"].nunique()
+    # Only one patient per batch
+    batch_count = obs.groupby(["batch", "patient"], observed=True)["batch"].nunique()
     assert np.all(
-        sample_count == 1
-    ), "sample must be unique for each patient, origin and replicate"
+        batch_count == 1
+    ), "batch must be unique for each patient and replicate"
 
     def _check_col(col, valid_keywords):
         isin_col = obs[col].isin(valid_keywords)
@@ -97,7 +84,6 @@ def _validate_obs(adata):
         ), f"Invalid words in {col}: {np.unique(obs[col].values[~isin_col])}"
 
     # check controlled vocabulary
-    _check_col("origin", VALID_ORIGIN)
     _check_col("tissue", VALID_TISSUE)
     _check_col("condition", VALID_CONDITION)
     _check_col("sex", VALID_SEX)
@@ -105,7 +91,7 @@ def _validate_obs(adata):
 
 def undo_log_norm(adata):
     """Reverse a log-normalization, assuming that each
-    sample has at least one cell with exactely one count. This assumption
+    batch has at least one cell with exactly one count. This assumption
     is reasonable, at least for 10x data. (I checked on the
     Lambrechts dataset and it is true there).
     """
@@ -115,7 +101,7 @@ def undo_log_norm(adata):
     x_norm = x_log_norm.copy()
     x_norm.data = np.expm1(x_norm.data)
 
-    # assuming that each sample has at least one cell with exactely one count
+    # assuming that each batch has at least one cell with exactely one count
     size_factors = np.array([np.min(x_norm[i, :].data) for i in range(x_norm.shape[0])])
     x_raw_counts = scipy.sparse.diags(1 / size_factors) @ x_norm
     x_raw_counts.data = np.rint(x_raw_counts.data)
@@ -165,7 +151,7 @@ def add_doublet_annotation(adata, doublet_file, plot_title):
     sc.tl.pca(adata_vis)
     sc.pp.neighbors(adata_vis)
     sc.tl.umap(adata_vis)
-    sc.pl.umap(adata_vis, color=["sample", "is_doublet"], title=plot_title)
+    sc.pl.umap(adata_vis, color=["batch", "is_doublet"], title=plot_title)
     return adata_vis
 
 
@@ -302,8 +288,8 @@ def merge_datasets(
     sc.pp.log1p(adata_merged_raw)
     adata_merged.raw = adata_merged_raw
 
-    # samples are already made unique during sanitize_anndata
-    adata_merged.obs["batch"] = adata_merged.obs["sample"]
+    # batchs are already made unique during sanitize_anndata
+    adata_merged.obs["batch"] = adata_merged.obs["batch"]
 
     # Exclude too small batches.
     batch_size = adata_merged.obs.groupby("batch").size()
