@@ -33,35 +33,17 @@ which are available from zenodo.
 ### 1. Prerequisites
 
 * [Nextflow](https://www.nextflow.io/index.html#GetStarted), version 21.10.6 or higher
-* [Singularity/Apptainer](https://apptainer.org/), version 3.7 or higher (tested with 3.7.0-1.el7)
-* A high performance cluster (HPC) or cloud setup. The whole analysis will consume several thousand CPU hours.
+* [Docker](https://docs.docker.com/get-docker/) or [Singularity](https://sylabs.io/guides/3.0/user-guide/quick_start.html)
 
-### 2. Obtain data
+### 2. Prepare data
 
-Before launching the workflow, you need to obtain input data and singularity containers from zenodo.
-First of all, clone this repository:
+You have to create AnnData objects for each dataset, containing the UMI counts for each cell. The data need to be stored in the h5ad format.
 
-```bash
-git clone https://github.com/icbi-lab/luca.git
-cd luca
- ```
-
-Then, within the repository, download the data archives and extract then to the corresponding directories:
-
-```bash
- # singularity containers
-curl "https://zenodo.org/record/7227571/files/containers.tar.xz?download=1" | tar xvJ
-
-# input data
-curl "https://zenodo.org/record/7227571/files/input_data.tar.xz?download=1" | tar xvJ
-
-# OPTIONAL: obtain intermediate results if you just want to run the `downstream_analysis` workflow
-curl "https://zenodo.org/record/7227571/files/build_atlas_results.tar.xz?download=1" | tar xvJ
-```
-
-Note that some steps of the downstream analysis depend on an additional [cohort of checkpoint-inhibitor-treated patients](https://ega-archive.org/studies/EGAS00001005013), which is only available under protected access agreement. For obvious reasons, these data
-are not included in our data archive. You'll need to obtain the dataset yourself and place it in the `data/14_ici_treatment/Genentech` folder.
-The corresponding analysis steps are skipped by default. You can enable them by adding the `--with_genentech` flag to the `nextflow run` command.
+The following metadata fields are required:
+| Field | Description | Axis |
+| --- | --- | --- |
+| batch | Batch identifier, for integration | obs |
+| celltype | Cell-type annotation, not mandatory | obs |
 
 ### 3. Configure nextflow
 
