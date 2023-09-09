@@ -40,10 +40,14 @@ which are available from zenodo.
 You have to create AnnData objects for each dataset, containing the UMI counts for each cell. The data need to be stored in the h5ad format.
 
 The following metadata fields are required:
-| Field | Description | Axis |
-| --- | --- | --- |
-| batch | Batch identifier, for integration | obs |
-| celltype | Cell-type annotation, not mandatory | obs |
+| Field | Description | Axis | Default |
+| --- | --- | --- | --- |
+| batch | Batch identifier, for integration | obs | |
+| celltype | Cell-type annotation | obs | unknown |
+| condition |  | obs | unknown |
+| sex | The sex of the patient | obs | unknown |
+| patient | The patient identifier, needs to be unique across datasets | obs |  |
+| tissue | The tissue type | obs | |
 
 ### 3. Configure nextflow
 
