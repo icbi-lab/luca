@@ -2,10 +2,6 @@ include { check_samplesheet } from '../modules/local/check_samplesheet'
 
 include { SCQC } from "../modules/local/scqc/main"
 include { SCQC_MERGE_STATS } from "../modules/local/scqc_merge_stats/main.nf"
-include { SCVI as SCVI_SEED } from "../modules/local/scvi/main.nf"
-include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_SEED } from "./neighbors_leiden_umap.nf"
-include { JUPYTERNOTEBOOK as ANNOTATE_SEED } from "../modules/local/jupyternotebook/main.nf"
-
 
 include { JUPYTERNOTEBOOK as MERGE_ALL } from "../modules/local/jupyternotebook/main.nf"
 include { SCVI } from "../modules/local/scvi/main.nf"
@@ -42,32 +38,6 @@ workflow integrate_datasets {
     SCQC_MERGE_STATS(SCQC.out.qc_stats.collect())
 
 
-    // SEED annotation (manually annotate two datasets (One 10x and one Smartseq)
-    // in order to use the scANVI algorithm for the integration which has been shown
-    // to outperform scVI)
-    ch_seed_ids = Channel.from("Maynard_Bivona_2020_NSCLC", "Lambrechts_2018_LUAD_6653")
-    SCVI_SEED(
-       ch_seed_ids.join(SCQC.out.adata),
-       1,
-       ["sample", "sample", null]
-    )
-    NEIGHBORS_LEIDEN_UMAP_SEED(SCVI_SEED.out.adata, "X_scVI", 1.0)
-    ch_seed_scvi = SCQC.out.adata.join(NEIGHBORS_LEIDEN_UMAP_SEED.out.adata)
-    ANNOTATE_SEED(
-        ch_seed_scvi.map{id, adata1, adata2 -> [
-            ["id": id],
-            file("${baseDir}/analyses/10_seed_annotations/annotate_${id.toLowerCase()}.py")
-        ]},
-        ch_seed_scvi.map{ id, adata_qc, adata_scvi -> [
-            adata_qc: adata_qc.name,
-            adata_scvi: adata_scvi.name
-        ]},
-        ch_seed_scvi.map{
-             id, adata_qc, adata_scvi -> [adata_qc, adata_scvi]
-        }
-    )
-    
-
     // MERGE and INTEGRATE all datasets
     MERGE_ALL(
         Channel.value([
@@ -81,8 +51,6 @@ workflow integrate_datasets {
             gene_symbol_table: "gene_symbol_dict.csv"
         ],
         SCQC.out.adata.flatMap{ id, adata -> adata }.mix(
-            ANNOTATE_SEED.out.artifacts
-        ).mix(
             Channel.value(ch_samplesheet),
             Channel.fromPath("${baseDir}/tables/gene_symbol_dict.csv")
         ).collect()
