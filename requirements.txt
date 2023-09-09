@@ -1,0 +1,6 @@
+scanpy
+nxfvars
+seaborn
+pandas
+anndata
+papermill
