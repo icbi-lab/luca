@@ -1,0 +1,11 @@
+version: '3.1'
+
+services:
+  SCQC:
+    build:
+      context: SCQC
+    image: biomedbigdata/scqc
+  Integration:
+    build:
+      context: integration
+    image: biomedbigdata/sc-integration

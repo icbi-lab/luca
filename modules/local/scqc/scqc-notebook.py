@@ -9,10 +9,9 @@ from qc_plots import plot_qc_metrics, get_stats_df
 import pandas as pd
 
 # %%
-dataset_id = nxfvars.get("dataset_id", "lambrechts_2018_luad_6653")
+dataset_id = nxfvars.get("dataset_id", None)
 input_adata = nxfvars.get(
-    "input_adata",
-    "/home/sturm/projects/2020/pircher-scrnaseq-lung/data/10_public_datasets/Lambrechts_2018_LUAD/E-MTAB-6653/h5ad_raw/lambrechts_2018_luad_6653.h5ad",
+    "input_adata", None
 )
 output_adata = nxfvars.get("output_adata", "/tmp/adata.h5ad")
 output_stats = nxfvars.get("output_stats", "/tmp/qc_stats.tsv")

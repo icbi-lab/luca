@@ -12,6 +12,7 @@ _scratchpad.*
 presentations
 paper
 zenodo
+out
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -20,3 +21,5 @@ __pycache__/
 
 deploy
 data
+
+*.sif

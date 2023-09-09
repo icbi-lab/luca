@@ -56,21 +56,21 @@ sc.set_figure_params(figsize=(5, 5))
 
 # %%
 dataset_table = pd.read_csv(
-    nxfvars.get("samplesheet", "../../tables/samplesheet_scrnaseq_preprocessing.csv")
+    nxfvars.get("samplesheet", None)
 )
 dataset_path_annotated = nxfvars.get(
     "dataset_path_annotated",
-    "../../data/20_build_atlas/integrate_datasets/11_seed_annotations/artifacts/",
+    None",
 )
 dataset_path = nxfvars.get(
-    "dataset_path", "../../data/20_build_atlas/integrate_datasets/02_qc_and_filtering/"
+    None
 )
 
 # %%
 dataset_table
 
 # %%
-datasets_annotated = ["Maynard_Bivona_2020_NSCLC", "Lambrechts_2018_LUAD_6653"]
+datasets_annotated = []
 
 # %%
 datasets = {

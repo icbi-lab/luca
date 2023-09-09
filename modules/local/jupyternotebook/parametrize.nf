@@ -19,16 +19,7 @@ def indent_code_block(code, n_spaces) {
  * @returns a line to be inserted in the bash script.
  */
 def dump_params_yml(params) {
-    DumperOptions options = new DumperOptions();
-    options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
-
-    // Properly handle Groovy GStrings
-    // see https://stackoverflow.com/a/35108062/2340703
-    def representer = new Representer() {{
-        this.multiRepresenters.put(GString, this.representers.get(String))
-    }}
-
-    def yaml = new Yaml(representer, options)
+    def yaml = new Yaml()
     def yaml_str = yaml.dump(params)
 
     // Writing the .params.yml file directly as follows does not work.

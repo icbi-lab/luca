@@ -4,6 +4,9 @@ include { JUPYTERNOTEBOOK as INTEGRATE_INTO_ATLAS } from "../modules/local/jupyt
 include { JUPYTERNOTEBOOK as UPDATE_ANNOTATION } from "../modules/local/jupyternotebook/main.nf"
 include { check_samplesheet } from '../modules/local/check_samplesheet'
 
+if (params.samplesheet2) { ch_samplesheet = file(params.samplesheet2) } else { exit 1, 'Samplesheet2 not specified!' }
+
+
 /**
  * Project new data onto the dataset using scANVI
  */
@@ -16,7 +19,7 @@ workflow  add_additional_datasets {
 
     main:
 
-    ch_samples = Channel.from(check_samplesheet("${baseDir}/tables/samplesheet_scrnaseq_preprocessing2.csv", baseDir))
+    ch_samples = Channel.from(check_samplesheet(ch_samplesheet.toString()))
 
     SCQC(
         [
@@ -42,7 +45,7 @@ workflow  add_additional_datasets {
             reference_scanvi_h5ad,
             reference_scanvi_model,
             Channel.fromPath("${baseDir}/tables/gene_symbol_dict.csv"),
-            Channel.fromPath("${baseDir}/tables/samplesheet_scrnaseq_preprocessing2.csv")
+            ch_samplesheet
         ).collect()
     )
 

@@ -15,6 +15,8 @@ include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_DOUBLET } from "./neigh
 include { JUPYTERNOTEBOOK as MERGE_SOLO }  from "../modules/local/jupyternotebook/main.nf"
 include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_NODOUBLET } from "./neighbors_leiden_umap.nf"
 
+if (params.samplesheet) { ch_samplesheet = file(params.samplesheet) } else { exit 1, 'Samplesheet not specified!' }
+
 
 /**
  * Integrate individual datasets into a single-cell atlas
@@ -28,7 +30,8 @@ workflow integrate_datasets {
 
     main:
 
-    ch_samples = Channel.from(check_samplesheet("${baseDir}/tables/samplesheet_scrnaseq_preprocessing.csv", baseDir))
+    ch_samples = Channel.from(check_samplesheet(ch_samplesheet.toString()))
+
     SCQC(
         [
             file("${baseDir}/modules/local/scqc/scqc-notebook.py", checkIfExists: true),
@@ -37,6 +40,7 @@ workflow integrate_datasets {
         ch_samples
     )
     SCQC_MERGE_STATS(SCQC.out.qc_stats.collect())
+
 
     // SEED annotation (manually annotate two datasets (One 10x and one Smartseq)
     // in order to use the scANVI algorithm for the integration which has been shown
@@ -62,15 +66,16 @@ workflow integrate_datasets {
              id, adata_qc, adata_scvi -> [adata_qc, adata_scvi]
         }
     )
+    
 
     // MERGE and INTEGRATE all datasets
     MERGE_ALL(
-        channel.value([
+        Channel.value([
             [id: "21_merge_all"],
             file("${baseDir}/analyses/20_integrate_scrnaseq_data/21_merge_all.py")
         ]),
         [
-            samplesheet: "samplesheet_scrnaseq_preprocessing.csv",
+            samplesheet: ch_samplesheet.toString(),
             dataset_path: ".",
             dataset_path_annotated: ".",
             gene_symbol_table: "gene_symbol_dict.csv"
@@ -78,10 +83,11 @@ workflow integrate_datasets {
         SCQC.out.adata.flatMap{ id, adata -> adata }.mix(
             ANNOTATE_SEED.out.artifacts
         ).mix(
-            Channel.fromPath("${baseDir}/tables/samplesheet_scrnaseq_preprocessing.csv"),
+            Channel.value(ch_samplesheet),
             Channel.fromPath("${baseDir}/tables/gene_symbol_dict.csv")
         ).collect()
     )
+    /*
 
     ch_adata_merged = MERGE_ALL.out.artifacts.collect().map{
         out -> ["all", out.findAll{ it -> it.getExtension() == "h5ad" }]
@@ -145,4 +151,5 @@ workflow integrate_datasets {
 
     emit:
         adata_integrated = NEIGHBORS_LEIDEN_UMAP_NODOUBLET.out.adata.map{ meta, ad -> ad }
+    */
 }
