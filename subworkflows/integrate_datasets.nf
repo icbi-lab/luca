@@ -65,7 +65,7 @@ workflow integrate_datasets {
         ["batch", "dataset", null]
     )
 
-    /*
+    /* TODO: Re-enable SCANVI if we got annotated data
     SCANVI(
         SCVI.out.adata.join(SCVI.out.scvi_model),
         "batch",
@@ -82,7 +82,7 @@ workflow integrate_datasets {
 
     NEIGHBORS_LEIDEN_UMAP_DOUBLET(
         ch_scvi_hvg,
-        "X_scVI",
+        "X_scVI", // TODO: use X_scANVI instead
         1.0
     )
 
@@ -117,7 +117,7 @@ workflow integrate_datasets {
     }.map{ it -> [it.baseName, it] }
     NEIGHBORS_LEIDEN_UMAP_NODOUBLET(
         ch_adata_doublet_filtered,
-        "X_scVI",
+        "X_scVI", // TODO: use X_scANVI instead
         1.0
     )
 
