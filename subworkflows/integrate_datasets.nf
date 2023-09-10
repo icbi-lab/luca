@@ -82,7 +82,7 @@ workflow integrate_datasets {
 
     NEIGHBORS_LEIDEN_UMAP_DOUBLET(
         ch_scvi_hvg,
-        "X_scANVI",
+        "X_scVI",
         1.0
     )
 
