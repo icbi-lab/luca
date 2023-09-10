@@ -42,7 +42,7 @@ process SOLO {
 
     adata = sc.read_h5ad("${adata}")
 
-    scvi.data.setup_anndata(adata, batch_key="batch")
+    scvi.model.SCVI.setup_anndata(adata, batch_key="batch")
     scvi_model = scvi.model.SCVI.load("${scvi_model}", adata=adata)
     solo = scvi.external.SOLO.from_scvi_model(scvi_model, restrict_to_batch="${batch}")
     solo.train()

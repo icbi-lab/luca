@@ -93,7 +93,7 @@ workflow integrate_datasets {
             it -> it.getName() == "obs_all.csv"
         }.splitCsv(header : true).filter{
             it -> it["run_solo"] == "True"
-        }.map{ it -> it["sample"] }
+        }.map{ it -> it["batch"] }
     )
 
     MERGE_SOLO(
