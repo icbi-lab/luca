@@ -105,7 +105,8 @@ def main(
     vae = scvi.model.SCVI(adata, **extra_params)
 
     vae.train(
-        use_gpu=True,
+        # TODO: check how we can use the GPU
+        # use_gpu=True,
     )
     vae.save(model_out)
 
