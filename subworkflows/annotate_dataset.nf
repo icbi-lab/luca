@@ -34,7 +34,7 @@ workflow annotate_dataset {
     )
     NEIGHBORS_LEIDEN_UMAP_CELL_TYPES(
         SPLIT_ANNDATA.out.adata.flatten().map{ it -> [it.baseName, it] },
-        "X_scANVI",
+        "X_scVI", // TODO: Reset to X_scANVI when we have annotated data
         Channel.from(0.5, 0.75, 1.0, 1.5)
     )
     ANNOTATE_CELL_TYPES_FINE(
