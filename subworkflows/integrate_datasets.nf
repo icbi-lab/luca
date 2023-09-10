@@ -65,19 +65,23 @@ workflow integrate_datasets {
         ["batch", "dataset", null]
     )
 
-    
+    /*
     SCANVI(
         SCVI.out.adata.join(SCVI.out.scvi_model),
         "batch",
         "cell_type"
     )
+    */
     ch_scvi_hvg = SCVI.out.adata
     ch_scvi_hvg_model = SCVI.out.scvi_model
+
+    /*
     ch_scanvi_hvg = SCANVI.out.adata
     ch_scanvi_hvg_model = SCANVI.out.scvi_model
+    */
 
     NEIGHBORS_LEIDEN_UMAP_DOUBLET(
-        ch_scanvi_hvg,
+        ch_scvi_hvg,
         "X_scANVI",
         1.0
     )
