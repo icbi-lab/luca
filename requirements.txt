@@ -5,3 +5,5 @@ pandas
 anndata
 papermill
 black
+scvi-tools
+scikit-misc

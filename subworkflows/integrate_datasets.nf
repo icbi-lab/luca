@@ -53,7 +53,7 @@ workflow integrate_datasets {
             Channel.fromPath("${baseDir}/tables/gene_symbol_dict.csv")
         ).collect()
     )
-    /*
+    
 
     ch_adata_merged = MERGE_ALL.out.artifacts.collect().map{
         out -> ["all", out.findAll{ it -> it.getExtension() == "h5ad" }]
@@ -64,6 +64,8 @@ workflow integrate_datasets {
         1, // 1 = use HVG
         ["batch", "dataset", null]
     )
+
+    /*
     SCANVI(
         SCVI.out.adata.join(SCVI.out.scvi_model),
         "batch",
