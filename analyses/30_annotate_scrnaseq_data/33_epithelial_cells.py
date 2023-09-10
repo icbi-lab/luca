@@ -73,7 +73,7 @@ sc.pl.umap(adata, color="dataset")
 with plt.rc_context({"figure.figsize": (6, 6)}):
     fig = sc.pl.umap(
         adata,
-        color=["cell_type", "EPCAM", "dataset", "condition", "origin"],
+        color=["cell_type", "EPCAM", "dataset", "condition"],
         cmap="inferno",
         size=2,
         ncols=3,
@@ -159,7 +159,7 @@ adata_5 = adata[adata.obs["cell_type"] == "5", :]
 ah.reprocess_adata_subset_scvi(adata_5, leiden_res=0.5)
 
 # %%
-sc.pl.umap(adata_5, color=["origin", "condition", "dataset"], wspace=0.8)
+sc.pl.umap(adata_5, color=["condition", "dataset"], wspace=0.8)
 
 # %%
 sc.pl.umap(adata_5, color=["ROS1"])
@@ -212,7 +212,7 @@ adata_7 = adata[adata.obs["cell_type"] == "7", :]
 ah.reprocess_adata_subset_scvi(adata_7, leiden_res=0.5)
 
 # %%
-sc.pl.umap(adata_7, color=["origin", "dataset"], wspace=0.5)
+sc.pl.umap(adata_7, color=["dataset"], wspace=0.5)
 
 # %%
 ah.plot_umap(adata_7, filter_cell_type=["Alev", "Goblet", "Club", "Epi"])
@@ -280,7 +280,7 @@ markers = {
 # %%
 sc.pl.umap(
     adata_tumor,
-    color=["origin", "condition", "dataset"],
+    color=["condition", "dataset"],
     cmap="inferno",
     wspace=0.5,
 )

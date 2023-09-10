@@ -133,7 +133,7 @@ adata_endo.obs["log_counts"] = np.log1p(adata_endo.obs["total_counts"])
 sc.pl.umap(adata_endo, color=["log_counts", "n_genes_by_counts"], vmax=[8, 2000])
 
 # %%
-sc.pl.umap(adata_endo, color=["origin", "condition", "dataset"], wspace=0.8)
+sc.pl.umap(adata_endo, color=["condition", "dataset"], wspace=0.8)
 
 # %%
 sc.pl.umap(adata_endo, color=["CDH5", "VWF"], vmax=3, cmap="inferno", size=6)
