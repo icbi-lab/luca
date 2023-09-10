@@ -117,7 +117,7 @@ workflow integrate_datasets {
     }.map{ it -> [it.baseName, it] }
     NEIGHBORS_LEIDEN_UMAP_NODOUBLET(
         ch_adata_doublet_filtered,
-        "X_scANVI",
+        "X_scVI",
         1.0
     )
 

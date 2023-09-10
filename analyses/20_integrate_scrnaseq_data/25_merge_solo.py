@@ -84,7 +84,7 @@ adata.obs["doublet_status"].value_counts(dropna=False)
 
 # %% tags=[]
 pd.set_option("display.max_rows", 1000)
-adata.obs.groupby("sample").apply(
+adata.obs.groupby("batch").apply(
     lambda df: pd.DataFrame().assign(
         doublet_frac=[np.sum(df["doublet_status"] == "doublet") / df.shape[0]],
         n=[df.shape[0]],
