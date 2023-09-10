@@ -68,10 +68,11 @@ sc.pp.calculate_qc_metrics(
     adata, qc_vars=("mito",), log1p=False, inplace=True, percent_top=None
 )
 
-# %%
-sc.pl.umap(
-    adata, color="cell_type_predicted", legend_loc="on data", legend_fontoutline=2
-)
+# TODO: Re-enable this when we can use scANVI
+# # %% 
+# sc.pl.umap(
+#     adata, color="cell_type_predicted", legend_loc="on data", legend_fontoutline=2
+# )
 
 # %%
 sc.pl.umap(adata, color="leiden", legend_loc="on data", legend_fontoutline=2)
