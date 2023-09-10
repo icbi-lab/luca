@@ -24,7 +24,8 @@
 				"ms-python.python",
 				"ms-toolsai.jupyter",
 				"GitHub.copilot",
-				"ms-python.black-formatter"
+				"ms-python.black-formatter",
+				"Gruntfuggly.todo-tree"
 			]
 		}
 	},
