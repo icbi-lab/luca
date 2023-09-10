@@ -12,9 +12,10 @@ include { add_additional_datasets } from "../subworkflows/add_additional_dataset
 workflow build_atlas {
 
     integrate_datasets()
-    /*
+
     annotate_dataset(integrate_datasets.out.adata_integrated)
 
+    /*
     add_additional_datasets(
         annotate_dataset.out.final_atlas,
         annotate_dataset.out.scanvi_h5ad,

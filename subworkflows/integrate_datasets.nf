@@ -65,7 +65,7 @@ workflow integrate_datasets {
         ["batch", "dataset", null]
     )
 
-    /*
+    
     SCANVI(
         SCVI.out.adata.join(SCVI.out.scvi_model),
         "batch",
@@ -119,5 +119,5 @@ workflow integrate_datasets {
 
     emit:
         adata_integrated = NEIGHBORS_LEIDEN_UMAP_NODOUBLET.out.adata.map{ meta, ad -> ad }
-    */
+
 }
