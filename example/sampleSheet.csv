@@ -1,3 +1,4 @@
 id,input_adata,min_counts,max_counts,min_genes,max_genes,max_pct_mito,batch_key,run_solo
 martin,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/martin.h5ad,10,1000000,100,1000000,10,batch,TRUE
 kinchen,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/kinchen.h5ad,10,1000000,100,1000000,10,batch,TRUE
+unpublished,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/unpublished.h5ad,10,1000000,100,1000000,10,batch,TRUE
