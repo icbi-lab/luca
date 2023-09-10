@@ -1,0 +1,3 @@
+id,input_adata,min_counts,max_counts,min_genes,max_genes,max_pct_mito,batch_key,run_solo
+elmentaite,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/elmentaite.h5ad,0,1000000,0,1000000,100,batch,TRUE
+kong,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/kong.h5ad,0,1000000,0,1000000,100,batch,TRUE

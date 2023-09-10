@@ -43,7 +43,7 @@ The following metadata fields are required:
 | Field | Description | Axis | Default |
 | --- | --- | --- | --- |
 | batch | Batch identifier, for integration | obs | |
-| celltype | Cell-type annotation | obs | unknown |
+| cell_type | Cell-type annotation | obs | unknown |
 | condition | The condition of the tissue sample | obs | unknown |
 | sex | The sex of the patient | obs | unknown |
 | patient | The patient identifier, needs to be unique across datasets | obs |  |

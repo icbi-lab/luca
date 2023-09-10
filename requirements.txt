@@ -4,3 +4,4 @@ seaborn
 pandas
 anndata
 papermill
+black

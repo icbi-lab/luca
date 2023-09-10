@@ -41,7 +41,7 @@ import mygene
 from operator import and_
 from functools import reduce
 import pandas as pd
-import anndata
+import anndata as ad
 import re
 import os
 
@@ -74,10 +74,14 @@ datasets = {
 }
 
 # %%
+optional_cols = ["cell_type", "condition", "sex"]
+
 for dataset_id, adata in tqdm(datasets.items()):
     # Set cell-types of unannotated datasets to "unknown" for scVI
-    if "celltype" not in datasets[dataset_id].obs.columns:
-        datasets[dataset_id].obs["celltype"] = "unknown"
+
+    for col in optional_cols:
+        if col not in adata.obs.columns:
+            adata.obs[col] = "unknown"
     
     # Set dataset id
     datasets[dataset_id].obs["dataset"] = dataset_id
@@ -126,7 +130,6 @@ for dataset_id, tmp_dataset in datasets.items():
 
 # %%
 for dataset_id, dataset in datasets.items():
-    print(dataset_id)
     datasets[dataset_id] = aggregate_duplicate_gene_symbols(dataset)
 
 # %% [markdown]
@@ -140,7 +143,7 @@ obs_all = (
     obs_all
     .join(dataset_table.set_index("id"), on="dataset")
     .drop_duplicates(ignore_index=False)
-    .set_index("sample")
+    .set_index("batch")
 )
 # Duplicated doesn't filter out two duplicated rows, don't ask why.
 obs_all = obs_all.loc[~obs_all.index.duplicated(), :]
@@ -151,7 +154,7 @@ assert (
 ), "The number of unique samples equals the number of rows"
 
 # %%
-merged_all = merge_datasets(datasets.values(), symbol_in_n_datasets=17)
+merged_all = merge_datasets(datasets.values(), symbol_in_n_datasets=1)
 
 # %%
 merged_all.shape
@@ -183,4 +186,4 @@ merged_all.write_h5ad(f"{out_dir}/merged_all.h5ad")
 
 # %%
 # Some samples drop out due to the min cells threshold. Keep only the remaining samplese in the obs table.
-obs_all.loc[merged_all.obs["sample"].unique(), :].to_csv(f"{out_dir}/obs_all.csv")
+obs_all.loc[merged_all.obs["batch"].unique(), :].to_csv(f"{out_dir}/obs_all.csv")

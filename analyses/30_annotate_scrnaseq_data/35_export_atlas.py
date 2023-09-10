@@ -409,7 +409,7 @@ adata.obs["cell_type_major"] = [cell_type_major_map[x] for x in adata.obs["cell_
 # # Dataset overview
 
 # %% [markdown]
-# ### Overview of celltypes
+# ### Overview of cell types
 
 # %%
 sc.pl.umap(adata, color="total_counts", vmax=10000)

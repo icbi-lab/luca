@@ -53,7 +53,7 @@ process JUPYTERNOTEBOOK {
     ${indent_code_block(params_cmd, 4)}
 
     # Create output directory
-    mkdir artifacts
+    mkdir -p artifacts
 
     # Set parallelism for BLAS/MKL etc. to avoid over-booking of resources
     export MKL_NUM_THREADS="${task.cpus}"

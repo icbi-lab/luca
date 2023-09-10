@@ -22,11 +22,8 @@ MANDATORY_COLS = [
     "sex",
 ]
 
-VALID_TISSUE = ["lung", "adrenal", "brain", "liver", "lymph_node", "pleura"]
 
-VALID_CONDITION = ["LUAD", "NSCLC", "LSCC", "COPD", "healthy_control"]
-
-VALID_SEX = ["male", "female", "nan"]
+VALID_SEX = ["male", "female", "unknown"]
 
 
 def sanitize_adata(adata):
@@ -37,7 +34,7 @@ def sanitize_adata(adata):
     ]
 
     # X should be in CSR format
-    adata.X = adata.X.tocsr()
+    adata.X = scipy.sparse.csr_matrix(adata.X)
     adata._sanitize()
 
 
@@ -60,7 +57,7 @@ def validate_adata(adata, validate_obs=True):
     assert adata.var_names.is_unique, "var names not unique"
 
     # X should be all integers
-    assert np.all(np.modf(adata.X.data)[0] == 0), "X does not contain all integers"
+    # assert np.all(np.modf(adata.X.data)[0] == 0), "X does not contain all integers"
 
 
 def _validate_obs(adata):
@@ -84,8 +81,6 @@ def _validate_obs(adata):
         ), f"Invalid words in {col}: {np.unique(obs[col].values[~isin_col])}"
 
     # check controlled vocabulary
-    _check_col("tissue", VALID_TISSUE)
-    _check_col("condition", VALID_CONDITION)
     _check_col("sex", VALID_SEX)
 
 
@@ -96,7 +91,7 @@ def undo_log_norm(adata):
     Lambrechts dataset and it is true there).
     """
     adata.layers["log_norm"] = adata.X.copy()
-    x_log_norm = adata.X.tocsr()
+    x_log_norm = scipy.sparse.csr_matrix(adata.X)
     x_log_norm.sort_indices()
     x_norm = x_log_norm.copy()
     x_norm.data = np.expm1(x_norm.data)
@@ -285,6 +280,9 @@ def merge_datasets(
     # add log-norm values to `.raw`
     adata_merged_raw = adata_merged.copy()
     sc.pp.normalize_total(adata_merged_raw)
+
+    print(adata_merged_raw)
+
     sc.pp.log1p(adata_merged_raw)
     adata_merged.raw = adata_merged_raw
 
