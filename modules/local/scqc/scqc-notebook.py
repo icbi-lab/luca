@@ -10,9 +10,7 @@ import pandas as pd
 
 # %%
 dataset_id = nxfvars.get("dataset_id", None)
-input_adata = nxfvars.get(
-    "input_adata", None
-)
+input_adata = nxfvars.get("input_adata", None)
 output_adata = nxfvars.get("output_adata", "/tmp/adata.h5ad")
 output_stats = nxfvars.get("output_stats", "/tmp/qc_stats.tsv")
 thresholds = {
@@ -28,6 +26,12 @@ thresholds = {
 
 # %%
 adata = sc.read_h5ad(input_adata)
+
+# %%
+if adata.__dict__["_raw"] and "_index" in adata.__dict__["_raw"].__dict__["_var"]:
+    adata.__dict__["_raw"].__dict__["_var"] = (
+        adata.__dict__["_raw"].__dict__["_var"].rename(columns={"_index": "features"})
+    )
 
 # %%
 # Add fake sample if its not in obs
