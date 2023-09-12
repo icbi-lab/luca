@@ -56,6 +56,7 @@ def validate_adata(adata, validate_obs=True):
     assert adata.obs_names.is_unique, "Obs names not unique"
     assert adata.var_names.is_unique, "var names not unique"
 
+    # TODO: re-enable this check
     # X should be all integers
     # assert np.all(np.modf(adata.X.data)[0] == 0), "X does not contain all integers"
 
