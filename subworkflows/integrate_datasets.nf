@@ -10,6 +10,8 @@ include { SOLO } from "../modules/local/solo/main.nf"
 include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_DOUBLET } from "./neighbors_leiden_umap.nf"
 include { JUPYTERNOTEBOOK as MERGE_SOLO }  from "../modules/local/jupyternotebook/main.nf"
 include { NEIGHBORS_LEIDEN_UMAP as NEIGHBORS_LEIDEN_UMAP_NODOUBLET } from "./neighbors_leiden_umap.nf"
+include { JUPYTERNOTEBOOK as HARMONY }  from "../modules/local/jupyternotebook/main.nf"
+
 
 if (params.samplesheet) { ch_samplesheet = file(params.samplesheet) } else { exit 1, 'Samplesheet not specified!' }
 
@@ -53,7 +55,7 @@ workflow integrate_datasets {
             Channel.fromPath("${baseDir}/tables/gene_symbol_dict.csv")
         ).collect()
     )
-    
+
 
     ch_adata_merged = MERGE_ALL.out.artifacts.collect().map{
         out -> ["all", out.findAll{ it -> it.getExtension() == "h5ad" }]
@@ -69,6 +71,18 @@ workflow integrate_datasets {
         SCVI.out.adata.join(SCVI.out.scvi_model),
         "batch",
         "cell_type"
+    )
+
+    ch_adata_path = ch_adata_merged.map { it[1] }.flatten()
+
+    HARMONY(
+            Channel.value([
+            [id: "22_harmony"],
+            file("${baseDir}/analyses/20_integrate_scrnaseq_data/22_harmony.py")
+        ]),
+        [
+        ],
+        ch_adata_path
     )
 
     ch_scvi_hvg = SCVI.out.adata

@@ -37,6 +37,7 @@ workflow annotate_dataset {
         "X_scANVI",
         Channel.from(0.5, 0.75, 1.0, 1.5)
     )
+    /*
     ANNOTATE_CELL_TYPES_FINE(
         Channel.value([
             [id: "annotate_cell_types_fine"],
@@ -105,4 +106,6 @@ workflow annotate_dataset {
         final_atlas = ch_atlas
         scanvi_model = SCANVI.out.scvi_model.map{ id, model -> model }
         scanvi_h5ad = SCANVI.out.adata.map{ id, adata -> adata }
+
+    */
 }

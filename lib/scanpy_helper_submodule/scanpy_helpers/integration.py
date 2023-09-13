@@ -75,15 +75,6 @@ def _validate_obs(adata):
         batch_count == 1
     ), "batch must be unique for each patient and replicate"
 
-    def _check_col(col, valid_keywords):
-        isin_col = obs[col].isin(valid_keywords)
-        assert np.all(
-            isin_col
-        ), f"Invalid words in {col}: {np.unique(obs[col].values[~isin_col])}"
-
-    # check controlled vocabulary
-    _check_col("sex", VALID_SEX)
-
 
 def undo_log_norm(adata):
     """Reverse a log-normalization, assuming that each

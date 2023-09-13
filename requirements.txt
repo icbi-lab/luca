@@ -9,3 +9,5 @@ scvi-tools
 scikit-misc
 leidenalg
 celltypist
+harmonypy
+scib
