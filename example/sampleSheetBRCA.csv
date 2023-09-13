@@ -1,3 +1,6 @@
 id,input_adata,min_counts,max_counts,min_genes,max_genes,max_pct_mito,batch_key,run_solo
-slyper,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/brca/slyper.h5ad,541,1000000000,384,100000000000,100,batch,TRUE
-bassez,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/brca/bassez.h5ad,650,1000000000,321,100000000000,10,batch,TRUE
+bassez,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/brca/bassez.h5ad,401,1000000000,201,100000000000,15,batch,TRUE
+kester,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/brca/kester.h5ad,0,1000000000,0,1000000000,100,batch,TRUE
+ruli_gao,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/brca/ruli_gao_subset.h5ad,701,1000000000,500,1000000000,36,batch,TRUE
+slyper,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/brca/slyper.h5ad,0,1000000000,0,100000000000,100,batch,TRUE
+wu,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/brca/wu.h5ad,0,1000000000,0,1000000000,100,batch,TRUE
