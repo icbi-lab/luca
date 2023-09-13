@@ -11,5 +11,3 @@ leidenalg
 celltypist
 harmonypy
 scib
-mnnpy
-scipy == 1.8.1
