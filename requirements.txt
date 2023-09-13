@@ -9,3 +9,7 @@ scvi-tools
 scikit-misc
 leidenalg
 celltypist
+harmonypy
+scib
+mnnpy
+scipy == 1.8.1
