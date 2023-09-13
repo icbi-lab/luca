@@ -3,3 +3,5 @@ elmentaite,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/elmentaite
 martin,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/martin.h5ad,106,1000000000,100,1000000000,8,batch,TRUE
 unpublished,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/unpublished.h5ad,6000,1000000000,72,1000000000,20,batch,TRUE
 kong,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/kong.h5ad,1000,1000000000,200,1000000000,15,batch,TRUE
+boland,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/boland.h5ad,541,1000000000,384,100000000000,100,batch,TRUE
+devlin,/nfs/data/COST_IBD/preprocessing/dataset_preprocessing/raw/devlin.h5ad,650,1000000000,321,100000000000,10,batch,TRUE
