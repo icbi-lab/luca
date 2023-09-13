@@ -8,3 +8,4 @@ black
 scvi-tools
 scikit-misc
 leidenalg
+celltypist
