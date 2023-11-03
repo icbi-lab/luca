@@ -73,6 +73,10 @@ workflow on our on-premise cluster. Only the `build_atlas` workflow makes use of
 ### 4. Launch the workflows
 
 ```bash
+# newer versions of nextflow are incompatible with the workflow. By setting this variable
+# the correct version will be used automatically.
+export NXF_VER=22.04.5
+
 # Run `build_atlas` workflow
 nextflow run main.nf --workflow build_atlas -resume -profile <YOUR_PROFILE> \
     --outdir "./data/20_build_atlas"
