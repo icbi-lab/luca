@@ -199,6 +199,7 @@ for atlas in [
 # %% [markdown]
 # ## Reannotate with ontologies
 
+
 # %%
 def remap(adata, mapping, target_col, source_col):
     """
@@ -242,7 +243,7 @@ atlas.obs["suspension_type"] = "cell"
 # >        Chen_Zhang_2020_NSCLC-7
 # >        Chen_Zhang_2020_NSCLC-9
 #
-# In the paper, they write that everything is 10x v2, but the barcodes seem more reliable, therefore I change the platform for these patients. 
+# In the paper, they write that everything is 10x v2, but the barcodes seem more reliable, therefore I change the platform for these patients.
 
 # %%
 atlas.obs["platform_fine"] = atlas.obs["platform_fine"].astype(str)
@@ -340,6 +341,7 @@ remap(atlas, cell_type_map, "cell_type_ontology_term_id", "cell_type")
 #
 # If unavailable, must be `unknown`
 
+
 # %%
 def get_stage(age):
     if pd.isnull(age):
@@ -358,6 +360,32 @@ def get_stage(age):
 
 # %%
 remap(atlas, get_stage, "development_stage_ontology_term_id", "age")
+
+# %% [markdown]
+# ### driver mutations
+#
+# In https://github.com/icbi-lab/luca/issues/19 we learned that a mistake has crept into the annotation of the EGFR
+# mutations. Some patients were manually annotated in "patient_metadata_corrected.xlsx" and there's a typo
+# EGRF instead of EGFR. Since we checked `"EGFR" in driver_genes`, the boolean column EGFR_mutation
+# incorrectly evaluates to `False` for these patients. Here, we reassign `True` to the affected patients
+
+# %%
+fix_egrf_patients = [
+    "He_Fan_2021_P1",
+    "He_Fan_2021_P2",
+    "He_Fan_2021_P3",
+    "He_Fan_2021_P4",
+    "He_Fan_2021_P5",
+    "Laughney_Massague_2020_LX666",
+    "Laughney_Massague_2020_LX675",
+    "Laughney_Massague_2020_LX701",
+]
+assert np.all(
+    np.isin(fix_egrf_patients, atlas.obs["patient"])
+), "invalid patient_id specified"
+atlas.obs.loc[lambda x: x["patient"].isin(fix_egrf_patients), "EGFR_mutation"] = (
+    "mutated"
+)
 
 # %% [markdown]
 # ### condition / disease_ontology_term_id
@@ -392,7 +420,8 @@ atlas.obs["ethnicity_ontology_term_id"] = "unknown"
 # ### is_primary_data
 #
 # is_primary_data may be set to True for each cell exactely once in all cellxgene collections.
-# The canonical source of the "UKIM-V" dataset (3 patients) is the core atlas, the one of the "UKIM-V-2" dataset is the extended atlas. 
+# The canonical source of the "UKIM-V" dataset (3 patients) is the core atlas, the one of the "UKIM-V-2" dataset is the extended atlas.
+
 
 # %%
 def is_primary_data(dataset):
@@ -460,6 +489,7 @@ remap(atlas, tissue_map, "tissue_ontology_term_id", "tissue")
 # ### User category: ann_fine
 # Make it consistent with the paper
 
+
 # %%
 def ann_fine_map(x):
     if x == "Tumor cells":
@@ -502,9 +532,9 @@ atlas.obs["tumor_stage"] = atlas.obs["tumor_stage"].astype("category")
 atlas.obs["uicc_stage"] = atlas.obs["uicc_stage"].astype(str)
 
 # %%
-atlas.obs.loc[
-    lambda x: (x["condition"].isin(["non-cancer", "COPD"])), "uicc_stage"
-] = "non-cancer"
+atlas.obs.loc[lambda x: (x["condition"].isin(["non-cancer", "COPD"])), "uicc_stage"] = (
+    "non-cancer"
+)
 atlas.obs.loc[lambda x: (x["uicc_stage"] == "None"), "uicc_stage"] = np.nan
 
 # %%
